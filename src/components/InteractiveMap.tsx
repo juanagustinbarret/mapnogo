@@ -6,7 +6,7 @@ import { Comercio } from '@/types/database.types';
 import { MapPin, ExternalLink, Navigation, UserCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-// Marcador Verde para los Comercios
+// Marcador Verde para Comercios
 const comercioIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -26,11 +26,11 @@ const userIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Componente de auto-centrado cuando se detecta o actualiza tu ubicación
+// Auto-centrado suave al cambiar la ubicación
 const RecenterMap: React.FC<{ center: [number, number] }> = ({ center }) => {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, 16, { animate: true });
+    map.flyTo(center, 16, { animate: true, duration: 1.2 });
   }, [center, map]);
   return null;
 };
@@ -56,20 +56,23 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ comercios, userL
     const geocodificarComercios = async () => {
       const resultados = await Promise.all(
         comercios.map(async (comercio) => {
-          // Si ya posee coordenadas personalizadas cargadas manualmente
+          // Si el comercio ya tiene latitud/longitud personalizadas guardadas
           if (comercio.latitud && comercio.longitud && comercio.latitud !== -32.3939) {
             return { ...comercio, latReal: comercio.latitud, lngReal: comercio.longitud };
           }
 
-          // Corrección precisa de dirección formateada para Nogoyá
           try {
             let direccionLimpia = comercio.direccion;
             if (!direccionLimpia.toLowerCase().includes('calle')) {
               direccionLimpia = `Calle ${direccionLimpia}`;
             }
 
+            // Búsqueda delimitada dentro de Nogoyá (Bounding Box)
             const query = encodeURIComponent(`${direccionLimpia}, Nogoyá, Entre Ríos, Argentina`);
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+            const viewbox = `-59.8200,-32.3700,-59.7500,-32.4200`; // Delimitación exacta Nogoyá
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${query}&viewbox=${viewbox}&bounded=1&limit=1`
+            );
             const data = await res.json();
 
             if (data && data.length > 0) {
@@ -80,7 +83,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ comercios, userL
               };
             }
           } catch (e) {
-            console.error('Error al obtener coordenadas exactas:', e);
+            console.error('Error al geocodificar dirección:', e);
           }
 
           return { ...comercio, latReal: -32.3939, lngReal: -59.7881 };
@@ -109,7 +112,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ comercios, userL
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* PIN AZUL DE TU UBICACIÓN ACTUAL */}
+        {/* MARCADOR AZUL: TU UBICACIÓN */}
         {userLocation && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
             <Popup>
@@ -117,13 +120,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ comercios, userL
                 <span className="font-bold text-xs text-blue-600 flex items-center justify-center gap-1">
                   <UserCheck className="w-4 h-4" /> ¡Estás acá!
                 </span>
-                <p className="text-[11px] text-gray-500">Tu posición en Nogoyá</p>
+                <p className="text-[11px] text-gray-500">Tu punto actual en Nogoyá</p>
               </div>
             </Popup>
           </Marker>
         )}
 
-        {/* PINES VERDES DE CADA NEGOCIO */}
+        {/* MARCADORES VERDES: COMERCIOS */}
         {comerciosUbicados.map((comercio) => {
           const lat = comercio.latReal || -32.3939;
           const lng = comercio.lngReal || -59.7881;

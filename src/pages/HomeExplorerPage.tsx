@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Comercio, Rubro } from '@/types/database.types';
+import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap } from '@/components/InteractiveMap';
-import { Search, MapPin, Store, LocateFixed, Navigation } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 
-// Función para calcular distancia en kilómetros (Fórmula de Haversine)
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -23,8 +23,10 @@ function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: num
 export const HomeExplorerPage: React.FC = () => {
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [rubros, setRubros] = useState<Rubro[]>([]);
+  const [horarios, setHorarios] = useState<Record<string, HorarioAtencion[]>>({});
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
+  const [soloAbiertos, setSoloAbiertos] = useState(false);
   
   const [userAddress, setUserAddress] = useState<string>('Nogoyá, Entre Ríos');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -42,11 +44,21 @@ export const HomeExplorerPage: React.FC = () => {
       .eq('aprobado', true)
       .eq('habilitado_admin', true);
 
+    const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
+
     if (rubrosData) setRubros(rubrosData);
     if (comerciosData) setComercios(comerciosData);
+
+    if (horariosData) {
+      const mapaHorarios: Record<string, HorarioAtencion[]> = {};
+      horariosData.forEach((h) => {
+        if (!mapaHorarios[h.comercio_id]) mapaHorarios[h.comercio_id] = [];
+        mapaHorarios[h.comercio_id].push(h);
+      });
+      setHorarios(mapaHorarios);
+    }
   };
 
-  // Solicitar ubicación por GPS o Entrada Manual
   const solicitarUbicacion = () => {
     setLoadingLoc(true);
     if ('geolocation' in navigator) {
@@ -62,13 +74,13 @@ export const HomeExplorerPage: React.FC = () => {
             const calle = data.address?.road || data.address?.pedestrian || 'Tu ubicación';
             setUserAddress(`${calle}, Nogoyá`);
           } catch {
-            setUserAddress('Ubicación detectada por GPS');
+            setUserAddress('Ubicación GPS detectada');
           }
           setLoadingLoc(false);
         },
         async () => {
           setLoadingLoc(false);
-          const calleManual = prompt('El navegador requiere HTTPS para GPS directo. Ingresá tu calle en Nogoyá (ej: San Lorenzo 600):');
+          const calleManual = prompt('Ingresá tu calle en Nogoyá para centrar la distancia (ej: San Lorenzo 600):');
           if (calleManual) {
             setLoadingLoc(true);
             try {
@@ -76,7 +88,6 @@ export const HomeExplorerPage: React.FC = () => {
               if (!direccionLimpia.toLowerCase().includes('calle')) {
                 direccionLimpia = `Calle ${direccionLimpia}`;
               }
-
               const query = encodeURIComponent(`${direccionLimpia}, Nogoyá, Entre Ríos, Argentina`);
               const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
               const data = await res.json();
@@ -90,7 +101,7 @@ export const HomeExplorerPage: React.FC = () => {
                 alert('No se pudo encontrar esa dirección en Nogoyá.');
               }
             } catch (e) {
-              console.error('Error al geocodificar la calle manual:', e);
+              console.error('Error al geocodificar:', e);
             }
             setLoadingLoc(false);
           }
@@ -103,13 +114,13 @@ export const HomeExplorerPage: React.FC = () => {
     }
   };
 
-  // Filtrar y calcular distancia si existe ubicación
   const filteredComercios = comercios
     .map((c) => {
       const latC = c.latitud || -32.3939;
       const lngC = c.longitud || -59.7881;
       const distancia = userLocation ? calcularDistanciaKm(userLocation.lat, userLocation.lng, latC, lngC) : null;
-      return { ...c, distancia };
+      const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || []);
+      return { ...c, distancia, estadoAtencion };
     })
     .filter((c) => {
       const matchSearch =
@@ -117,7 +128,8 @@ export const HomeExplorerPage: React.FC = () => {
         c.descripcion_corta.toLowerCase().includes(search.toLowerCase()) ||
         c.direccion.toLowerCase().includes(search.toLowerCase());
       const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
-      return matchSearch && matchRubro;
+      const matchAbierto = soloAbiertos ? c.estadoAtencion.estado === 'abierto' : true;
+      return matchSearch && matchRubro && matchAbierto;
     })
     .sort((a, b) => {
       if (a.distancia !== null && b.distancia !== null) {
@@ -129,41 +141,50 @@ export const HomeExplorerPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       
-      {/* BARRA DE UBICACIÓN ACTUAL */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-brand-50 text-brand-600 rounded-xl">
-            <LocateFixed className="w-5 h-5" />
+      {/* TARJETA DE BIENVENIDA Y UBICACIÓN */}
+      <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Directorio Comercial Inteligente
           </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Tu Ubicación Aproximada</p>
-            <p className="text-sm font-bold text-gray-900 dark:text-white">{userAddress}</p>
-          </div>
+          <h1 className="text-2xl font-black">Explorá Comercios en Nogoyá</h1>
+          <p className="text-xs text-brand-100 flex items-center gap-1">
+            <LocateFixed className="w-3.5 h-3.5" /> Ubicación: <strong className="text-white">{userAddress}</strong>
+          </p>
         </div>
 
         <button
           onClick={solicitarUbicacion}
           disabled={loadingLoc}
-          className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-sm"
+          className="px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-md transition shrink-0"
         >
-          <Navigation className="w-4 h-4" /> {loadingLoc ? 'Obteniendo...' : 'Actualizar Ubicación'}
+          <Navigation className="w-4 h-4" /> {loadingLoc ? 'Obteniendo...' : 'Actualizar Mi Ubicación'}
         </button>
       </div>
 
-      {/* FILTROS Y BÚSQUEDA */}
+      {/* CONTROLES Y FILTROS */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por comercio o calle (ej: San Lorenzo)..."
+            placeholder="Buscar por negocio o calle (ej: San Lorenzo)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 items-center">
+          <button
+            onClick={() => setSoloAbiertos(!soloAbiertos)}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-full whitespace-nowrap transition flex items-center gap-1 ${
+              soloAbiertos ? 'bg-green-600 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
+          </button>
+
           <button
             onClick={() => setSelectedRubro('')}
             className={`px-3.5 py-1.5 text-xs font-semibold rounded-full whitespace-nowrap transition ${
@@ -172,6 +193,7 @@ export const HomeExplorerPage: React.FC = () => {
           >
             Todos
           </button>
+
           {rubros.map((r) => (
             <button
               key={r.id}
@@ -186,7 +208,7 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MAPA + LISTADO */}
+      {/* MAPA Y LISTADO CON ETIQUETAS DE ESTADO */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
         <div className="lg:col-span-2 h-full">
           <InteractiveMap comercios={filteredComercios} userLocation={userLocation} />
@@ -196,29 +218,40 @@ export const HomeExplorerPage: React.FC = () => {
           {filteredComercios.length === 0 ? (
             <div className="text-center py-12 text-gray-500 space-y-2">
               <Store className="w-10 h-10 mx-auto opacity-40" />
-              <p className="text-sm font-semibold">No se encontraron comercios en Nogoyá</p>
+              <p className="text-sm font-semibold">No se encontraron negocios con esos filtros</p>
             </div>
           ) : (
             filteredComercios.map((comercio) => (
-              <div key={comercio.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:border-brand-500 transition">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-gray-900 dark:text-white">{comercio.nombre}</h3>
+              <div key={comercio.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:border-brand-500 transition space-y-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                      {comercio.nombre}
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" title="Verificado" />
+                    </h3>
+                    <span className="text-[11px] font-bold text-brand-600">{comercio.rubro?.nombre}</span>
+                  </div>
+
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-xs bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 px-2.5 py-0.5 rounded-full font-bold">
-                      {comercio.rubro?.nombre}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      comercio.estadoAtencion.estado === 'abierto' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                    }`}>
+                      {comercio.estadoAtencion.mensaje}
                     </span>
                     {comercio.distancia !== null && (
-                      <span className="text-[10px] font-bold text-green-600 font-mono">
+                      <span className="text-[10px] font-bold text-gray-400 font-mono">
                         a {comercio.distancia} km
                       </span>
                     )}
                   </div>
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">{comercio.descripcion_corta}</p>
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-brand-600" /> {comercio.direccion}</span>
-                  <Link to={`/comercio/${comercio.slug}`} className="text-brand-600 font-bold hover:underline">
-                    Ver ficha
+
+                <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{comercio.descripcion_corta}</p>
+
+                <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t dark:border-gray-700">
+                  <span className="flex items-center gap-1 truncate"><MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" /> {comercio.direccion}</span>
+                  <Link to={`/comercio/${comercio.slug}`} className="text-brand-600 font-bold hover:underline shrink-0">
+                    Ver Ficha →
                   </Link>
                 </div>
               </div>
