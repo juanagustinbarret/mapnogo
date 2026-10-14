@@ -50,31 +50,47 @@ export const MerchantDashboardPage: React.FC = () => {
   }, [user]);
 
   const fetchMerchantData = async () => {
-    setLoading(true);
-    const { data: c } = await supabase.from('comercios').select('*').eq('propietario_id', user?.id).single();
+  setLoading(true);
+
+  // 1. Primero busca por propietario_id
+  let { data: c } = await supabase
+    .from('comercios')
+    .select('*')
+    .eq('propietario_id', user?.id)
+    .maybeSingle();
+
+  // 2. Si no lo encuentra por ID (ej. si fue creado por el admin con email_comercial), busca por email
+  if (!c && user?.email) {
+    const { data: cByEmail } = await supabase
+      .from('comercios')
+      .select('*')
+      .eq('email_comercial', user.email)
+      .maybeSingle();
+    c = cByEmail;
+  }
+
+  if (c) {
+    setComercio(c);
     
-    if (c) {
-      setComercio(c);
-      
-      const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).single();
-      if (s) setSuscripcion(s);
+    const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
+    if (s) setSuscripcion(s);
 
-      const { data: p } = await supabase
-        .from('promociones')
-        .select('*')
-        .eq('comercio_id', c.id)
-        .order('created_at', { ascending: false });
-      if (p) setPromociones(p);
+    const { data: p } = await supabase
+      .from('promociones')
+      .select('*')
+      .eq('comercio_id', c.id)
+      .order('created_at', { ascending: false });
+    if (p) setPromociones(p);
 
-      const { data: h } = await supabase
-        .from('horarios_atencion')
-        .select('*')
-        .eq('comercio_id', c.id)
-        .order('dia_semana', { ascending: true });
-      if (h) setHorarios(h);
-    }
-    setLoading(false);
-  };
+    const { data: h } = await supabase
+      .from('horarios_atencion')
+      .select('*')
+      .eq('comercio_id', c.id)
+      .order('dia_semana', { ascending: true });
+    if (h) setHorarios(h);
+  }
+  setLoading(false);
+};
 
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();

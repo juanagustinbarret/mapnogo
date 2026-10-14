@@ -21,31 +21,12 @@ export const MerchantLoginPage: React.FC = () => {
     });
 
     if (authErr) {
-      if (authErr.message.includes('Email not confirmed')) {
-        setError('El correo aún no ha sido confirmado. Desactivá "Confirm email" en Supabase.');
-      } else {
-        setError('Credenciales inválidas. Verificá tu correo y contraseña.');
-      }
+      setError('Credenciales inválidas. Verificá tu correo y contraseña.');
       setLoading(false);
       return;
     }
 
-    // Consultar perfil usando maybeSingle() para que no lance error si la fila aún no existe
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('rol')
-      .eq('id', data.user.id)
-      .maybeSingle();
-
-    // Determinar rol del perfil o de los metadatos de Auth
-    const userRole = profile?.rol || data.user.user_metadata?.rol || 'comerciante';
-
-    if (userRole === 'admin') {
-      navigate('/admin');
-      return;
-    }
-
-    // Permitir el acceso al panel comercial
+    // SIEMPRE redirigir al panel del comercio (/panel) independientemente de si la cuenta es admin o comerciante
     navigate('/panel');
   };
 
@@ -56,8 +37,8 @@ export const MerchantLoginPage: React.FC = () => {
           <div className="p-3 bg-brand-50 text-brand-600 rounded-2xl w-fit mx-auto">
             <Store className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ingreso a tu Comercio</h1>
-          <p className="text-xs text-gray-500">Accedé a tu panel para gestionar tus promociones y horarios.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ingreso a Panel Comercio</h1>
+          <p className="text-xs text-gray-500">Accedé a la gestión de tu negocio, horarios y ofertas.</p>
         </div>
 
         {error && (
@@ -68,7 +49,7 @@ export const MerchantLoginPage: React.FC = () => {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold mb-1">Correo Electrónico</label>
+            <label className="block text-xs font-semibold mb-1">Correo Electrónico Comercial</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
               <input
@@ -102,7 +83,7 @@ export const MerchantLoginPage: React.FC = () => {
             disabled={loading}
             className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm transition"
           >
-            {loading ? 'Ingresando...' : 'Iniciar Sesión'}
+            {loading ? 'Ingresando...' : 'Acceder a mi Panel'}
           </button>
         </form>
       </div>
