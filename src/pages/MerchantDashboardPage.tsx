@@ -12,28 +12,25 @@ import {
   MessageCircle,
   Tag,
   PlusCircle,
-  BarChart2,
-  CheckCircle2,
-  Calendar,
-  Trash2,
   QrCode,
   Clock,
-  Sparkles,
-  X,
-  Share2,
-  Plus
+  Trash2,
+  Plus,
+  LogOut
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const MerchantDashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(null);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados Modal Promoción
+  // Modal Promoción
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [savingPromo, setSavingPromo] = useState(false);
   const [promoForm, setPromoForm] = useState({
@@ -50,52 +47,56 @@ export const MerchantDashboardPage: React.FC = () => {
   }, [user]);
 
   const fetchMerchantData = async () => {
-  setLoading(true);
+    setLoading(true);
 
-  // 1. Primero busca por propietario_id
-  let { data: c } = await supabase
-    .from('comercios')
-    .select('*')
-    .eq('propietario_id', user?.id)
-    .maybeSingle();
-
-  // 2. Si no lo encuentra por ID (ej. si fue creado por el admin con email_comercial), busca por email
-  if (!c && user?.email) {
-    const { data: cByEmail } = await supabase
+    // 1. Buscar comercio por propietario_id
+    let { data: c } = await supabase
       .from('comercios')
       .select('*')
-      .eq('email_comercial', user.email)
+      .eq('propietario_id', user?.id)
       .maybeSingle();
-    c = cByEmail;
-  }
 
-  if (c) {
-    setComercio(c);
-    
-    const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
-    if (s) setSuscripcion(s);
+    // 2. Si no lo encuentra, buscar por email_comercial
+    if (!c && user?.email) {
+      const { data: cByEmail } = await supabase
+        .from('comercios')
+        .select('*')
+        .eq('email_comercial', user.email)
+        .maybeSingle();
+      c = cByEmail;
+    }
 
-    const { data: p } = await supabase
-      .from('promociones')
-      .select('*')
-      .eq('comercio_id', c.id)
-      .order('created_at', { ascending: false });
-    if (p) setPromociones(p);
+    if (c) {
+      setComercio(c);
 
-    const { data: h } = await supabase
-      .from('horarios_atencion')
-      .select('*')
-      .eq('comercio_id', c.id)
-      .order('dia_semana', { ascending: true });
-    if (h) setHorarios(h);
-  }
-  setLoading(false);
-};
+      const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
+      if (s) setSuscripcion(s);
+
+      const { data: p } = await supabase
+        .from('promociones')
+        .select('*')
+        .eq('comercio_id', c.id)
+        .order('created_at', { ascending: false });
+      if (p) setPromociones(p);
+
+      const { data: h } = await supabase
+        .from('horarios_atencion')
+        .select('*')
+        .eq('comercio_id', c.id)
+        .order('dia_semana', { ascending: true });
+      if (h) setHorarios(h);
+    }
+    setLoading(false);
+  };
 
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comercio) return;
     setSavingPromo(true);
+
+    const hoy = new Date();
+    const fechaFin = new Date();
+    fechaFin.setDate(hoy.getDate() + 30);
 
     const newPromo = {
       comercio_id: comercio.id,
@@ -103,6 +104,8 @@ export const MerchantDashboardPage: React.FC = () => {
       descripcion: promoForm.descripcion,
       precio_anterior: promoForm.precio_anterior ? parseFloat(promoForm.precio_anterior) : null,
       precio_promocional: promoForm.precio_promocional ? parseFloat(promoForm.precio_promocional) : null,
+      fecha_inicio: hoy.toISOString().split('T')[0],
+      fecha_fin: fechaFin.toISOString().split('T')[0],
       aprobada: true,
     };
 
@@ -141,10 +144,23 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!error) fetchMerchantData();
   };
 
-  const urlFichaPublica = comercio ? `${window.location.origin}/comercio/${comercio.slug}` : '';
-  const qrUrl = comercio
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(urlFichaPublica)}`
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  // URL para reseñas de Google Maps basada en la dirección del local
+  const googleReviewUrl = comercio
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${comercio.nombre},${comercio.direccion}, Nogoyá, Entre Ríos`)}`
     : '';
+
+  const qrUrl = comercio
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(googleReviewUrl)}`
+    : '';
+
+  if (loading) {
+    return <div className="p-12 text-center text-gray-500 font-semibold">Cargando datos del negocio...</div>;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in duration-300">
@@ -154,22 +170,31 @@ export const MerchantDashboardPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Store className="w-7 h-7 text-brand-600" />
-            Panel de Control de <span className="text-brand-600">{comercio?.nombre || 'tu Negocio'}</span>
+            Panel de Control de <span className="text-brand-600">{comercio ? comercio.nombre : 'tu Negocio'}</span>
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gestioná promociones, horarios de atención y descargá tu QR comercial.
+            Gestioná promociones, horarios de atención y tu código QR de Google Reseñas.
           </p>
         </div>
 
-        {comercio && (
-          <Link
-            to={`/comercio/${comercio.slug}`}
-            target="_blank"
-            className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-2 shadow-sm transition"
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          {comercio && (
+            <Link
+              to={`/comercio/${comercio.slug}`}
+              target="_blank"
+              className="flex-1 md:flex-none px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition"
+            >
+              Ver Ficha Pública <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          )}
+
+          <button
+            onClick={handleSignOut}
+            className="px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
           >
-            Ver Ficha Pública <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
-        )}
+            <LogOut className="w-4 h-4" /> Cerrar Sesión
+          </button>
+        </div>
       </div>
 
       {/* MÉTRICAS */}
@@ -250,14 +275,14 @@ export const MerchantDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between">
           <div>
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
-              <QrCode className="w-5 h-5 text-brand-600" /> QR para Mostrador
+              <QrCode className="w-5 h-5 text-brand-600" /> QR para Reseñas en Google
             </h3>
-            <p className="text-xs text-gray-500 mt-2">Tus clientes escanean e ingresan a tus ofertas.</p>
+            <p className="text-xs text-gray-500 mt-2">Tus clientes escanean el QR y van directamente a calificar tu negocio en Google Maps.</p>
           </div>
           {comercio && (
             <div className="flex flex-col items-center gap-2 py-2">
-              <img src={qrUrl} alt="QR" className="w-28 h-28 p-1 bg-white rounded-lg border shadow-sm" />
-              <a href={qrUrl} download={`QR_${comercio.slug}.png`} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand-600 hover:underline">
+              <img src={qrUrl} alt="QR Reseñas Google" className="w-28 h-28 p-1 bg-white rounded-lg border shadow-sm" />
+              <a href={qrUrl} download={`QR_Resenas_${comercio.slug}.png`} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand-600 hover:underline">
                 Descargar QR
               </a>
             </div>
@@ -324,7 +349,7 @@ export const MerchantDashboardPage: React.FC = () => {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL NUEVA PROMO */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4">

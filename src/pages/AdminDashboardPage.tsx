@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Comercio } from '@/types/database.types';
-import { formatCurrency, formatDate } from '@/lib/formatters';
+import { Comercio, Rubro } from '@/types/database.types';
+import { formatCurrency } from '@/lib/formatters';
+import { useAuth } from '@/context/AuthContext';
 import {
   Store,
   DollarSign,
   PlusCircle,
-  MessageCircle,
-  CreditCard,
-  Settings,
-  ArrowRight,
   ExternalLink,
   Trash2,
   LogIn,
@@ -19,21 +16,51 @@ import {
   Shield,
   Tag,
   CheckCircle,
-  XCircle
+  XCircle,
+  Edit,
+  LogOut,
+  Save
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export const AdminDashboardPage: React.FC = () => {
+  const { signOut } = useAuth();
   const navigate = useNavigate();
+
   const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [rubros, setRubros] = useState<Rubro[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState({ totalComercios: 0, ingresosMes: 0 });
-  const [modalAcceso, setModalAcceso] = useState<Comercio | null>(null);
+
+  // Modales
+  const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
 
   useEffect(() => {
     fetchComerciosYStats();
+    fetchRubros();
+
+    // SUSCRIPCIÓN EN TIEMPO REAL
+    const channel = supabase
+      .channel('realtime_comercios')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'comercios' },
+        () => {
+          fetchComerciosYStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  const fetchRubros = async () => {
+    const { data } = await supabase.from('rubros').select('*');
+    if (data) setRubros(data);
+  };
 
   const fetchComerciosYStats = async () => {
     setLoading(true);
@@ -53,30 +80,55 @@ export const AdminDashboardPage: React.FC = () => {
     setLoading(false);
   };
 
-  // Alternar Estado de Pago (Habilitado / Suspendido)
+  // Alternar Estado de Pago (Habilitado / Oculto)
   const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
     const { error } = await supabase
       .from('comercios')
       .update({ habilitado_admin: !estadoActual })
       .eq('id', id);
 
-    if (!error) {
-      fetchComerciosYStats();
-    } else {
+    if (error) {
       alert('Error al actualizar el estado: ' + error.message);
     }
   };
 
-  // Eliminar Comercio definitivamente
+  // Eliminar Comercio
   const handleEliminarComercio = async (id: string, nombre: string) => {
-    if (!confirm(`¿Estás seguro de eliminar "${nombre}"? Se borrará de la lista y del mapa público.`)) return;
+    if (!confirm(`¿Estás seguro de eliminar "${nombre}"?`)) return;
 
     const { error } = await supabase.from('comercios').delete().eq('id', id);
-    if (!error) {
-      fetchComerciosYStats();
-    } else {
+    if (error) {
       alert('Error al eliminar: ' + error.message);
     }
+  };
+
+  // Guardar Cambios de Edición
+  const handleGuardarEdicion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalEditar) return;
+
+    const { error } = await supabase
+      .from('comercios')
+      .update({
+        nombre: modalEditar.nombre,
+        direccion: modalEditar.direccion,
+        whatsapp: modalEditar.whatsapp,
+        rubro_id: modalEditar.rubro_id,
+        descripcion_corta: modalEditar.descripcion_corta
+      })
+      .eq('id', modalEditar.id);
+
+    if (error) {
+      alert('Error al guardar edición: ' + error.message);
+    } else {
+      setModalEditar(null);
+      fetchComerciosYStats();
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/admin/login');
   };
 
   const comerciosFiltrados = comercios.filter(
@@ -93,10 +145,10 @@ export const AdminDashboardPage: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-7 h-7 text-brand-600" /> Panel de Control Administrativo
+            <Shield className="w-7 h-7 text-brand-600" /> Panel Administrador Central
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gestión centralizada de comercios, control de pagos y mapa interactivo.
+            Gestión en tiempo real de comercios, estados de pago y mapa general.
           </p>
         </div>
 
@@ -105,70 +157,70 @@ export const AdminDashboardPage: React.FC = () => {
             to="/admin/comercios/nuevo"
             className="flex-1 md:flex-none px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition"
           >
-            <PlusCircle className="w-4 h-4" /> ➕ Dar de Alta Comercio
+            <PlusCircle className="w-4 h-4" /> ➕ Nuevo Comercio
           </Link>
-          <Link
-            to="/"
-            target="_blank"
-            className="flex-1 md:flex-none px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 hover:bg-gray-200 transition"
+
+          <button
+            onClick={handleSignOut}
+            className="flex-1 md:flex-none px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
           >
-            <ExternalLink className="w-4 h-4 text-gray-500" /> Ver Mapa Público
-          </Link>
+            <LogOut className="w-4 h-4" /> Cerrar Sesión
+          </button>
         </div>
       </div>
 
-      {/* MÉTRICAS PRINCIPALES */}
+      {/* MÉTRICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Comercios Cargados</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Comercios</p>
             <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalComercios}</p>
           </div>
-          <div className="p-3 bg-brand-50 dark:bg-brand-950/40 text-brand-600 rounded-xl">
+          <div className="p-3 bg-brand-50 text-brand-600 rounded-xl">
             <Store className="w-6 h-6" />
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación del Mes</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación Mes</p>
             <p className="text-3xl font-bold text-green-600 mt-1">{formatCurrency(stats.ingresosMes)}</p>
           </div>
-          <div className="p-3 bg-green-50 dark:bg-green-950/40 text-green-600 rounded-xl">
+          <div className="p-3 bg-green-50 text-green-600 rounded-xl">
             <DollarSign className="w-6 h-6" />
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Módulos Activos</p>
-            <p className="text-3xl font-bold text-blue-600 mt-1">Mapa + Promos</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sincronización</p>
+            <p className="text-3xl font-bold text-blue-600 mt-1">Tiempo Real</p>
           </div>
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-xl">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
             <Tag className="w-6 h-6" />
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ubicación</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ciudad</p>
             <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">Nogoyá</p>
           </div>
-          <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-600 rounded-xl">
+          <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
             <MapPin className="w-6 h-6" />
           </div>
         </div>
       </div>
 
-      {/* TABLA Y LISTA DE COMERCIOS */}
+      {/* TABLA PRINCIPAL DE COMERCIOS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Building className="w-5 h-5 text-brand-600" /> Lista General de Comercios
+              <Building className="w-5 h-5 text-brand-600" /> Comercios Registrados
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Controlá el estado del pago. Solo los comercios al día aparecen en el mapa público.
+              Solo los comercios activos aparecen visibles en el mapa público.
             </p>
           </div>
 
@@ -176,7 +228,7 @@ export const AdminDashboardPage: React.FC = () => {
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre, dirección o WhatsApp..."
+              placeholder="Buscar por nombre o dirección..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -185,9 +237,9 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-gray-500">Cargando la lista de comercios...</div>
+          <div className="p-12 text-center text-gray-500">Cargando lista de comercios...</div>
         ) : comerciosFiltrados.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">No se encontraron comercios cargados.</div>
+          <div className="p-12 text-center text-gray-500">No se encontraron comercios.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -203,12 +255,8 @@ export const AdminDashboardPage: React.FC = () => {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
                 {comerciosFiltrados.map((comercio) => (
                   <tr key={comercio.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                    <td className="p-4">
-                      <div className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Store className="w-4 h-4 text-brand-600 shrink-0" />
-                        {comercio.nombre}
-                      </div>
-                      <span className="text-xs text-gray-400 font-mono">slug: {comercio.slug}</span>
+                    <td className="p-4 font-bold text-gray-900 dark:text-white">
+                      {comercio.nombre}
                     </td>
 
                     <td className="p-4">
@@ -217,23 +265,22 @@ export const AdminDashboardPage: React.FC = () => {
                       </span>
                     </td>
 
-                    {/* BOTÓN PARA CAMBIAR ESTADO DE PAGO */}
                     <td className="p-4">
                       <button
                         onClick={() => handleToggleEstadoPago(comercio.id, comercio.habilitado_admin)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
                           comercio.habilitado_admin
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950/50 dark:text-green-300'
-                            : 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300'
+                            : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
                         }`}
                       >
                         {comercio.habilitado_admin ? (
                           <>
-                            <CheckCircle className="w-3.5 h-3.5 text-green-600" /> Al Día (Visible en Mapa)
+                            <CheckCircle className="w-3.5 h-3.5 text-green-600" /> Al Día (Visible)
                           </>
                         ) : (
                           <>
-                            <XCircle className="w-3.5 h-3.5 text-red-600" /> Pago Pendiente (Oculto)
+                            <XCircle className="w-3.5 h-3.5 text-red-600" /> Suspendido (Oculto)
                           </>
                         )}
                       </button>
@@ -245,11 +292,11 @@ export const AdminDashboardPage: React.FC = () => {
 
                     <td className="p-4 text-right space-x-2 whitespace-nowrap">
                       <button
-                        onClick={() => setModalAcceso(comercio)}
-                        title="Ingresar al panel de este comercio"
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1 shadow-sm transition"
+                        onClick={() => setModalEditar(comercio)}
+                        title="Editar Comercio"
+                        className="p-2 text-gray-600 hover:text-brand-600 rounded-lg inline-block"
                       >
-                        <LogIn className="w-3.5 h-3.5" /> Panel
+                        <Edit className="w-4 h-4" />
                       </button>
 
                       <Link
@@ -277,35 +324,77 @@ export const AdminDashboardPage: React.FC = () => {
         )}
       </div>
 
-      {/* MODAL ACCESO A PANEL */}
-      {modalAcceso && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+      {/* MODAL EDITAR COMERCIO */}
+      {modalEditar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Shield className="w-5 h-5 text-brand-600" /> Administrar {modalAcceso.nombre}
+              <Edit className="w-5 h-5 text-brand-600" /> Editar {modalEditar.nombre}
             </h3>
 
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Podés ingresar al panel comercial para modificar promociones u horarios en nombre del dueño.
-            </p>
+            <form onSubmit={handleGuardarEdicion} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Nombre</label>
+                <input
+                  type="text"
+                  required
+                  value={modalEditar.nombre}
+                  onChange={(e) => setModalEditar({ ...modalEditar, nombre: e.target.value })}
+                  className="w-full px-3.5 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
+                />
+              </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setModalAcceso(null)}
-                className="px-4 py-2 border rounded-xl text-xs font-semibold"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  setModalAcceso(null);
-                  navigate('/panel', { state: { comercioId: modalAcceso.id } });
-                }}
-                className="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold"
-              >
-                Ingresar al Panel
-              </button>
-            </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Dirección</label>
+                <input
+                  type="text"
+                  required
+                  value={modalEditar.direccion}
+                  onChange={(e) => setModalEditar({ ...modalEditar, direccion: e.target.value })}
+                  className="w-full px-3.5 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">WhatsApp</label>
+                <input
+                  type="text"
+                  required
+                  value={modalEditar.whatsapp}
+                  onChange={(e) => setModalEditar({ ...modalEditar, whatsapp: e.target.value })}
+                  className="w-full px-3.5 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Rubro</label>
+                <select
+                  value={modalEditar.rubro_id}
+                  onChange={(e) => setModalEditar({ ...modalEditar, rubro_id: e.target.value })}
+                  className="w-full px-3.5 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
+                >
+                  {rubros.map((r) => (
+                    <option key={r.id} value={r.id}>{r.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalEditar(null)}
+                  className="px-4 py-2 border rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
+                >
+                  <Save className="w-4 h-4" /> Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
