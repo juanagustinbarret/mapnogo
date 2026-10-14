@@ -15,30 +15,36 @@ export const AdminLoginPage: React.FC = () => {
     setLoading(true);
     setError('');
 
+    // 1. Iniciar sesión en Supabase Auth
     const { data, error: authErr } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (authErr) {
-      setError('Credenciales de administrador inválidas.');
+    if (authErr || !data.user) {
+      setError('Credenciales inválidas. Verificá tu correo y contraseña.');
       setLoading(false);
       return;
     }
 
+    // 2. Verificar el rol en la tabla 'profiles'
     const { data: profile } = await supabase
       .from('profiles')
       .select('rol')
       .eq('id', data.user.id)
-      .single();
+      .maybeSingle();
 
-    if (profile?.rol !== 'admin') {
+    // Comprobar rol en la tabla 'profiles' O en los metadatos del usuario de Auth
+    const userRole = profile?.rol || data.user.user_metadata?.rol;
+
+    if (userRole !== 'admin') {
       await supabase.auth.signOut();
-      setError('Acceso denegado: Esta cuenta no es administradora.');
+      setError('Acceso denegado: Esta cuenta no tiene permisos de administrador.');
       setLoading(false);
       return;
     }
 
+    // 3. Acceso concedido
     navigate('/admin');
   };
 
