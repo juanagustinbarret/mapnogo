@@ -13,44 +13,43 @@ export const evaluarEstadoHorario = (
     return { estado: 'no_informado', mensaje: 'Horario no informado' };
   }
 
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone: 'America/Argentina/Cordoba',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  };
+  // Convertir día de JavaScript (0 = Domingo) a índice DB (0 = Lunes, ..., 6 = Domingo)
+  const jsDay = nowDate.getDay();
+  const currentDayIndex = jsDay === 0 ? 6 : jsDay - 1;
 
-  const formatter = new Intl.DateTimeFormat('en-US', options);
-  const parts = formatter.formatToParts(nowDate);
-  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '0';
-
-  const currentHour = parseInt(getPart('hour'), 10);
-  const currentMinute = parseInt(getPart('minute'), 10);
+  const currentHour = nowDate.getHours();
+  const currentMinute = nowDate.getMinutes();
   const currentMinutes = currentHour * 60 + currentMinute;
-  const dayOfWeek = nowDate.getDay();
 
-  const horariosHoy = horarios.filter((h) => h.dia_semana === dayOfWeek && h.activo);
+  const horariosHoy = horarios.filter((h) => h.dia_semana === currentDayIndex && h.activo);
 
   if (horariosHoy.length === 0) {
     return { estado: 'cerrado', mensaje: 'Cerrado hoy' };
   }
 
   for (const h of horariosHoy) {
+    if (!h.hora_apertura || !h.hora_cierre) continue;
+
     const [hOpen, mOpen] = h.hora_apertura.split(':').map(Number);
     const [hClose, mClose] = h.hora_cierre.split(':').map(Number);
     const startMinutes = hOpen * 60 + mOpen;
     let endMinutes = hClose * 60 + mClose;
 
-    if (h.cruza_medianoche) {
-      endMinutes += 24 * 60;
-    }
+    // Si la hora de cierre es menor a la de apertura, cruza la medianoche (ej: 20:00 a 02:00)
+    const cruzaMedianoche = endMinutes < startMinutes || h.cruza_medianoche;
 
-    if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
-      const diff = endMinutes - currentMinutes;
-      if (diff <= 30) {
-        return { estado: 'cierra_pronto', mensaje: `Cierra pronto (${diff} min)` };
+    if (cruzaMedianoche) {
+      if (currentMinutes >= startMinutes || currentMinutes < endMinutes) {
+        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
       }
-      return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
+    } else {
+      if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
+        const diff = endMinutes - currentMinutes;
+        if (diff <= 30) {
+          return { estado: 'cierra_pronto', mensaje: `Cierra pronto (${diff} min)` };
+        }
+        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
+      }
     }
   }
 

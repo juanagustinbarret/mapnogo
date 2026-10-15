@@ -6,7 +6,7 @@ export const normalizeWhatsAppNumber = (phone: string): { isValid: boolean; norm
     return { isValid: false, normalized: '', error: 'Sin número registrado' };
   }
 
-  // Eliminar espacios, guiones, paréntesis y símbolos no numéricos
+  // Eliminar espacios, guiones y símbolos no numéricos
   let clean = phone.replace(/\D/g, '');
 
   if (!clean) {
@@ -18,23 +18,19 @@ export const normalizeWhatsAppNumber = (phone: string): { isValid: boolean; norm
     clean = clean.substring(1);
   }
 
-  // Si empieza con 549 (ej: 5493435123456)
+  // Si empieza con 549
   if (clean.startsWith('549')) {
     // Correcto
   } else if (clean.startsWith('54')) {
-    // Si empieza con 54 sin el 9 de celular, insertar el 9 después de 54
     clean = '549' + clean.substring(2);
   } else if (clean.startsWith('15')) {
-    // Si empieza con 15 local de Nogoyá, prefijar con característico 3435 sin 15
     clean = '5493435' + clean.substring(2);
   } else if (clean.length === 10) {
-    // Caso estándar celular argentino de 10 dígitos (ej: 3435123456)
     clean = '549' + clean;
-  } else if (clean.length === 6, 7, 8) {
-    // Caso número fijo o local sin característica de área -> Asumir característica de Nogoyá (3435)
+  } else if (clean.length >= 6 && clean.length <= 8) {
+    // Número local de Nogoyá sin característica
     clean = '5493435' + clean;
   } else {
-    // Intentar anteponer 549 por defecto
     clean = '549' + clean;
   }
 
@@ -60,15 +56,18 @@ export const buildWhatsAppUrl = (phone: string, textMessage: string): string => 
 export const compileTemplate = (
   template: string,
   data: {
-    nombreComercio: string;
-    importe: string;
-    periodoFacturado: string;
-    vencimiento: string;
+    nombreComercio?: string;
+    importe?: string;
+    periodoFacturado?: string;
+    vencimiento?: string;
   }
 ): string => {
+  if (!template) return '';
+
   return template
-    .replace(/[NOMBRE DEL COMERCIO]/g, data.nombreComercio)
-    .replace(/[IMPORTE]/g, data.importe)
-    .replace(/[PERIODO]/g, data.periodoFacturado)
-    .replace(/[FECHA DE VENCIMIENTO]/g, data.vencimiento);
+    .replace(/[NOMBRE DEL COMERCIO]/g, data.nombreComercio || '')
+    .replace(/[IMPORTE]/g, data.importe || '')
+    .replace(/[PERIODO]/g, data.periodoFacturado || '')
+    .replace(/[FECHA DE VENCIMIENTO]/g, data.vencimiento || '')
+    .replace(/[VENCIMIENTO]/g, data.vencimiento || '');
 };
