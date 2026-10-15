@@ -59,7 +59,7 @@ export const Navbar: React.FC = () => {
           {/* LOGO */}
           <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-brand-600 font-bold text-xl">
             <MapPin className="w-6 h-6 text-brand-500 fill-brand-100" />
-            <span>Nogoyá <span className="text-gray-900 dark:text-white">Cerca</span></span>
+            <span>NOGO<span className="text-gray-900 dark:text-white">MAP</span></span>
           </button>
 
           {/* NAVEGACIÓN ESCRITORIO */}
