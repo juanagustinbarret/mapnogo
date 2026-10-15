@@ -57,6 +57,27 @@ export const AdminPromotionsPage: React.FC = () => {
     }
   };
 
+  const acciones = (p: Promocion) => (
+    <>
+      <button
+        onClick={() => void alternar(p)}
+        className="p-2 text-gray-600 hover:text-brand-600 rounded-lg"
+        aria-label={p.aprobada ? `Ocultar ${p.titulo}` : `Mostrar ${p.titulo}`}
+        title={p.aprobada ? 'Ocultar' : 'Mostrar'}
+      >
+        {p.aprobada ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+      <button
+        onClick={() => void borrar(p)}
+        className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
+        aria-label={`Eliminar ${p.titulo}`}
+        title="Eliminar"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </>
+  );
+
   const visibles = soloVigentes ? promos.filter(estaVigente) : promos;
 
   return (
@@ -79,8 +100,34 @@ export const AdminPromotionsPage: React.FC = () => {
       ) : visibles.length === 0 ? (
         <div className="p-12 text-center text-gray-500">No hay promociones para mostrar.</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm min-w-[720px]">
+        <>
+        {/* Celular: tarjetas */}
+        <div className="grid grid-cols-1 gap-3 md:hidden">
+          {visibles.map((p) => (
+            <div key={p.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-2">
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900 dark:text-white">{p.titulo}</h3>
+                  <p className="text-xs text-gray-500">{p.comercio?.nombre ?? '—'}</p>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${p.aprobada ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {p.aprobada ? 'Visible' : 'Oculta'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{p.descripcion}</p>
+              <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
+                <span className="text-[11px] text-gray-500">
+                  {estaVigente(p) ? `Hasta ${formatDate(p.fecha_fin)}` : 'Vencida'}
+                </span>
+                <div className="flex items-center gap-1">{acciones(p)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Computadora: tabla */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-900 text-xs font-bold text-gray-500 uppercase border-b dark:border-gray-700">
                 <th className="p-4">Promoción</th>
@@ -108,29 +155,13 @@ export const AdminPromotionsPage: React.FC = () => {
                       {p.aprobada ? 'Visible' : 'Oculta'}
                     </span>
                   </td>
-                  <td className="p-4 text-right whitespace-nowrap space-x-1">
-                    <button
-                      onClick={() => void alternar(p)}
-                      className="p-2 text-gray-600 hover:text-brand-600 rounded-lg"
-                      aria-label={p.aprobada ? `Ocultar ${p.titulo}` : `Mostrar ${p.titulo}`}
-                      title={p.aprobada ? 'Ocultar' : 'Mostrar'}
-                    >
-                      {p.aprobada ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => void borrar(p)}
-                      className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
-                      aria-label={`Eliminar ${p.titulo}`}
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+                  <td className="p-4 text-right whitespace-nowrap space-x-1">{acciones(p)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

@@ -184,6 +184,77 @@ export const AdminExpirationsPage: React.FC = () => {
     { titulo: 'Sin avisar', valor: filas.filter((f) => !f.pagado && !avisado(f)).length, clase: 'text-gray-900 dark:text-white' },
   ];
 
+  // Piezas de cada fila, compartidas por la tabla (computadora) y las tarjetas (celular)
+  const celdaVencimiento = (f: Fila) => (
+    <>
+      <span className="font-semibold">{formatDate(f.suscripcion.proximo_vencimiento)}</span>
+      <span className={`block ${f.dias < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+        {f.dias < 0 ? `hace ${-f.dias} días` : f.dias === 0 ? 'hoy' : `en ${f.dias} días`}
+      </span>
+    </>
+  );
+
+  const etiquetaEstado = (f: Fila) =>
+    f.pagado ? (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-green-100 text-green-800">Pagado</span>
+    ) : f.vencido ? (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-red-100 text-red-800 inline-flex items-center gap-1">
+        <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Vencido
+      </span>
+    ) : f.proximo ? (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-amber-100 text-amber-800">Por vencer</span>
+    ) : (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-gray-100 text-gray-600">Al día</span>
+    );
+
+  const celdaAviso = (f: Fila) =>
+    avisado(f) ? (
+      <span className="text-green-700 font-bold inline-flex items-center gap-1">
+        <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Avisado {formatDate(f.recordatorio?.fecha_gestion)}
+      </span>
+    ) : (
+      <span className="text-gray-500">Sin avisar</span>
+    );
+
+  const acciones = (f: Fila) => (
+    <>
+      {!f.pagado && (
+        <button
+          onClick={() => enviarRecordatorio(f)}
+          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
+        >
+          <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" /> Recordar
+        </button>
+      )}
+      {!f.pagado &&
+        (avisado(f) ? (
+          <button
+            onClick={() => void cambiarAviso(f, false)}
+            disabled={ocupado === f.suscripcion.id}
+            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-xl text-xs font-bold inline-flex items-center gap-1"
+          >
+            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Deshacer
+          </button>
+        ) : (
+          <button
+            onClick={() => void cambiarAviso(f, true)}
+            disabled={ocupado === f.suscripcion.id}
+            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-xl text-xs font-bold inline-flex items-center gap-1"
+          >
+            <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Marcar avisado
+          </button>
+        ))}
+      <button
+        onClick={() => void enviarMetricas(f)}
+        disabled={ocupado === f.suscripcion.id}
+        className="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center gap-1"
+        title="Enviar por WhatsApp las métricas reales de los últimos 7 días"
+      >
+        <BarChart2 className="w-3.5 h-3.5" aria-hidden="true" /> Métricas
+      </button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -243,93 +314,56 @@ export const AdminExpirationsPage: React.FC = () => {
         ) : filtradas.length === 0 ? (
           <div className="p-12 text-center text-gray-500">No hay comercios en este filtro.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[760px]">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
-                  <th className="p-4">Comercio</th>
-                  <th className="p-4">Vencimiento</th>
-                  <th className="p-4">Estado</th>
-                  <th className="p-4">Aviso</th>
-                  <th className="p-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
-                {filtradas.map((f) => (
-                  <tr key={f.suscripcion.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                    <td className="p-4">
-                      <p className="font-bold text-gray-900 dark:text-white">{f.nombre}</p>
+          <>
+            {/* Celular: tarjetas */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {filtradas.map((f) => (
+                <div key={f.suscripcion.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <h3 className="font-bold text-sm text-gray-900 dark:text-white">{f.nombre}</h3>
                       <p className="text-xs text-gray-500">{formatCurrency(f.suscripcion.precio_acordado)} / mes</p>
-                    </td>
-                    <td className="p-4 text-xs">
-                      <span className="font-semibold">{formatDate(f.suscripcion.proximo_vencimiento)}</span>
-                      <span className={`block ${f.dias < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
-                        {f.dias < 0 ? `hace ${-f.dias} días` : f.dias === 0 ? 'hoy' : `en ${f.dias} días`}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {f.pagado ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">Pagado</span>
-                      ) : f.vencido ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 inline-flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Vencido
-                        </span>
-                      ) : f.proximo ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Por vencer</span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">Al día</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-xs">
-                      {avisado(f) ? (
-                        <span className="text-green-700 font-bold inline-flex items-center gap-1">
-                          <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Avisado {formatDate(f.recordatorio?.fecha_gestion)}
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">Sin avisar</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right whitespace-nowrap space-x-1">
-                      {!f.pagado && (
-                        <button
-                          onClick={() => enviarRecordatorio(f)}
-                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" /> Recordar
-                        </button>
-                      )}
-                      {!f.pagado &&
-                        (avisado(f) ? (
-                          <button
-                            onClick={() => void cambiarAviso(f, false)}
-                            disabled={ocupado === f.suscripcion.id}
-                            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-xl text-xs font-bold inline-flex items-center gap-1"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Deshacer
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => void cambiarAviso(f, true)}
-                            disabled={ocupado === f.suscripcion.id}
-                            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-xl text-xs font-bold inline-flex items-center gap-1"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Marcar avisado
-                          </button>
-                        ))}
-                      <button
-                        onClick={() => void enviarMetricas(f)}
-                        disabled={ocupado === f.suscripcion.id}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center gap-1"
-                        title="Enviar por WhatsApp las métricas reales de los últimos 7 días"
-                      >
-                        <BarChart2 className="w-3.5 h-3.5" aria-hidden="true" /> Métricas
-                      </button>
-                    </td>
+                    </div>
+                    {etiquetaEstado(f)}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>{celdaVencimiento(f)}</div>
+                    <div>{celdaAviso(f)}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2 border-t dark:border-gray-800">{acciones(f)}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Computadora: tabla */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
+                    <th className="p-4">Comercio</th>
+                    <th className="p-4">Vencimiento</th>
+                    <th className="p-4">Estado</th>
+                    <th className="p-4">Aviso</th>
+                    <th className="p-4 text-right">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
+                  {filtradas.map((f) => (
+                    <tr key={f.suscripcion.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                      <td className="p-4">
+                        <p className="font-bold text-gray-900 dark:text-white">{f.nombre}</p>
+                        <p className="text-xs text-gray-500">{formatCurrency(f.suscripcion.precio_acordado)} / mes</p>
+                      </td>
+                      <td className="p-4 text-xs">{celdaVencimiento(f)}</td>
+                      <td className="p-4">{etiquetaEstado(f)}</td>
+                      <td className="p-4 text-xs">{celdaAviso(f)}</td>
+                      <td className="p-4 text-right whitespace-nowrap space-x-1">{acciones(f)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

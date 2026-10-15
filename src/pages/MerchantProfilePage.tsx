@@ -6,6 +6,7 @@ import { useToast } from '@/context/ToastContext';
 import { Comercio } from '@/types/database.types';
 import { formatHora, mensajeError } from '@/lib/formatters';
 import { geocodificarDireccion } from '@/lib/geocoding';
+import { MerchantTabs } from '@/components/MerchantTabs';
 import { actualizarComercio, obtenerComercioDelUsuario } from '@/services/comercios';
 import {
   DIAS_SEMANA,
@@ -159,16 +160,14 @@ export const MerchantProfilePage: React.FC = () => {
   });
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <Link to="/panel" className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">
-        <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Volver al panel comercial
-      </Link>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <MerchantTabs />
 
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
         <Store className="w-6 h-6 text-brand-600" aria-hidden="true" /> Datos de {comercio.nombre}
       </h1>
 
-      <form onSubmit={handleSave} className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+      <form onSubmit={handleSave} className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="campo-nombre" className="block text-xs font-semibold mb-1">Nombre comercial</label>

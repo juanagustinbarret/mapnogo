@@ -3,6 +3,7 @@ dist
 .env
 .env.local
 .env.production
+.env.*.local
 .DS_Store
-*.log.env.*.local
+*.log
 .test-dist

@@ -109,8 +109,8 @@ export const HomeExplorerPage: React.FC = () => {
       .filter((c) => {
         const matchSearch =
           c.nombre.toLowerCase().includes(texto) ||
-          c.descripcion_corta.toLowerCase().includes(texto) ||
-          c.direccion.toLowerCase().includes(texto);
+          (c.descripcion_corta ?? '').toLowerCase().includes(texto) ||
+          (c.direccion ?? '').toLowerCase().includes(texto);
         const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
         const matchAbierto = soloAbiertos
           ? c.estadoAtencion.estado === 'abierto' || c.estadoAtencion.estado === 'cierra_pronto'
@@ -131,7 +131,7 @@ export const HomeExplorerPage: React.FC = () => {
           : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* BIENVENIDA Y UBICACIÓN */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -145,7 +145,7 @@ export const HomeExplorerPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 w-full md:w-auto shrink-0">
             <button
               onClick={solicitarUbicacion}
               disabled={loadingLoc}
@@ -261,7 +261,7 @@ export const HomeExplorerPage: React.FC = () => {
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <h3 className="font-bold text-gray-900 dark:text-white">{comercio.nombre}</h3>
-                    <span className="text-[11px] font-bold text-brand-600">{comercio.rubro?.nombre}</span>
+                    <span className="text-[11px] font-bold text-brand-600">{comercio.rubro?.nombre || 'General'}</span>
                   </div>
 
                   <div className="flex flex-col items-end gap-1">

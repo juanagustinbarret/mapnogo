@@ -23,8 +23,8 @@ export const AdminLayout: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -42,14 +42,14 @@ export const AdminLayout: React.FC = () => {
           </button>
         </div>
 
-        <nav aria-label="Secciones del admin" className="flex gap-2 overflow-x-auto pb-1">
+        <nav aria-label="Secciones del admin" className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-2">
           {PESTANIAS.map(({ to, label, Icono, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap inline-flex items-center gap-1.5 transition ${
+                `px-3 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition ${
                   isActive
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'

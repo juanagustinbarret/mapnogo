@@ -131,6 +131,50 @@ export const AdminPaymentsPage: React.FC = () => {
     .filter((p) => new Date(p.fecha_pago).getTime() >= inicioMes)
     .reduce((total, p) => total + Number(p.importe), 0);
 
+  // Piezas de cada fila, compartidas por la tabla (computadora) y las tarjetas (celular)
+  const celdaSuscripcion = (f: FilaCobro) =>
+    f.suscripcion ? (
+      <div className="space-y-1">
+        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${ESTADO_CLASE[f.suscripcion.estado]}`}>{f.suscripcion.estado}</span>
+        <p className="text-xs text-gray-500">{formatCurrency(f.suscripcion.precio_acordado)} / mes</p>
+      </div>
+    ) : (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">sin suscripción</span>
+    );
+
+  const celdaVencimiento = (f: FilaCobro) => {
+    if (!f.suscripcion) return <span className="text-gray-400">Sin vencimiento</span>;
+    const dias = diasHasta(f.suscripcion.proximo_vencimiento);
+    return (
+      <>
+        <span className="font-semibold">Vence {formatDate(f.suscripcion.proximo_vencimiento)}</span>
+        <span className={`block ${dias < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+          {dias < 0 ? `hace ${-dias} días` : dias === 0 ? 'hoy' : `en ${dias} días`}
+        </span>
+      </>
+    );
+  };
+
+  const estadoPeriodo = (f: FilaCobro) =>
+    f.suscripcion && pagadas.has(f.suscripcion.id) ? (
+      <span className="text-xs font-bold text-green-700 inline-flex items-center gap-1 whitespace-nowrap">
+        <CheckCircle className="w-4 h-4" aria-hidden="true" /> Pagado
+      </span>
+    ) : (
+      <span className="text-xs font-bold text-amber-700 inline-flex items-center gap-1 whitespace-nowrap">
+        <AlertCircle className="w-4 h-4" aria-hidden="true" /> Pendiente
+      </span>
+    );
+
+  const botonPago = (f: FilaCobro, extra = '') => (
+    <button
+      onClick={() => abrirFormulario(f)}
+      className={`px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1 ${extra}`}
+    >
+      <DollarSign className="w-3.5 h-3.5" aria-hidden="true" /> Registrar pago
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-6">
@@ -161,72 +205,50 @@ export const AdminPaymentsPage: React.FC = () => {
         {loading ? (
           <div className="p-12 text-center text-gray-500">Cargando...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[720px]">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
-                  <th className="p-4">Comercio</th>
-                  <th className="p-4">Suscripción</th>
-                  <th className="p-4">Vence</th>
-                  <th className="p-4">{formatPeriodo(periodo)}</th>
-                  <th className="p-4 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
-                {filtradas.map((f) => {
-                  const s = f.suscripcion;
-                  const dias = s ? diasHasta(s.proximo_vencimiento) : null;
-                  const pagado = s ? pagadas.has(s.id) : false;
-                  return (
+          <>
+            {/* Celular: tarjetas */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {filtradas.map((f) => (
+                <div key={f.comercioId} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white">{f.nombre}</h3>
+                    {estadoPeriodo(f)}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>{celdaSuscripcion(f)}</div>
+                    <div>{celdaVencimiento(f)}</div>
+                  </div>
+                  {botonPago(f, 'w-full justify-center')}
+                </div>
+              ))}
+            </div>
+
+            {/* Computadora: tabla */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
+                    <th className="p-4">Comercio</th>
+                    <th className="p-4">Suscripción</th>
+                    <th className="p-4">Vence</th>
+                    <th className="p-4">{formatPeriodo(periodo)}</th>
+                    <th className="p-4 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
+                  {filtradas.map((f) => (
                     <tr key={f.comercioId} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
                       <td className="p-4 font-bold text-gray-900 dark:text-white">{f.nombre}</td>
-                      <td className="p-4">
-                        {s ? (
-                          <div className="space-y-1">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${ESTADO_CLASE[s.estado]}`}>{s.estado}</span>
-                            <p className="text-xs text-gray-500">{formatCurrency(s.precio_acordado)} / mes</p>
-                          </div>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">sin suscripción</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-xs">
-                        {s ? (
-                          <>
-                            <span className="font-semibold">{formatDate(s.proximo_vencimiento)}</span>
-                            <span className={`block ${dias !== null && dias < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
-                              {dias === null ? '' : dias < 0 ? `hace ${-dias} días` : dias === 0 ? 'hoy' : `en ${dias} días`}
-                            </span>
-                          </>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {pagado ? (
-                          <span className="text-xs font-bold text-green-700 inline-flex items-center gap-1">
-                            <CheckCircle className="w-4 h-4" aria-hidden="true" /> Pagado
-                          </span>
-                        ) : (
-                          <span className="text-xs font-bold text-amber-700 inline-flex items-center gap-1">
-                            <AlertCircle className="w-4 h-4" aria-hidden="true" /> Pendiente
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4 text-right">
-                        <button
-                          onClick={() => abrirFormulario(f)}
-                          className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
-                        >
-                          <DollarSign className="w-3.5 h-3.5" aria-hidden="true" /> Registrar pago
-                        </button>
-                      </td>
+                      <td className="p-4">{celdaSuscripcion(f)}</td>
+                      <td className="p-4 text-xs">{celdaVencimiento(f)}</td>
+                      <td className="p-4">{estadoPeriodo(f)}</td>
+                      <td className="p-4 text-right">{botonPago(f)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -237,7 +259,7 @@ export const AdminPaymentsPage: React.FC = () => {
           <p className="text-sm text-gray-500">Todavía no hay pagos registrados.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[600px]">
+            <table className="w-full text-left text-sm min-w-[520px]">
               <thead>
                 <tr className="text-xs font-bold text-gray-500 uppercase border-b dark:border-gray-700">
                   <th className="p-3">Fecha</th>

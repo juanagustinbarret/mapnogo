@@ -25,6 +25,7 @@ import { Comercio, HorarioAtencion, Metricas, Promocion } from '@/types/database
 import { formatCurrency, formatDate, formatHora, mensajeError } from '@/lib/formatters';
 import { haceDias } from '@/lib/fechas';
 import { CIUDAD, PROVINCIA } from '@/config/marca';
+import { MerchantTabs } from '@/components/MerchantTabs';
 import { esVisibleEnMapa, obtenerComercioDelUsuario } from '@/services/comercios';
 import { DIAS_SEMANA, listarHorarios } from '@/services/horarios';
 import { obtenerMetricas } from '@/services/metricas';
@@ -207,9 +208,9 @@ export const MerchantDashboardPage: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
       {/* ENCABEZADO */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+      <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -227,13 +228,13 @@ export const MerchantDashboardPage: React.FC = () => {
               )}
             </div>
 
-            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white mt-2 flex items-center gap-2">
-              <Store className="w-7 h-7 text-brand-600" aria-hidden="true" />
+            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white mt-2 flex items-center gap-2">
+              <Store className="w-6 h-6 sm:w-7 sm:h-7 text-brand-600" aria-hidden="true" />
               Panel de <span className="text-brand-600">{comercio.nombre}</span>
             </h1>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <Link
               to={`/comercio/${comercio.slug}`}
               target="_blank"
@@ -245,9 +246,12 @@ export const MerchantDashboardPage: React.FC = () => {
               onClick={handleSignOut}
               className="px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
             >
-              <LogOut className="w-4 h-4" aria-hidden="true" /> Cerrar sesión
+              <LogOut className="w-4 h-4" aria-hidden="true" /> Salir
             </button>
           </div>
+        </div>
+        <div className="border-t dark:border-gray-700 pt-4">
+          <MerchantTabs />
         </div>
       </div>
 

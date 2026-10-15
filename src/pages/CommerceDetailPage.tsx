@@ -8,7 +8,8 @@ import { formatHora } from '@/lib/formatters';
 import { obtenerComercioPorSlug } from '@/services/comercios';
 import { DIAS_SEMANA, listarHorarios } from '@/services/horarios';
 import { registrarInteraccion, registrarVisitaUnaVez } from '@/services/metricas';
-import { CIUDAD, PROVINCIA } from '@/config/marca';
+import { CIUDAD, NOMBRE_APP, PROVINCIA } from '@/config/marca';
+import { tieneCoordenadasPorDefecto } from '@/lib/geocoding';
 
 export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -63,10 +64,15 @@ export const CommerceDetailPage: React.FC = () => {
   }
 
   const estadoHorario = evaluarEstadoHorario(horarios);
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${comercio.nombre}, ${comercio.direccion}, ${CIUDAD}, ${PROVINCIA}`,
-  )}`;
-  const whatsappUrl = buildWhatsAppUrl(comercio.whatsapp);
+  // "Cómo llegar" usa las coordenadas guardadas; si el comercio no está ubicado, busca por dirección
+  const destino = tieneCoordenadasPorDefecto(comercio.latitud, comercio.longitud)
+    ? `${comercio.nombre}, ${comercio.direccion}, ${CIUDAD}, ${PROVINCIA}`
+    : `${comercio.latitud},${comercio.longitud}`;
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destino)}`;
+  const whatsappUrl = buildWhatsAppUrl(
+    comercio.whatsapp,
+    `Hola ${comercio.nombre}! 👋 Vi tu comercio en ${NOMBRE_APP} y quisiera hacerles una consulta.`,
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
@@ -78,7 +84,7 @@ export const CommerceDetailPage: React.FC = () => {
         <div className="flex justify-between items-start flex-wrap gap-2">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{comercio.nombre}</h1>
-            <p className="text-sm text-brand-600 font-semibold">{comercio.rubro?.nombre}</p>
+            <p className="text-sm text-brand-600 font-bold">{comercio.rubro?.nombre || 'General'}</p>
           </div>
           <span
             className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -94,7 +100,7 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
 
         <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
-          {comercio.descripcion_completa || comercio.descripcion_corta}
+          {comercio.descripcion_completa || comercio.descripcion_corta || 'Sin descripción disponible.'}
         </p>
 
         {/* HORARIOS */}
@@ -144,7 +150,7 @@ export const CommerceDetailPage: React.FC = () => {
                 onClick={() => void registrarInteraccion(comercio.id, 'whatsapp')}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
               >
-                <MessageCircle className="w-4 h-4" aria-hidden="true" /> WhatsApp
+                <MessageCircle className="w-4 h-4" aria-hidden="true" /> Consultar WhatsApp
               </a>
             )}
             <a

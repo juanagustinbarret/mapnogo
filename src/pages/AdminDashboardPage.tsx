@@ -203,6 +203,81 @@ export const AdminDashboardPage: React.FC = () => {
       c.whatsapp?.includes(search),
   );
   const visibles = comercios.filter(esVisibleEnMapa).length;
+  const facturacionEsperada = comercios
+    .filter((c) => c.suscripcion?.estado === 'activa')
+    .reduce((total, c) => total + Number(c.suscripcion?.precio_acordado ?? 0), 0);
+
+  // Piezas de cada fila, compartidas por la tabla (computadora) y las tarjetas (celular)
+  const etiquetaSuscripcion = (comercio: Comercio) =>
+    comercio.suscripcion ? (
+      <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${ESTADO_SUSCRIPCION[comercio.suscripcion.estado]}`}>
+        {comercio.suscripcion.estado}
+      </span>
+    ) : (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-gray-100 text-gray-600">sin suscripción</span>
+    );
+
+  const botonVisibilidad = (comercio: Comercio) => (
+    <button
+      onClick={() => void handleToggleVisible(comercio)}
+      aria-pressed={comercio.habilitado_admin}
+      title="Mostrar u ocultar en el mapa"
+      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+        comercio.habilitado_admin
+          ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300'
+          : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
+      }`}
+    >
+      {comercio.habilitado_admin ? (
+        <>
+          <CheckCircle className="w-3.5 h-3.5 text-green-600" aria-hidden="true" /> Visible
+        </>
+      ) : (
+        <>
+          <XCircle className="w-3.5 h-3.5 text-red-600" aria-hidden="true" /> Oculto
+        </>
+      )}
+    </button>
+  );
+
+  const celdaDireccion = (comercio: Comercio) => (
+    <>
+      {comercio.direccion || '-'}
+      {tieneCoordenadasPorDefecto(comercio.latitud, comercio.longitud) && (
+        <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">sin ubicar</span>
+      )}
+    </>
+  );
+
+  const acciones = (comercio: Comercio) => (
+    <>
+      <button
+        onClick={() => setModalEditar(comercio)}
+        className="p-2 text-gray-600 hover:text-brand-600 rounded-lg inline-block"
+        aria-label={`Editar ${comercio.nombre}`}
+        title="Editar"
+      >
+        <Edit className="w-4 h-4" />
+      </button>
+      <Link
+        to={`/comercio/${comercio.slug}`}
+        target="_blank"
+        className="p-2 text-gray-500 hover:text-brand-600 rounded-lg inline-block"
+        aria-label={`Ver ficha pública de ${comercio.nombre}`}
+        title="Ver ficha pública"
+      >
+        <ExternalLink className="w-4 h-4" />
+      </Link>
+      <button
+        onClick={() => void handleDarDeBaja(comercio)}
+        className="p-2 text-gray-400 hover:text-red-600 rounded-lg transition"
+        aria-label={`Dar de baja ${comercio.nombre}`}
+        title="Dar de baja"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </>
+  );
 
   return (
     <div className="space-y-6">
@@ -232,7 +307,9 @@ export const AdminDashboardPage: React.FC = () => {
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cobrado este mes</p>
             <p className="text-3xl font-bold text-green-600 mt-1">{formatCurrency(recaudacionMes)}</p>
-            <p className="text-[11px] text-gray-400 mt-1">Suma de pagos registrados</p>
+            <p className="text-[11px] text-gray-400 mt-1">
+              Esperado por mes: {formatCurrency(facturacionEsperada)} (suscripciones activas)
+            </p>
           </div>
           <div className="p-3 bg-green-50 text-green-600 rounded-xl">
             <DollarSign className="w-6 h-6" aria-hidden="true" />
@@ -336,96 +413,59 @@ export const AdminDashboardPage: React.FC = () => {
         ) : comerciosFiltrados.length === 0 ? (
           <div className="p-12 text-center text-gray-500">No hay comercios para mostrar.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[760px]">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
-                  <th className="p-4">Comercio</th>
-                  <th className="p-4">Rubro</th>
-                  <th className="p-4">Suscripción</th>
-                  <th className="p-4">Visibilidad</th>
-                  <th className="p-4">Dirección</th>
-                  <th className="p-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
-                {comerciosFiltrados.map((comercio) => (
-                  <tr key={comercio.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                    <td className="p-4 font-bold text-gray-900 dark:text-white">{comercio.nombre}</td>
-                    <td className="p-4">
-                      <span className="px-2.5 py-1 bg-brand-50 text-brand-700 rounded-full text-xs font-bold">
-                        {comercio.rubro?.nombre || 'General'}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {comercio.suscripcion ? (
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${ESTADO_SUSCRIPCION[comercio.suscripcion.estado]}`}>
-                          {comercio.suscripcion.estado}
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">sin suscripción</span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <button
-                        onClick={() => void handleToggleVisible(comercio)}
-                        aria-pressed={comercio.habilitado_admin}
-                        title="Mostrar u ocultar en el mapa"
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
-                          comercio.habilitado_admin
-                            ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300'
-                            : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
-                        }`}
-                      >
-                        {comercio.habilitado_admin ? (
-                          <>
-                            <CheckCircle className="w-3.5 h-3.5 text-green-600" aria-hidden="true" /> Visible
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-3.5 h-3.5 text-red-600" aria-hidden="true" /> Oculto
-                          </>
-                        )}
-                      </button>
-                    </td>
-                    <td className="p-4 text-xs text-gray-600 dark:text-gray-300">
-                      {comercio.direccion}
-                      {tieneCoordenadasPorDefecto(comercio.latitud, comercio.longitud) && (
-                        <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">sin ubicar</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right space-x-1 whitespace-nowrap">
-                      <button
-                        onClick={() => setModalEditar(comercio)}
-                        className="p-2 text-gray-600 hover:text-brand-600 rounded-lg inline-block"
-                        aria-label={`Editar ${comercio.nombre}`}
-                        title="Editar"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <Link
-                        to={`/comercio/${comercio.slug}`}
-                        target="_blank"
-                        className="p-2 text-gray-500 hover:text-brand-600 rounded-lg inline-block"
-                        aria-label={`Ver ficha pública de ${comercio.nombre}`}
-                        title="Ver ficha pública"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Link>
-                      <button
-                        onClick={() => void handleDarDeBaja(comercio)}
-                        className="p-2 text-gray-400 hover:text-red-600 rounded-lg transition"
-                        aria-label={`Dar de baja ${comercio.nombre}`}
-                        title="Dar de baja"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
+          <>
+            {/* Celular: tarjetas */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {comerciosFiltrados.map((comercio) => (
+                <div key={comercio.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <h3 className="font-bold text-sm text-gray-900 dark:text-white">{comercio.nombre}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{comercio.rubro?.nombre || 'General'}</p>
+                    </div>
+                    {etiquetaSuscripcion(comercio)}
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">{celdaDireccion(comercio)}</p>
+                  <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
+                    {botonVisibilidad(comercio)}
+                    <div className="flex items-center">{acciones(comercio)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Computadora: tabla */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
+                    <th className="p-4">Comercio</th>
+                    <th className="p-4">Rubro</th>
+                    <th className="p-4">Suscripción</th>
+                    <th className="p-4">Visibilidad</th>
+                    <th className="p-4">Dirección</th>
+                    <th className="p-4 text-right">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
+                  {comerciosFiltrados.map((comercio) => (
+                    <tr key={comercio.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
+                      <td className="p-4 font-bold text-gray-900 dark:text-white">{comercio.nombre}</td>
+                      <td className="p-4">
+                        <span className="px-2.5 py-1 bg-brand-50 text-brand-700 rounded-full text-xs font-bold">
+                          {comercio.rubro?.nombre || 'General'}
+                        </span>
+                      </td>
+                      <td className="p-4">{etiquetaSuscripcion(comercio)}</td>
+                      <td className="p-4">{botonVisibilidad(comercio)}</td>
+                      <td className="p-4 text-xs text-gray-600 dark:text-gray-300">{celdaDireccion(comercio)}</td>
+                      <td className="p-4 text-right whitespace-nowrap">{acciones(comercio)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
