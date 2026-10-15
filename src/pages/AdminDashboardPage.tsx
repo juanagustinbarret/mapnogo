@@ -25,13 +25,15 @@ import {
   MessageCircle,
   Navigation,
   CreditCard,
-  Clock
+  Clock,
+  LayoutDashboard
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export const AdminDashboardPage: React.FC = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,6 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     fetchComerciosYStats();
 
-    // Suscripción Realtime
     const channel = supabase
       .channel('realtime_comercios')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comercios' }, () => {
@@ -128,50 +129,75 @@ export const AdminDashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in duration-300">
       
-      {/* HEADER PRINCIPAL */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-7 h-7 text-brand-600" /> Panel Administrador Central
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Gestión en tiempo real de comercios, métricas individuales y cobro de suscripciones.
-          </p>
+      {/* HEADER Y NAVEGACIÓN ENTRE PANTALLAS ADMIN */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+              <Shield className="w-7 h-7 text-brand-600" /> Panel Administrador Central
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Gestión de comercios, métricas por negocio, cobranzas y avisos por WhatsApp.
+            </p>
+          </div>
+
+          <button
+            onClick={() => { signOut(); navigate('/admin/login'); }}
+            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition"
+          >
+            <LogOut className="w-4 h-4" /> Cerrar Sesión
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        {/* BARRA DE PESTAÑAS DE NAVEGACIÓN */}
+        <div className="flex items-center gap-2 border-t dark:border-gray-700 pt-4 overflow-x-auto">
+          <Link
+            to="/admin"
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+              location.pathname === '/admin'
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" /> Dashboard Central
+          </Link>
+
           <Link
             to="/admin/pagos"
-            className="flex-1 lg:flex-none px-3.5 py-2 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 hover:bg-blue-100 transition"
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+              location.pathname === '/admin/pagos'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+            }`}
           >
             <CreditCard className="w-4 h-4" /> Registro de Pagos
           </Link>
 
           <Link
             to="/admin/vencimientos"
-            className="flex-1 lg:flex-none px-3.5 py-2 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 hover:bg-amber-100 transition"
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+              location.pathname === '/admin/vencimientos'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+            }`}
           >
             <Clock className="w-4 h-4" /> Vencimientos & WhatsApp
           </Link>
 
           <Link
             to="/admin/comercios/nuevo"
-            className="flex-1 lg:flex-none px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-sm transition"
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+              location.pathname === '/admin/comercios/nuevo'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+            }`}
           >
             <PlusCircle className="w-4 h-4" /> Alta Comercio
           </Link>
-
-          <button
-            onClick={() => { signOut(); navigate('/admin/login'); }}
-            className="p-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl transition"
-            title="Cerrar Sesión"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
-      {/* MÉTRICAS GENERALES */}
+      {/* TARJETAS DE MÉTRICAS PLATAFORMA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
@@ -214,7 +240,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MÓDULO DE MÉTRICAS REALES POR NEGOCIO */}
+      {/* MÉTRICAS POR NEGOCIO */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b dark:border-gray-700 pb-4">
           <div>
@@ -287,7 +313,7 @@ export const AdminDashboardPage: React.FC = () => {
               <Building className="w-5 h-5 text-brand-600" /> Todos los Comercios Registrados
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Alterná el interruptor de pago para habilitar u ocultar el local en el mapa público.
+              Alterná el interruptor para habilitar u ocultar el local en el mapa público.
             </p>
           </div>
 
