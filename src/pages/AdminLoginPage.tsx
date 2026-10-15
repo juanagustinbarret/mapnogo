@@ -1,33 +1,33 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Lock, Mail, UserPlus } from 'lucide-react';
+import { Shield, Lock, Mail } from 'lucide-react';
 
 export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('allendeveraagustin@gmail.com');
-  const [password, setPassword] = useState('Vera159+');
-  const [mensaje, setMensaje] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 1. Iniciar Sesión Normal
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMensaje('');
+    setError('');
 
+    // 1. Iniciar sesión en Supabase Auth
     const { data, error: authErr } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (authErr) {
-      setMensaje('Error al ingresar: ' + authErr.message);
+    if (authErr || !data.user) {
+      setError('Credenciales de administrador inválidas.');
       setLoading(false);
       return;
     }
 
-    // Comprobar rol en la tabla profiles
+    // 2. Verificar rol en la tabla 'profiles'
     const { data: profile } = await supabase
       .from('profiles')
       .select('rol')
@@ -38,53 +38,13 @@ export const AdminLoginPage: React.FC = () => {
 
     if (userRole !== 'admin') {
       await supabase.auth.signOut();
-      setMensaje('Acceso denegado: Esta cuenta no es administradora.');
+      setError('Acceso denegado: Esta cuenta no posee permisos de administrador.');
       setLoading(false);
       return;
     }
 
+    // 3. Conceder acceso
     navigate('/admin');
-  };
-
-  // 2. Botón Mágico: Crear Cuenta Admin directamente con el SDK oficial
-  const handleCrearAdminMagico = async () => {
-    setLoading(true);
-    setMensaje('');
-
-    // A. Registrar el usuario en Auth
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          nombre: 'Agustín Allende Vera',
-          rol: 'admin',
-        },
-      },
-    });
-
-    if (error) {
-      setMensaje('Error al crear usuario: ' + error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (data.user) {
-      // B. Asegurar la fila en public.profiles con rol admin
-      const { error: profErr } = await supabase.from('profiles').upsert({
-        id: data.user.id,
-        email: email,
-        nombre: 'Agustín Allende Vera',
-        rol: 'admin',
-      });
-
-      if (profErr) {
-        setMensaje('Usuario creado en Auth, pero error en perfil: ' + profErr.message);
-      } else {
-        setMensaje('¡Usuario Administrador CREADO con éxito! Ahora hacé clic en "Acceder al Admin".');
-      }
-    }
-    setLoading(false);
   };
 
   return (
@@ -98,13 +58,9 @@ export const AdminLoginPage: React.FC = () => {
           <p className="text-xs text-gray-500">Ingreso exclusivo para la administración de Nogoyá Cerca.</p>
         </div>
 
-        {mensaje && (
-          <div className={`p-3 text-xs rounded-xl font-semibold ${
-            mensaje.includes('¡Usuario Administrador CREADO') 
-              ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300' 
-              : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
-          }`}>
-            {mensaje}
+        {error && (
+          <div className="p-3 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs rounded-xl font-semibold">
+            {error}
           </div>
         )}
 
@@ -119,6 +75,7 @@ export const AdminLoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
+                placeholder="admin@nogoyacerca.com"
               />
             </div>
           </div>
@@ -133,6 +90,7 @@ export const AdminLoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
+                placeholder="••••••••"
               />
             </div>
           </div>
@@ -145,17 +103,6 @@ export const AdminLoginPage: React.FC = () => {
             {loading ? 'Verificando...' : 'Acceder al Admin'}
           </button>
         </form>
-
-        <div className="pt-2 border-t dark:border-gray-700">
-          <button
-            type="button"
-            onClick={handleCrearAdminMagico}
-            disabled={loading}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
-          >
-            <UserPlus className="w-4 h-4" /> ⚡ Forzar Registro de esta Cuenta Admin
-          </button>
-        </div>
       </div>
     </div>
   );
