@@ -78,33 +78,9 @@ export const HomeExplorerPage: React.FC = () => {
           }
           setLoadingLoc(false);
         },
-        async () => {
+        () => {
           setLoadingLoc(false);
-          const calleManual = prompt('Ingresá tu calle en Nogoyá para centrar la distancia (ej: San Lorenzo 600):');
-          if (calleManual) {
-            setLoadingLoc(true);
-            try {
-              let direccionLimpia = calleManual;
-              if (!direccionLimpia.toLowerCase().includes('calle')) {
-                direccionLimpia = `Calle ${direccionLimpia}`;
-              }
-              const query = encodeURIComponent(`${direccionLimpia}, Nogoyá, Entre Ríos, Argentina`);
-              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
-              const data = await res.json();
-
-              if (data && data.length > 0) {
-                const lat = parseFloat(data[0].lat);
-                const lng = parseFloat(data[0].lon);
-                setUserLocation({ lat, lng });
-                setUserAddress(`${calleManual}, Nogoyá`);
-              } else {
-                alert('No se pudo encontrar esa dirección en Nogoyá.');
-              }
-            } catch (e) {
-              console.error('Error al geocodificar:', e);
-            }
-            setLoadingLoc(false);
-          }
+          alert('No se pudo obtener la geolocalización automática.');
         },
         { enableHighAccuracy: true, timeout: 8000 }
       );
@@ -125,8 +101,8 @@ export const HomeExplorerPage: React.FC = () => {
     .filter((c) => {
       const matchSearch =
         c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        c.descripcion_corta.toLowerCase().includes(search.toLowerCase()) ||
-        c.direccion.toLowerCase().includes(search.toLowerCase());
+        (c.descripcion_corta && c.descripcion_corta.toLowerCase().includes(search.toLowerCase())) ||
+        (c.direccion && c.direccion.toLowerCase().includes(search.toLowerCase()));
       const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
       const matchAbierto = soloAbiertos ? c.estadoAtencion.estado === 'abierto' : true;
       return matchSearch && matchRubro && matchAbierto;
@@ -139,7 +115,7 @@ export const HomeExplorerPage: React.FC = () => {
     });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
       
       {/* TARJETA DE BIENVENIDA Y UBICACIÓN */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -156,7 +132,7 @@ export const HomeExplorerPage: React.FC = () => {
         <button
           onClick={solicitarUbicacion}
           disabled={loadingLoc}
-          className="px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-md transition shrink-0"
+          className="w-full md:w-auto px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
         >
           <Navigation className="w-4 h-4" /> {loadingLoc ? 'Obteniendo...' : 'Actualizar Mi Ubicación'}
         </button>
@@ -168,14 +144,14 @@ export const HomeExplorerPage: React.FC = () => {
           <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por negocio o calle (ej: San Lorenzo)..."
+            placeholder="Buscar por negocio o calle..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 items-center">
+        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 items-center scrollbar-none">
           <button
             onClick={() => setSoloAbiertos(!soloAbiertos)}
             className={`px-3.5 py-1.5 text-xs font-bold rounded-full whitespace-nowrap transition flex items-center gap-1 ${
@@ -208,13 +184,13 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MAPA Y LISTADO CON ETIQUETAS DE ESTADO */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-        <div className="lg:col-span-2 h-full">
+      {/* MAPA Y LISTADO */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
+        <div className="lg:col-span-2 h-[350px] lg:h-full rounded-2xl overflow-hidden border dark:border-gray-700">
           <InteractiveMap comercios={filteredComercios} userLocation={userLocation} />
         </div>
 
-        <div className="overflow-y-auto space-y-3 pr-1">
+        <div className="overflow-y-auto space-y-3 max-h-[500px] lg:max-h-full pr-1 scrollbar-thin">
           {filteredComercios.length === 0 ? (
             <div className="text-center py-12 text-gray-500 space-y-2">
               <Store className="w-10 h-10 mx-auto opacity-40" />
@@ -223,13 +199,14 @@ export const HomeExplorerPage: React.FC = () => {
           ) : (
             filteredComercios.map((comercio) => (
               <div key={comercio.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:border-brand-500 transition space-y-2">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start gap-2">
                   <div>
                     <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                       {comercio.nombre}
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" title="Verificado" />
-                    </h3>
-                    <span className="text-[11px] font-bold text-brand-600">{comercio.rubro?.nombre}</span>
+<span title="Verificado" className="inline-flex items-center">
+  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+</span>                    </h3>
+                    <span className="text-[11px] font-bold text-brand-600">{comercio.rubro?.nombre || 'General'}</span>
                   </div>
 
                   <div className="flex flex-col items-end gap-1">

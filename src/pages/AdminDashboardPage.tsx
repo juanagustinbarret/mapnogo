@@ -69,12 +69,21 @@ export const AdminDashboardPage: React.FC = () => {
       .select('*, rubro:rubros(*)', { count: 'exact' })
       .order('created_at', { ascending: false });
 
+    // Consultar recaudación mensual desde la tabla suscripciones
+    const { data: suscripciones } = await supabase
+      .from('suscripciones')
+      .select('precio_acordado')
+      .eq('estado', 'activa');
+
+    const totalRecaudado = suscripciones
+      ? suscripciones.reduce((acc, curr) => acc + (curr.precio_acordado || 0), 0)
+      : 0;
+
     if (data && data.length > 0) {
       setComercios(data);
-      const pagados = data.filter((c) => c.habilitado_admin).length;
       setStats({
         totalComercios: count || 0,
-        ingresosMes: pagados * 10000,
+        ingresosMes: totalRecaudado,
       });
 
       if (!selectedComercioMetrica) {
@@ -127,14 +136,14 @@ export const AdminDashboardPage: React.FC = () => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in duration-300">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       
       {/* HEADER Y NAVEGACIÓN ENTRE PANTALLAS ADMIN */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6 space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-              <Shield className="w-7 h-7 text-brand-600" /> Panel Administrador Central
+            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+              <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-brand-600" /> Panel Administrador Central
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Gestión de comercios, métricas por negocio, cobranzas y avisos por WhatsApp.
@@ -143,17 +152,17 @@ export const AdminDashboardPage: React.FC = () => {
 
           <button
             onClick={() => { signOut(); navigate('/admin/login'); }}
-            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition"
+            className="w-full lg:w-auto px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
           >
             <LogOut className="w-4 h-4" /> Cerrar Sesión
           </button>
         </div>
 
         {/* BARRA DE PESTAÑAS DE NAVEGACIÓN */}
-        <div className="flex items-center gap-2 border-t dark:border-gray-700 pt-4 overflow-x-auto">
+        <div className="flex items-center gap-2 border-t dark:border-gray-700 pt-4 overflow-x-auto scrollbar-none">
           <Link
             to="/admin"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap transition ${
               location.pathname === '/admin'
                 ? 'bg-brand-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
@@ -164,7 +173,7 @@ export const AdminDashboardPage: React.FC = () => {
 
           <Link
             to="/admin/pagos"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap transition ${
               location.pathname === '/admin/pagos'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
@@ -175,7 +184,7 @@ export const AdminDashboardPage: React.FC = () => {
 
           <Link
             to="/admin/vencimientos"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap transition ${
               location.pathname === '/admin/vencimientos'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
@@ -186,7 +195,7 @@ export const AdminDashboardPage: React.FC = () => {
 
           <Link
             to="/admin/comercios/nuevo"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap transition ${
               location.pathname === '/admin/comercios/nuevo'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
@@ -202,7 +211,7 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Comercios</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalComercios}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalComercios}</p>
           </div>
           <div className="p-3 bg-brand-50 text-brand-600 rounded-xl">
             <Store className="w-6 h-6" />
@@ -211,8 +220,8 @@ export const AdminDashboardPage: React.FC = () => {
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación Estimada</p>
-            <p className="text-3xl font-bold text-green-600 mt-1">{formatCurrency(stats.ingresosMes)}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación Real</p>
+            <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1">{formatCurrency(stats.ingresosMes)}</p>
           </div>
           <div className="p-3 bg-green-50 text-green-600 rounded-xl">
             <DollarSign className="w-6 h-6" />
@@ -222,7 +231,7 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sincronización</p>
-            <p className="text-3xl font-bold text-blue-600 mt-1">Tiempo Real</p>
+            <p className="text-2xl sm:text-3xl font-bold text-blue-600 mt-1">Tiempo Real</p>
           </div>
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
             <Tag className="w-6 h-6" />
@@ -232,7 +241,7 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ciudad</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">Nogoyá</p>
+            <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-1">Nogoyá</p>
           </div>
           <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
             <MapPin className="w-6 h-6" />
@@ -241,11 +250,11 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* MÉTRICAS POR NEGOCIO */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+      <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b dark:border-gray-700 pb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <BarChart2 className="w-6 h-6 text-brand-600" /> Rendimiento & Métricas Reales por Comercio
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" /> Rendimiento por Comercio
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Seleccioná un negocio para auditar sus visitas a la ficha y contactos recibidos.
@@ -275,7 +284,7 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase">Visitas a la Ficha</p>
-                <p className="text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasLocal.visitas}</p>
+                <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasLocal.visitas}</p>
               </div>
               <div className="p-3 bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 rounded-xl">
                 <Eye className="w-6 h-6" />
@@ -285,7 +294,7 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase">Consultas WhatsApp</p>
-                <p className="text-3xl font-black text-green-600 mt-1">{metricasLocal.whatsapp}</p>
+                <p className="text-2xl sm:text-3xl font-black text-green-600 mt-1">{metricasLocal.whatsapp}</p>
               </div>
               <div className="p-3 bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300 rounded-xl">
                 <MessageCircle className="w-6 h-6" />
@@ -295,7 +304,7 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase">Rutas "Cómo Llegar"</p>
-                <p className="text-3xl font-black text-purple-600 mt-1">{metricasLocal.comoLlegar}</p>
+                <p className="text-2xl sm:text-3xl font-black text-purple-600 mt-1">{metricasLocal.comoLlegar}</p>
               </div>
               <div className="p-3 bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 rounded-xl">
                 <Navigation className="w-6 h-6" />
@@ -306,10 +315,10 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* TABLA DE COMERCIOS */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Building className="w-5 h-5 text-brand-600" /> Todos los Comercios Registrados
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
