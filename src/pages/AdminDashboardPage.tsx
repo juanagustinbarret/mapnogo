@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Comercio, Rubro } from '@/types/database.types';
+import { Comercio } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/context/AuthContext';
+import { obtenerMetricasComercio } from '@/lib/metrics';
 import {
   Store,
   DollarSign,
   PlusCircle,
   ExternalLink,
   Trash2,
-  LogIn,
   Search,
   MapPin,
   Building,
@@ -19,7 +19,13 @@ import {
   XCircle,
   Edit,
   LogOut,
-  Save
+  Save,
+  BarChart2,
+  Eye,
+  MessageCircle,
+  Navigation,
+  CreditCard,
+  Clock
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -28,39 +34,32 @@ export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [comercios, setComercios] = useState<Comercio[]>([]);
-  const [rubros, setRubros] = useState<Rubro[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState({ totalComercios: 0, ingresosMes: 0 });
 
-  // Modales
+  // Selección de Comercio para Análisis de Métricas
+  const [selectedComercioMetrica, setSelectedComercioMetrica] = useState<Comercio | null>(null);
+  const [metricasLocal, setMetricasLocal] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
+
+  // Modal Editar
   const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
 
   useEffect(() => {
     fetchComerciosYStats();
-    fetchRubros();
 
-    // SUSCRIPCIÓN EN TIEMPO REAL
+    // Suscripción Realtime
     const channel = supabase
       .channel('realtime_comercios')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'comercios' },
-        () => {
-          fetchComerciosYStats();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comercios' }, () => {
+        fetchComerciosYStats();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  const fetchRubros = async () => {
-    const { data } = await supabase.from('rubros').select('*');
-    if (data) setRubros(data);
-  };
 
   const fetchComerciosYStats = async () => {
     setLoading(true);
@@ -69,40 +68,36 @@ export const AdminDashboardPage: React.FC = () => {
       .select('*, rubro:rubros(*)', { count: 'exact' })
       .order('created_at', { ascending: false });
 
-    if (data) {
+    if (data && data.length > 0) {
       setComercios(data);
       const pagados = data.filter((c) => c.habilitado_admin).length;
       setStats({
         totalComercios: count || 0,
         ingresosMes: pagados * 10000,
       });
+
+      if (!selectedComercioMetrica) {
+        cargarMetricasDeComercio(data[0]);
+      }
     }
     setLoading(false);
   };
 
-  // Alternar Estado de Pago (Habilitado / Oculto)
-  const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
-    const { error } = await supabase
-      .from('comercios')
-      .update({ habilitado_admin: !estadoActual })
-      .eq('id', id);
-
-    if (error) {
-      alert('Error al actualizar el estado: ' + error.message);
-    }
+  const cargarMetricasDeComercio = async (comercio: Comercio) => {
+    setSelectedComercioMetrica(comercio);
+    const met = await obtenerMetricasComercio(comercio.id);
+    setMetricasLocal(met);
   };
 
-  // Eliminar Comercio
+  const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
+    await supabase.from('comercios').update({ habilitado_admin: !estadoActual }).eq('id', id);
+  };
+
   const handleEliminarComercio = async (id: string, nombre: string) => {
     if (!confirm(`¿Estás seguro de eliminar "${nombre}"?`)) return;
-
-    const { error } = await supabase.from('comercios').delete().eq('id', id);
-    if (error) {
-      alert('Error al eliminar: ' + error.message);
-    }
+    await supabase.from('comercios').delete().eq('id', id);
   };
 
-  // Guardar Cambios de Edición
   const handleGuardarEdicion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalEditar) return;
@@ -113,22 +108,14 @@ export const AdminDashboardPage: React.FC = () => {
         nombre: modalEditar.nombre,
         direccion: modalEditar.direccion,
         whatsapp: modalEditar.whatsapp,
-        rubro_id: modalEditar.rubro_id,
         descripcion_corta: modalEditar.descripcion_corta
       })
       .eq('id', modalEditar.id);
 
-    if (error) {
-      alert('Error al guardar edición: ' + error.message);
-    } else {
+    if (!error) {
       setModalEditar(null);
       fetchComerciosYStats();
     }
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/admin/login');
   };
 
   const comerciosFiltrados = comercios.filter(
@@ -141,35 +128,50 @@ export const AdminDashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in duration-300">
       
-      {/* ENCABEZADO */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+      {/* HEADER PRINCIPAL */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
             <Shield className="w-7 h-7 text-brand-600" /> Panel Administrador Central
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gestión en tiempo real de comercios, estados de pago y mapa general.
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Gestión en tiempo real de comercios, métricas individuales y cobro de suscripciones.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <Link
+            to="/admin/pagos"
+            className="flex-1 lg:flex-none px-3.5 py-2 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 hover:bg-blue-100 transition"
+          >
+            <CreditCard className="w-4 h-4" /> Registro de Pagos
+          </Link>
+
+          <Link
+            to="/admin/vencimientos"
+            className="flex-1 lg:flex-none px-3.5 py-2 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 hover:bg-amber-100 transition"
+          >
+            <Clock className="w-4 h-4" /> Vencimientos & WhatsApp
+          </Link>
+
           <Link
             to="/admin/comercios/nuevo"
-            className="flex-1 md:flex-none px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition"
+            className="flex-1 lg:flex-none px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-sm transition"
           >
-            <PlusCircle className="w-4 h-4" /> ➕ Nuevo Comercio
+            <PlusCircle className="w-4 h-4" /> Alta Comercio
           </Link>
 
           <button
-            onClick={handleSignOut}
-            className="flex-1 md:flex-none px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
+            onClick={() => { signOut(); navigate('/admin/login'); }}
+            className="p-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl transition"
+            title="Cerrar Sesión"
           >
-            <LogOut className="w-4 h-4" /> Cerrar Sesión
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* MÉTRICAS */}
+      {/* MÉTRICAS GENERALES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
@@ -183,7 +185,7 @@ export const AdminDashboardPage: React.FC = () => {
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación Mes</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación Estimada</p>
             <p className="text-3xl font-bold text-green-600 mt-1">{formatCurrency(stats.ingresosMes)}</p>
           </div>
           <div className="p-3 bg-green-50 text-green-600 rounded-xl">
@@ -212,15 +214,80 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABLA PRINCIPAL DE COMERCIOS */}
+      {/* MÓDULO DE MÉTRICAS REALES POR NEGOCIO */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b dark:border-gray-700 pb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <BarChart2 className="w-6 h-6 text-brand-600" /> Rendimiento & Métricas Reales por Comercio
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Seleccioná un negocio para auditar sus visitas a la ficha y contactos recibidos.
+            </p>
+          </div>
+
+          <div className="w-full sm:w-80">
+            <select
+              value={selectedComercioMetrica?.id || ''}
+              onChange={(e) => {
+                const com = comercios.find(c => c.id === e.target.value);
+                if (com) cargarMetricasDeComercio(com);
+              }}
+              className="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              {comercios.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} ({c.direccion})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {selectedComercioMetrica && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in duration-200">
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase">Visitas a la Ficha</p>
+                <p className="text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasLocal.visitas}</p>
+              </div>
+              <div className="p-3 bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 rounded-xl">
+                <Eye className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase">Consultas WhatsApp</p>
+                <p className="text-3xl font-black text-green-600 mt-1">{metricasLocal.whatsapp}</p>
+              </div>
+              <div className="p-3 bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300 rounded-xl">
+                <MessageCircle className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase">Rutas "Cómo Llegar"</p>
+                <p className="text-3xl font-black text-purple-600 mt-1">{metricasLocal.comoLlegar}</p>
+              </div>
+              <div className="p-3 bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 rounded-xl">
+                <Navigation className="w-6 h-6" />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* TABLA DE COMERCIOS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Building className="w-5 h-5 text-brand-600" /> Comercios Registrados
+              <Building className="w-5 h-5 text-brand-600" /> Todos los Comercios Registrados
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Solo los comercios activos aparecen visibles en el mapa público.
+              Alterná el interruptor de pago para habilitar u ocultar el local en el mapa público.
             </p>
           </div>
 
@@ -228,7 +295,7 @@ export const AdminDashboardPage: React.FC = () => {
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre o dirección..."
+              placeholder="Buscar por nombre o calle..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -238,16 +305,14 @@ export const AdminDashboardPage: React.FC = () => {
 
         {loading ? (
           <div className="p-12 text-center text-gray-500">Cargando lista de comercios...</div>
-        ) : comerciosFiltrados.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">No se encontraron comercios.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
                   <th className="p-4">Comercio</th>
                   <th className="p-4">Rubro</th>
-                  <th className="p-4">Estado del Pago</th>
+                  <th className="p-4">Estado Publicación</th>
                   <th className="p-4">Dirección</th>
                   <th className="p-4 text-right">Acciones</th>
                 </tr>
@@ -276,11 +341,11 @@ export const AdminDashboardPage: React.FC = () => {
                       >
                         {comercio.habilitado_admin ? (
                           <>
-                            <CheckCircle className="w-3.5 h-3.5 text-green-600" /> Al Día (Visible)
+                            <CheckCircle className="w-3.5 h-3.5 text-green-600" /> Visible en Mapa
                           </>
                         ) : (
                           <>
-                            <XCircle className="w-3.5 h-3.5 text-red-600" /> Suspendido (Oculto)
+                            <XCircle className="w-3.5 h-3.5 text-red-600" /> Oculto
                           </>
                         )}
                       </button>
@@ -334,7 +399,7 @@ export const AdminDashboardPage: React.FC = () => {
 
             <form onSubmit={handleGuardarEdicion} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold mb-1">Nombre</label>
+                <label className="block text-xs font-semibold mb-1">Nombre Comercial</label>
                 <input
                   type="text"
                   required
@@ -345,7 +410,7 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1">Dirección</label>
+                <label className="block text-xs font-semibold mb-1">Dirección (Nogoyá)</label>
                 <input
                   type="text"
                   required
@@ -364,19 +429,6 @@ export const AdminDashboardPage: React.FC = () => {
                   onChange={(e) => setModalEditar({ ...modalEditar, whatsapp: e.target.value })}
                   className="w-full px-3.5 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1">Rubro</label>
-                <select
-                  value={modalEditar.rubro_id}
-                  onChange={(e) => setModalEditar({ ...modalEditar, rubro_id: e.target.value })}
-                  className="w-full px-3.5 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
-                >
-                  {rubros.map((r) => (
-                    <option key={r.id} value={r.id}>{r.nombre}</option>
-                  ))}
-                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
