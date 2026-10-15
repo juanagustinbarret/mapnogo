@@ -11,7 +11,6 @@ import {
   LayoutDashboard,
   CreditCard,
   PlusCircle,
-  Shield,
   LogOut
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -92,50 +91,54 @@ export const AdminExpirationsPage: React.FC = () => {
           </button>
         </div>
 
-        {/* NAVEGACIÓN ENTRE PANTALLAS ADMIN */}
-        <div className="flex items-center gap-2 border-t dark:border-gray-700 pt-4 overflow-x-auto">
+        {/* NAVEGACIÓN EN GRID ADAPTABLE */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t dark:border-gray-700 pt-4">
           <Link
             to="/admin"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
               location.pathname === '/admin'
                 ? 'bg-brand-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
             }`}
           >
-            <LayoutDashboard className="w-4 h-4" /> Volver al Dashboard
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            <span className="truncate">Dashboard</span>
           </Link>
 
           <Link
             to="/admin/pagos"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
               location.pathname === '/admin/pagos'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
             }`}
           >
-            <CreditCard className="w-4 h-4" /> Registro de Pagos
+            <CreditCard className="w-4 h-4 shrink-0" />
+            <span className="truncate">Pagos</span>
           </Link>
 
           <Link
             to="/admin/vencimientos"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
               location.pathname === '/admin/vencimientos'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
             }`}
           >
-            <Clock className="w-4 h-4" /> Vencimientos & WhatsApp
+            <Clock className="w-4 h-4 shrink-0" />
+            <span className="truncate">Vencimientos</span>
           </Link>
 
           <Link
             to="/admin/comercios/nuevo"
-            className={`px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition ${
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
               location.pathname === '/admin/comercios/nuevo'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
             }`}
           >
-            <PlusCircle className="w-4 h-4" /> Alta Comercio
+            <PlusCircle className="w-4 h-4 shrink-0" />
+            <span className="truncate">Alta Comercio</span>
           </Link>
         </div>
       </div>
@@ -153,7 +156,7 @@ export const AdminExpirationsPage: React.FC = () => {
         />
       </div>
 
-      {/* TABLA DE COMERCIOS */}
+      {/* SECCIÓN RESPONSIVA DE VENCIMIENTOS */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
@@ -166,39 +169,70 @@ export const AdminExpirationsPage: React.FC = () => {
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[650px]">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
-                <th className="p-4">Comercio</th>
-                <th className="p-4">WhatsApp Registrado</th>
-                <th className="p-4 text-right">Acción Directa</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
-              {filtrados.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                  <td className="p-4 font-bold text-gray-900 dark:text-white">{c.nombre}</td>
-                  <td className="p-4 font-mono text-xs text-gray-600 dark:text-gray-300">{c.whatsapp || 'No cargado'}</td>
-                  <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                    <button
-                      onClick={() => handleEnviarMetricasWhatsApp(c)}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center gap-1 hover:bg-blue-100 transition"
-                    >
-                      <BarChart2 className="w-3.5 h-3.5" /> Enviar Métricas
-                    </button>
+        <div className="space-y-4">
+          {/* VISTA EN TARJETAS PARA CELULARES */}
+          <div className="grid grid-cols-1 gap-3 md:hidden">
+            {filtrados.map((c) => (
+              <div key={c.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
+                <div>
+                  <h4 className="font-bold text-sm text-gray-900 dark:text-white">{c.nombre}</h4>
+                  <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.whatsapp || 'Sin WhatsApp'}</p>
+                </div>
 
-                    <button
-                      onClick={() => handleEnviarWhatsApp(c)}
-                      className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
-                    >
-                      <MessageCircle className="w-4 h-4" /> Enviar Recordatorio <ExternalLink className="w-3 h-3" />
-                    </button>
-                  </td>
+                <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t dark:border-gray-800">
+                  <button
+                    onClick={() => handleEnviarMetricasWhatsApp(c)}
+                    className="w-full py-2 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5"
+                  >
+                    <BarChart2 className="w-3.5 h-3.5" /> Enviar Métricas
+                  </button>
+
+                  <button
+                    onClick={() => handleEnviarWhatsApp(c)}
+                    className="w-full py-2 bg-green-600 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Recordatorio <ExternalLink className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* VISTA EN TABLA PARA COMPUTADORAS */}
+          <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-left border-collapse table-fixed">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <th className="p-3.5 w-[35%]">Comercio</th>
+                  <th className="p-3.5 w-[30%]">WhatsApp Registrado</th>
+                  <th className="p-3.5 w-[35%] text-right">Acción Directa</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
+                {filtrados.map((c) => (
+                  <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
+                    <td className="p-3.5 font-bold text-gray-900 dark:text-white truncate">{c.nombre}</td>
+                    <td className="p-3.5 font-mono text-xs text-gray-600 dark:text-gray-300 truncate">{c.whatsapp || 'No cargado'}</td>
+                    <td className="p-3.5 text-right space-x-2 whitespace-nowrap">
+                      <button
+                        onClick={() => handleEnviarMetricasWhatsApp(c)}
+                        className="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center gap-1 hover:bg-blue-100 transition"
+                      >
+                        <BarChart2 className="w-3.5 h-3.5" /> Enviar Métricas
+                      </button>
+
+                      <button
+                        onClick={() => handleEnviarWhatsApp(c)}
+                        className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+                      >
+                        <MessageCircle className="w-4 h-4" /> Enviar Recordatorio <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
