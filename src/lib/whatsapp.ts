@@ -1,26 +1,28 @@
+// Mantener en sincronía con supabase/functions/_shared/whatsapp.ts
+
 /**
- * Normaliza un número telefónico al formato internacional de WhatsApp para Argentina (+54 9 ...)
+ * Normaliza un número telefónico al formato internacional de WhatsApp para Argentina (549...).
+ * Números locales sin característica se asumen de Nogoyá (3435).
  */
-export const normalizeWhatsAppNumber = (phone: string): { isValid: boolean; normalized: string; error?: string } => {
+export const normalizeWhatsAppNumber = (
+  phone: string,
+): { isValid: boolean; normalized: string; error?: string } => {
   if (!phone) {
     return { isValid: false, normalized: '', error: 'Sin número registrado' };
   }
 
-  // Eliminar espacios, guiones y símbolos no numéricos
   let clean = phone.replace(/\D/g, '');
 
   if (!clean) {
     return { isValid: false, normalized: '', error: 'Número inválido' };
   }
 
-  // Si empieza con 0 (ej: 03435123456), quitar el 0
   if (clean.startsWith('0')) {
     clean = clean.substring(1);
   }
 
-  // Si empieza con 549
   if (clean.startsWith('549')) {
-    // Correcto
+    // ya está en formato internacional
   } else if (clean.startsWith('54')) {
     clean = '549' + clean.substring(2);
   } else if (clean.startsWith('15')) {
@@ -28,13 +30,11 @@ export const normalizeWhatsAppNumber = (phone: string): { isValid: boolean; norm
   } else if (clean.length === 10) {
     clean = '549' + clean;
   } else if (clean.length >= 6 && clean.length <= 8) {
-    // Número local de Nogoyá sin característica
     clean = '5493435' + clean;
   } else {
     clean = '549' + clean;
   }
 
-  // Validar longitud final típica (549 + 10 dígitos = 13 dígitos)
   if (clean.length < 11 || clean.length > 14) {
     return { isValid: false, normalized: clean, error: 'Longitud de teléfono dudosa' };
   }
@@ -43,15 +43,20 @@ export const normalizeWhatsAppNumber = (phone: string): { isValid: boolean; norm
 };
 
 /**
- * Genera la URL codificada lista para abrir en WhatsApp Web o App
+ * Genera la URL de WhatsApp. Si el número no es válido, devuelve null.
  */
-export const buildWhatsAppUrl = (phone: string, textMessage: string): string => {
-  const encodedText = encodeURIComponent(textMessage);
-  return `https://wa.me/${phone}?text=${encodedText}`;
+export const buildWhatsAppUrl = (phone: string, textMessage?: string): string | null => {
+  const { isValid, normalized } = normalizeWhatsAppNumber(phone);
+  if (!isValid) return null;
+  const texto = textMessage ? `?text=${encodeURIComponent(textMessage)}` : '';
+  return `https://wa.me/${normalized}${texto}`;
 };
 
+const escaparRegex = (texto: string) => texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
- * Reemplaza variables dinámicas en la plantilla de mensaje
+ * Reemplaza las variables entre corchetes de una plantilla, por ejemplo
+ * [NOMBRE DEL COMERCIO], [IMPORTE], [PERIODO] y [FECHA DE VENCIMIENTO].
  */
 export const compileTemplate = (
   template: string,
@@ -60,14 +65,20 @@ export const compileTemplate = (
     importe?: string;
     periodoFacturado?: string;
     vencimiento?: string;
-  }
+  },
 ): string => {
   if (!template) return '';
 
-  return template
-    .replace(/[NOMBRE DEL COMERCIO]/g, data.nombreComercio || '')
-    .replace(/[IMPORTE]/g, data.importe || '')
-    .replace(/[PERIODO]/g, data.periodoFacturado || '')
-    .replace(/[FECHA DE VENCIMIENTO]/g, data.vencimiento || '')
-    .replace(/[VENCIMIENTO]/g, data.vencimiento || '');
+  const variables: Record<string, string> = {
+    'NOMBRE DEL COMERCIO': data.nombreComercio ?? '',
+    IMPORTE: data.importe ?? '',
+    PERIODO: data.periodoFacturado ?? '',
+    'FECHA DE VENCIMIENTO': data.vencimiento ?? '',
+    VENCIMIENTO: data.vencimiento ?? '',
+  };
+
+  return Object.entries(variables).reduce(
+    (texto, [clave, valor]) => texto.replace(new RegExp(`\\[${escaparRegex(clave)}\\]`, 'g'), valor),
+    template,
+  );
 };

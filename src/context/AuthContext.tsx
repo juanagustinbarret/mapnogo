@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types/database.types';
 
@@ -16,36 +16,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // Evita recargar el perfil si el usuario no cambió (por ejemplo, al refrescar el token)
+  const perfilCargadoPara = useRef<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
-    });
+    let activo = true;
 
+    const cargarPerfil = async (userId: string) => {
+      // Mientras se carga el perfil, la app sigue "cargando": así la ruta
+      // protegida no redirige antes de saber el rol (carrera del login).
+      setLoading(true);
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (!activo) return;
+      if (error) console.error('Error al cargar perfil:', error);
+      setProfile(data ?? null);
+      perfilCargadoPara.current = userId;
+      setLoading(false);
+    };
+
+    // onAuthStateChange emite INITIAL_SESSION al suscribirse, así que no hace
+    // falta llamar además a getSession().
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else {
+      const nuevoUsuario = session?.user ?? null;
+      setUser(nuevoUsuario);
+
+      if (!nuevoUsuario) {
+        perfilCargadoPara.current = null;
         setProfile(null);
         setLoading(false);
+        return;
+      }
+
+      if (perfilCargadoPara.current !== nuevoUsuario.id) {
+        // Se difiere para no llamar a Supabase dentro del callback de auth
+        setLoading(true);
+        setTimeout(() => void cargarPerfil(nuevoUsuario.id), 0);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      activo = false;
+      subscription.unsubscribe();
+    };
   }, []);
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      setProfile(data);
-    } catch (err) {
-      console.error('Error al cargar perfil:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signOut = async () => {
     await supabase.auth.signOut();

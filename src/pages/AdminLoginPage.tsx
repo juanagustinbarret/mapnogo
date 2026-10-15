@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Lock, Mail } from 'lucide-react';
+import { NOMBRE_APP } from '@/config/marca';
 
 export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,16 +28,15 @@ export const AdminLoginPage: React.FC = () => {
       return;
     }
 
-    // 2. Verificar rol en la tabla 'profiles'
+    // 2. Verificar el rol SOLO en la tabla 'profiles'.
+    //    user_metadata lo puede editar el propio usuario: no sirve para permisos.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('rol')
+      .select('rol, estado')
       .eq('id', data.user.id)
       .maybeSingle();
 
-    const userRole = profile?.rol || data.user.user_metadata?.rol;
-
-    if (userRole !== 'admin') {
+    if (profile?.rol !== 'admin' || profile?.estado !== 'activo') {
       await supabase.auth.signOut();
       setError('Acceso denegado: Esta cuenta no posee permisos de administrador.');
       setLoading(false);
@@ -55,7 +55,7 @@ export const AdminLoginPage: React.FC = () => {
             <Shield className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel Administrador</h1>
-          <p className="text-xs text-gray-500">Ingreso exclusivo para la administración de NOGOMAP.</p>
+          <p className="text-xs text-gray-500">Ingreso exclusivo para la administración de {NOMBRE_APP}.</p>
         </div>
 
         {error && (

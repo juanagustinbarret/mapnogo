@@ -1,307 +1,314 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Comercio } from '@/types/database.types';
-import { formatCurrency, formatDate } from '@/lib/formatters';
-import { CreditCard, CheckCircle, XCircle, Search, DollarSign, LayoutDashboard, Clock, PlusCircle, LogOut } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import React, { useCallback, useEffect, useState } from 'react';
+import { CreditCard, CheckCircle, Search, DollarSign, AlertCircle } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
+import { Comercio, MetodoPago } from '@/types/database.types';
+import { formatCurrency, formatDate, formatPeriodo, mensajeError } from '@/lib/formatters';
+import { diasHasta, periodoActual } from '@/lib/fechas';
+import { listarComerciosAdmin } from '@/services/comercios';
+import {
+  METODOS_PAGO,
+  PagoConDetalle,
+  SuscripcionConComercio,
+  inicioDelPeriodo,
+  listarPagosDesde,
+  listarSuscripcionesAdmin,
+  registrarPago,
+  suscripcionesPagadasEnPeriodo,
+} from '@/services/suscripciones';
 
-function calcularAntiguedadMeses(fechaCreacion: string) {
-  if (!fechaCreacion) return 'Desconocida';
-  const inicio = new Date(fechaCreacion);
-  const hoy = new Date();
-  const meses = (hoy.getFullYear() - inicio.getFullYear()) * 12 + (hoy.getMonth() - inicio.getMonth());
-  return meses <= 0 ? 'Menos de 1 mes' : `${meses} meses`;
+interface FilaCobro {
+  comercioId: string;
+  nombre: string;
+  suscripcion: SuscripcionConComercio | null;
 }
 
-export const AdminPaymentsPage: React.FC = () => {
-  const { signOut } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+interface FormularioPago {
+  fila: FilaCobro;
+  periodo: string;
+  importe: string;
+  metodo: MetodoPago;
+  referencia: string;
+}
 
-  const [comercios, setComercios] = useState<Comercio[]>([]);
+const ESTADO_CLASE: Record<string, string> = {
+  activa: 'bg-green-100 text-green-800',
+  pendiente: 'bg-amber-100 text-amber-800',
+  vencida: 'bg-red-100 text-red-800',
+  suspendida: 'bg-red-100 text-red-800',
+};
+
+const campoClase = 'w-full px-3 py-2 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700';
+
+// Primer día de hace 3 meses, para el historial de pagos
+const inicioHistorial = () => {
+  const [a, m] = periodoActual().split('-').map(Number);
+  const fecha = new Date(Date.UTC(a, m - 1 - 2, 1));
+  return inicioDelPeriodo(fecha.toISOString().slice(0, 7));
+};
+
+export const AdminPaymentsPage: React.FC = () => {
+  const { avisar } = useToast();
+  const periodo = periodoActual();
+
+  const [filas, setFilas] = useState<FilaCobro[]>([]);
+  const [pagadas, setPagadas] = useState<Set<string>>(new Set());
+  const [pagos, setPagos] = useState<PagoConDetalle[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<FormularioPago | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
-  // Modal para registrar pago
-  const [comercioModalPago, setComercioModalPago] = useState<Comercio | null>(null);
-  const [montoPago, setMontoPago] = useState('10000');
-  const [metodoPago, setMetodoPago] = useState('Transferencia');
-  const [savingPayment, setSavingPayment] = useState(false);
+  const cargar = useCallback(async () => {
+    try {
+      const [suscripciones, comercios, pagadasPeriodo, historial] = await Promise.all([
+        listarSuscripcionesAdmin(),
+        listarComerciosAdmin(),
+        suscripcionesPagadasEnPeriodo(periodo),
+        listarPagosDesde(inicioHistorial()),
+      ]);
+      const conSuscripcion = new Set(suscripciones.map((s) => s.comercio_id));
+      const sinSuscripcion: FilaCobro[] = comercios
+        .filter((c: Comercio) => !conSuscripcion.has(c.id))
+        .map((c) => ({ comercioId: c.id, nombre: c.nombre, suscripcion: null }));
+
+      setFilas([
+        ...suscripciones.map((s) => ({ comercioId: s.comercio_id, nombre: s.comercio?.nombre ?? '?', suscripcion: s })),
+        ...sinSuscripcion,
+      ]);
+      setPagadas(pagadasPeriodo);
+      setPagos(historial);
+    } catch (e) {
+      avisar(`No se pudieron cargar los cobros: ${mensajeError(e)}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [avisar, periodo]);
 
   useEffect(() => {
-    fetchComercios();
-  }, []);
+    void cargar();
+  }, [cargar]);
 
-  const fetchComercios = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('comercios')
-      .select('*, rubro:rubros(*)')
-      .order('created_at', { ascending: false });
-    
-    if (data) setComercios(data);
-    setLoading(false);
-  };
+  const abrirFormulario = (fila: FilaCobro) =>
+    setForm({
+      fila,
+      periodo,
+      importe: String(fila.suscripcion?.precio_acordado ?? ''),
+      metodo: 'transferencia',
+      referencia: '',
+    });
 
-  const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
-    await supabase.from('comercios').update({ habilitado_admin: !estadoActual }).eq('id', id);
-    fetchComercios();
-  };
-
-  const handleConfirmarPago = async (e: React.FormEvent) => {
+  const confirmarPago = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!comercioModalPago) return;
-    setSavingPayment(true);
-
+    if (!form) return;
+    const importe = Number(form.importe);
+    if (!importe || importe <= 0) {
+      avisar('Ingresá un importe mayor a cero.', 'error');
+      return;
+    }
+    setGuardando(true);
     try {
-      const { error } = await supabase.rpc('registrar_pago_comercio', {
-        p_comercio_id: comercioModalPago.id,
-        p_monto: parseFloat(montoPago),
-        p_medio_pago: metodoPago
+      await registrarPago({
+        comercioId: form.fila.comercioId,
+        importe,
+        metodo: form.metodo,
+        periodo: form.periodo,
+        referencia: form.referencia.trim() || undefined,
       });
-
-      if (error) {
-        alert('Error al registrar el pago: ' + error.message);
-      } else {
-        alert(`✅ Pago registrado exitosamente para "${comercioModalPago.nombre}" por ${formatCurrency(parseFloat(montoPago))}`);
-        setComercioModalPago(null);
-        fetchComercios();
-      }
-    } catch (err: any) {
-      alert('Error inesperado: ' + err.message);
+      avisar(`Pago de ${formatCurrency(importe)} registrado para ${form.fila.nombre} (${formatPeriodo(form.periodo)}).`, 'exito');
+      setForm(null);
+      await cargar();
+    } catch (err) {
+      avisar(`No se pudo registrar el pago: ${mensajeError(err)}`, 'error');
     } finally {
-      setSavingPayment(false);
+      setGuardando(false);
     }
   };
 
-  const filtrados = comercios.filter((c) =>
-    c.nombre.toLowerCase().includes(search.toLowerCase()) || c.direccion?.toLowerCase().includes(search.toLowerCase())
-  );
+  const texto = search.toLowerCase();
+  const filtradas = filas.filter((f) => f.nombre.toLowerCase().includes(texto));
+  const inicioMes = new Date(inicioDelPeriodo(periodo)).getTime();
+  const cobradoMes = pagos
+    .filter((p) => new Date(p.fecha_pago).getTime() >= inicioMes)
+    .reduce((total, p) => total + Number(p.importe), 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
-      
-      {/* HEADER PRINCIPAL Y NAVEGACIÓN */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-6">
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-              <CreditCard className="w-7 h-7 text-blue-600" /> Registro de Pagos & Miembros
-            </h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Auditoría de ingresos mensual, antigüedad de los comercios y extensión automática de vencimientos.
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <CreditCard className="w-6 h-6 text-blue-600" aria-hidden="true" /> Cobros de {formatPeriodo(periodo)}
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Cobrado este mes: <strong className="text-green-600">{formatCurrency(cobradoMes)}</strong>. Registrar un pago
+              extiende el vencimiento al día 10 del mes siguiente al período pagado.
             </p>
           </div>
-
-          <button
-            onClick={() => { signOut(); navigate('/admin/login'); }}
-            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition"
-          >
-            <LogOut className="w-4 h-4" /> Cerrar Sesión
-          </button>
-        </div>
-
-        {/* PESTAÑAS EN GRID ADAPTABLE */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t dark:border-gray-700 pt-4">
-          <Link
-            to="/admin"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 shrink-0" />
-            <span className="truncate">Dashboard</span>
-          </Link>
-
-          <Link
-            to="/admin/pagos"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin/pagos'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <CreditCard className="w-4 h-4 shrink-0" />
-            <span className="truncate">Pagos</span>
-          </Link>
-
-          <Link
-            to="/admin/vencimientos"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin/vencimientos'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <Clock className="w-4 h-4 shrink-0" />
-            <span className="truncate">Vencimientos</span>
-          </Link>
-
-          <Link
-            to="/admin/comercios/nuevo"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin/comercios/nuevo'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4 shrink-0" />
-            <span className="truncate">Alta Comercio</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* SECCIÓN RESPONSIVA DE REGISTRO DE PAGOS */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por comercio..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" aria-hidden="true" />
+            <label htmlFor="buscar-cobro" className="sr-only">Buscar comercio</label>
+            <input
+              id="buscar-cobro"
+              type="search"
+              placeholder="Buscar comercio..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
+            />
+          </div>
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-gray-500 font-semibold">Cargando registros...</div>
+          <div className="p-12 text-center text-gray-500">Cargando...</div>
         ) : (
-          <div className="space-y-4">
-            {/* VISTA EN TARJETAS PARA CELULARES */}
-            <div className="grid grid-cols-1 gap-3 md:hidden">
-              {filtrados.map((c) => (
-                <div key={c.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-sm text-gray-900 dark:text-white">{c.nombre}</h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Alta: {formatDate(c.created_at)}</p>
-                    </div>
-                    <span className="text-xs font-semibold text-brand-600">{calcularAntiguedadMeses(c.created_at)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
-                    <button
-                      onClick={() => handleToggleEstadoPago(c.id, c.habilitado_admin)}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 ${
-                        c.habilitado_admin ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
-                      }`}
-                    >
-                      {c.habilitado_admin ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                      {c.habilitado_admin ? 'Visible' : 'Oculto'}
-                    </button>
-
-                    <button
-                      onClick={() => setComercioModalPago(c)}
-                      className="px-3 py-1.5 bg-blue-600 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1"
-                    >
-                      <DollarSign className="w-3.5 h-3.5" /> Registrar Pago
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* VISTA EN TABLA PARA COMPUTADORAS */}
-            <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-left border-collapse table-fixed">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    <th className="p-3.5 w-[25%]">Comercio</th>
-                    <th className="p-3.5 w-[20%]">Miembro Desde</th>
-                    <th className="p-3.5 w-[18%]">Antigüedad</th>
-                    <th className="p-3.5 w-[20%]">Estado Publicación</th>
-                    <th className="p-3.5 w-[17%] text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
-                  {filtrados.map((c) => (
-                    <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                      <td className="p-3.5 font-bold text-gray-900 dark:text-white truncate">{c.nombre}</td>
-                      <td className="p-3.5 text-xs text-gray-600 dark:text-gray-300 truncate">{formatDate(c.created_at)}</td>
-                      <td className="p-3.5 text-xs font-semibold text-brand-600 truncate">{calcularAntiguedadMeses(c.created_at)}</td>
-                      <td className="p-3.5">
-                        <button
-                          onClick={() => handleToggleEstadoPago(c.id, c.habilitado_admin)}
-                          className={`px-2.5 py-1 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition ${
-                            c.habilitado_admin ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
-                          }`}
-                        >
-                          {c.habilitado_admin ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                          {c.habilitado_admin ? 'Visible' : 'Oculto'}
-                        </button>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[720px]">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase">
+                  <th className="p-4">Comercio</th>
+                  <th className="p-4">Suscripción</th>
+                  <th className="p-4">Vence</th>
+                  <th className="p-4">{formatPeriodo(periodo)}</th>
+                  <th className="p-4 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
+                {filtradas.map((f) => {
+                  const s = f.suscripcion;
+                  const dias = s ? diasHasta(s.proximo_vencimiento) : null;
+                  const pagado = s ? pagadas.has(s.id) : false;
+                  return (
+                    <tr key={f.comercioId} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                      <td className="p-4 font-bold text-gray-900 dark:text-white">{f.nombre}</td>
+                      <td className="p-4">
+                        {s ? (
+                          <div className="space-y-1">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${ESTADO_CLASE[s.estado]}`}>{s.estado}</span>
+                            <p className="text-xs text-gray-500">{formatCurrency(s.precio_acordado)} / mes</p>
+                          </div>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">sin suscripción</span>
+                        )}
                       </td>
-                      <td className="p-3.5 text-right whitespace-nowrap">
+                      <td className="p-4 text-xs">
+                        {s ? (
+                          <>
+                            <span className="font-semibold">{formatDate(s.proximo_vencimiento)}</span>
+                            <span className={`block ${dias !== null && dias < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+                              {dias === null ? '' : dias < 0 ? `hace ${-dias} días` : dias === 0 ? 'hoy' : `en ${dias} días`}
+                            </span>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {pagado ? (
+                          <span className="text-xs font-bold text-green-700 inline-flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" aria-hidden="true" /> Pagado
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-amber-700 inline-flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" aria-hidden="true" /> Pendiente
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-right">
                         <button
-                          onClick={() => setComercioModalPago(c)}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1 shadow-sm transition"
+                          onClick={() => abrirFormulario(f)}
+                          className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
                         >
-                          <DollarSign className="w-3.5 h-3.5" /> Registrar Pago
+                          <DollarSign className="w-3.5 h-3.5" aria-hidden="true" /> Registrar pago
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* MODAL REGISTRAR PAGO REAL */}
-      {comercioModalPago && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-              Registrar Cuota para {comercioModalPago.nombre}
-            </h3>
-
-            <form onSubmit={handleConfirmarPago} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold block mb-1">Monto Cobrado ($)</label>
-                <input
-                  type="number"
-                  required
-                  value={montoPago}
-                  onChange={(e) => setMontoPago(e.target.value)}
-                  className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1">Medio de Pago</label>
-                <select
-                  value={metodoPago}
-                  onChange={(e) => setMetodoPago(e.target.value)}
-                  className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900 font-semibold"
-                >
-                  <option value="Transferencia">Transferencia Bancaria</option>
-                  <option value="Efectivo">Efectivo en Mano</option>
-                  <option value="MercadoPago">MercadoPago</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setComercioModalPago(null)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingPayment}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
-                >
-                  {savingPayment ? 'Guardando...' : 'Confirmar & Extender Vencimiento'}
-                </button>
-              </div>
-            </form>
+      {/* HISTORIAL */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Pagos de los últimos 3 meses</h2>
+        {pagos.length === 0 ? (
+          <p className="text-sm text-gray-500">Todavía no hay pagos registrados.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[600px]">
+              <thead>
+                <tr className="text-xs font-bold text-gray-500 uppercase border-b dark:border-gray-700">
+                  <th className="p-3">Fecha</th>
+                  <th className="p-3">Comercio</th>
+                  <th className="p-3">Período</th>
+                  <th className="p-3">Método</th>
+                  <th className="p-3 text-right">Importe</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {pagos.map((p) => (
+                  <tr key={p.id}>
+                    <td className="p-3">{formatDate(p.fecha_pago)}</td>
+                    <td className="p-3 font-semibold">{p.periodo?.suscripcion?.comercio?.nombre ?? '—'}</td>
+                    <td className="p-3">{p.periodo ? formatPeriodo(p.periodo.periodo_facturado) : '—'}</td>
+                    <td className="p-3">
+                      {METODOS_PAGO.find((m) => m.valor === p.metodo_pago)?.etiqueta ?? p.metodo_pago}
+                      {p.referencia && <span className="block text-[11px] text-gray-400">{p.referencia}</span>}
+                    </td>
+                    <td className="p-3 text-right font-bold">{formatCurrency(p.importe)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+      </div>
+
+      {/* MODAL REGISTRAR PAGO */}
+      {form && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="titulo-pago">
+          <form onSubmit={confirmarPago} className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 id="titulo-pago" className="text-lg font-bold text-gray-900 dark:text-white">
+              Registrar pago de {form.fila.nombre}
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="pago-periodo" className="block text-xs font-semibold mb-1">Período pagado</label>
+                <input id="pago-periodo" type="month" required value={form.periodo} onChange={(e) => setForm({ ...form, periodo: e.target.value })} className={campoClase} />
+              </div>
+              <div>
+                <label htmlFor="pago-importe" className="block text-xs font-semibold mb-1">Importe ($)</label>
+                <input id="pago-importe" type="number" min="1" step="1" required value={form.importe} onChange={(e) => setForm({ ...form, importe: e.target.value })} className={campoClase} />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="pago-metodo" className="block text-xs font-semibold mb-1">Método</label>
+              <select id="pago-metodo" value={form.metodo} onChange={(e) => setForm({ ...form, metodo: e.target.value as MetodoPago })} className={campoClase}>
+                {METODOS_PAGO.map((m) => (
+                  <option key={m.valor} value={m.valor}>{m.etiqueta}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="pago-referencia" className="block text-xs font-semibold mb-1">Referencia (opcional)</label>
+              <input id="pago-referencia" type="text" placeholder="N.° de operación, nota..." value={form.referencia} onChange={(e) => setForm({ ...form, referencia: e.target.value })} className={campoClase} />
+            </div>
+            {!form.fila.suscripcion && (
+              <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg">
+                Este comercio no tiene suscripción: se creará con el plan activo al registrar el pago.
+              </p>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => setForm(null)} className="px-4 py-2 border rounded-xl text-xs font-semibold">
+                Cancelar
+              </button>
+              <button type="submit" disabled={guardando} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold">
+                {guardando ? 'Registrando...' : 'Confirmar pago'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

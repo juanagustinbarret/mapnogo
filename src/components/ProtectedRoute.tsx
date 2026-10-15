@@ -1,33 +1,37 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import type { Role } from '@/types/database.types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('admin' | 'comerciante')[];
+  allowedRoles?: Role[];
+  // Adónde mandar a quien no inició sesión
+  loginPath?: string;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
+export const PantallaCargando: React.FC<{ mensaje?: string }> = ({ mensaje = 'Cargando...' }) => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <p className="text-sm font-semibold text-gray-500 animate-pulse" role="status">
+      {mensaje}
+    </p>
+  </div>
+);
+
+// Protección solo de la interfaz: los datos los protegen las reglas RLS de la base.
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, loginPath = '/login' }) => {
   const { user, profile, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <p className="text-sm font-semibold text-gray-500 animate-pulse">Verificando credenciales de seguridad...</p>
-      </div>
-    );
+    return <PantallaCargando mensaje="Verificando credenciales..." />;
   }
 
-  // Si no hay usuario logueado
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
-  // Si se especifican roles y no hay perfil cargado o el rol en base de datos no coincide
   if (allowedRoles && allowedRoles.length > 0) {
-    const userRole = profile?.rol;
-
-    if (!userRole || !allowedRoles.includes(userRole as any)) {
+    if (!profile || profile.estado !== 'activo' || !allowedRoles.includes(profile.rol)) {
       return <Navigate to="/" replace />;
     }
   }

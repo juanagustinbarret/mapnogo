@@ -1,57 +1,70 @@
-import { HorarioAtencion } from '@/types/database.types';
+import type { HorarioAtencion } from '../types/database.types';
+import { momentoArgentina } from './fechas';
 
 export interface StatusHorarioResult {
   estado: 'abierto' | 'cierra_pronto' | 'cerrado' | 'no_informado';
   mensaje: string;
 }
 
+const MINUTOS_DIA = 24 * 60;
+const AVISO_CIERRE = 30;
+
+const aMinutos = (hora: string): number | null => {
+  const [h, m] = (hora ?? '').split(':').map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+};
+
+const formatearHora = (hora: string) => hora.slice(0, 5);
+
+const cruzaMedianoche = (h: HorarioAtencion, inicio: number, fin: number) =>
+  h.cruza_medianoche || fin <= inicio;
+
+/**
+ * Indica si un comercio está abierto, usando la hora de Argentina.
+ * dia_semana: 0 = Lunes ... 6 = Domingo.
+ * Un turno que cruza la medianoche (por ejemplo 20:00 a 02:00 del viernes)
+ * cuenta como abierto hasta las 02:00 del sábado.
+ */
 export const evaluarEstadoHorario = (
   horarios: HorarioAtencion[],
-  nowDate: Date = new Date()
+  ahora: Date = new Date(),
 ): StatusHorarioResult => {
-  if (!horarios || horarios.length === 0) {
+  const activos = (horarios ?? []).filter((h) => h.activo);
+  if (activos.length === 0) {
     return { estado: 'no_informado', mensaje: 'Horario no informado' };
   }
 
-  // Convertir día de JavaScript (0 = Domingo) a índice DB (0 = Lunes, ..., 6 = Domingo)
-  const jsDay = nowDate.getDay();
-  const currentDayIndex = jsDay === 0 ? 6 : jsDay - 1;
+  const { dia, minutos } = momentoArgentina(ahora);
+  const diaAnterior = (dia + 6) % 7;
 
-  const currentHour = nowDate.getHours();
-  const currentMinute = nowDate.getMinutes();
-  const currentMinutes = currentHour * 60 + currentMinute;
+  // Minutos que faltan para el cierre si el turno está abierto ahora; si no, null
+  const minutosParaCerrar = (h: HorarioAtencion): number | null => {
+    const inicio = aMinutos(h.hora_apertura);
+    const fin = aMinutos(h.hora_cierre);
+    if (inicio === null || fin === null) return null;
+    const nocturno = cruzaMedianoche(h, inicio, fin);
 
-  const horariosHoy = horarios.filter((h) => h.dia_semana === currentDayIndex && h.activo);
-
-  if (horariosHoy.length === 0) {
-    return { estado: 'cerrado', mensaje: 'Cerrado hoy' };
-  }
-
-  for (const h of horariosHoy) {
-    if (!h.hora_apertura || !h.hora_cierre) continue;
-
-    const [hOpen, mOpen] = h.hora_apertura.split(':').map(Number);
-    const [hClose, mClose] = h.hora_cierre.split(':').map(Number);
-    const startMinutes = hOpen * 60 + mOpen;
-    let endMinutes = hClose * 60 + mClose;
-
-    // Si la hora de cierre es menor a la de apertura, cruza la medianoche (ej: 20:00 a 02:00)
-    const cruzaMedianoche = endMinutes < startMinutes || h.cruza_medianoche;
-
-    if (cruzaMedianoche) {
-      if (currentMinutes >= startMinutes || currentMinutes < endMinutes) {
-        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
-      }
-    } else {
-      if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
-        const diff = endMinutes - currentMinutes;
-        if (diff <= 30) {
-          return { estado: 'cierra_pronto', mensaje: `Cierra pronto (${diff} min)` };
-        }
-        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
-      }
+    if (h.dia_semana === dia) {
+      if (!nocturno && minutos >= inicio && minutos < fin) return fin - minutos;
+      if (nocturno && minutos >= inicio) return MINUTOS_DIA - minutos + fin;
     }
+    // Madrugada de un turno nocturno que empezó el día anterior
+    if (h.dia_semana === diaAnterior && nocturno && minutos < fin) return fin - minutos;
+    return null;
+  };
+
+  for (const h of activos) {
+    const faltan = minutosParaCerrar(h);
+    if (faltan === null) continue;
+    if (faltan <= AVISO_CIERRE) {
+      return { estado: 'cierra_pronto', mensaje: `Cierra pronto (${faltan} min)` };
+    }
+    return { estado: 'abierto', mensaje: `Abierto hasta las ${formatearHora(h.hora_cierre)}` };
   }
 
-  return { estado: 'cerrado', mensaje: 'Cerrado en este momento' };
+  const tieneTurnoHoy = activos.some((h) => h.dia_semana === dia);
+  return {
+    estado: 'cerrado',
+    mensaje: tieneTurnoHoy ? 'Cerrado en este momento' : 'Cerrado hoy',
+  };
 };

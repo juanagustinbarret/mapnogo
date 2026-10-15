@@ -15,7 +15,7 @@ export const MerchantLoginPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    const { data, error: authErr } = await supabase.auth.signInWithPassword({
+    const { error: authErr } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
