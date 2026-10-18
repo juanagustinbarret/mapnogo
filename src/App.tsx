@@ -18,6 +18,7 @@ import { AdminPaymentsPage } from '@/pages/AdminPaymentsPage';
 import { AdminExpirationsPage } from '@/pages/AdminExpirationsPage';
 import { AdminSettingsPage } from '@/pages/AdminSettingsPage';
 import { PromotionsPage } from '@/pages/PromotionsPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
 export const App: React.FC = () => {
   return (
@@ -32,7 +33,7 @@ export const App: React.FC = () => {
                 <Route path="/" element={<HomeExplorerPage />} />
                 <Route path="/comercio/:slug" element={<CommerceDetailPage />} />
                 <Route path="/promociones" element={<PromotionsPage />} />
-                
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 {/* Logins Separados */}
                 <Route path="/login" element={<MerchantLoginPage />} />
                 <Route path="/admin/login" element={<AdminLoginPage />} />
