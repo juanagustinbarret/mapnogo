@@ -9,7 +9,7 @@ import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 import {
-  MENSAJES_FALLO_PUSH,
+  mensajeFalloPush,
   solicitarPermisoNotificacionesPush, 
   cancelarSuscripcionNotificacionesPush, 
   verificarEstadoSuscripcionPush 
@@ -108,9 +108,9 @@ export const HomeExplorerPage: React.FC = () => {
       setActivandoPush(false);
       if (exito) {
         setPushActivado(false);
-        alert('Te diste de baja de las notificaciones de ofertas.');
+        setTimeout(() => alert('Te diste de baja de las notificaciones de ofertas.'), 50);
       } else {
-        alert('No se pudo cancelar la suscripción.');
+        setTimeout(() => alert('No se pudo cancelar la suscripción.'), 50);
       }
     } else {
       // Proceso de alta
@@ -119,10 +119,13 @@ export const HomeExplorerPage: React.FC = () => {
 
       if (resultado.ok) {
         setPushActivado(true);
-        alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.');
+        setTimeout(() => alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.'), 50);
       } else {
-        // Mensaje según lo que pasó (permiso bloqueado, iPhone sin instalar, etc.)
-        alert(MENSAJES_FALLO_PUSH[resultado.motivo]);
+        // Mensaje según lo que pasó (permiso bloqueado, iPhone sin instalar,
+        // error del servidor...). Se muestra después de que el botón deje de
+        // decir "Activando..." (alert bloquea el redibujado).
+        const mensaje = mensajeFalloPush(resultado);
+        setTimeout(() => alert(mensaje), 50);
       }
     }
   };

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { llamadas, respuestas, reiniciar } from './soporte/supabase-falso.mjs';
 import {
   cancelarSuscripcionNotificacionesPush,
+  mensajeFalloPush,
   solicitarPermisoNotificacionesPush,
   urlBase64ToUint8Array,
   verificarEstadoSuscripcionPush,
@@ -20,7 +21,7 @@ type Opciones = {
   registrado?: boolean;
   readyNunca?: boolean;
   suscripcionPrevia?: ReturnType<typeof crearSuscripcion> | null;
-  subscribeFalla?: boolean;
+  subscribeFalla?: string; // nombre del error que tira subscribe()
 };
 
 const contador = { register: 0, subscribe: 0, requestPermission: 0 };
@@ -48,7 +49,7 @@ function montar(o: Opciones = {}) {
       getSubscription: async () => suscripcion,
       subscribe: async ({ applicationServerKey }: { applicationServerKey: Uint8Array }) => {
         contador.subscribe++;
-        if (o.subscribeFalla) throw new Error('AbortError');
+        if (o.subscribeFalla) throw Object.assign(new Error('Registration failed'), { name: o.subscribeFalla });
         suscripcion = crearSuscripcion('https://push.example/nuevo', applicationServerKey);
         return suscripcion;
       },
@@ -97,17 +98,32 @@ test('si el service worker no estaba registrado, lo registra, se suscribe y guar
   assert.equal(contador.subscribe, 1);
   assert.equal(llamadas.length, 1);
   const { tabla, operacion, fila, opciones } = llamadas[0];
+  // Columnas reales de la tabla en producción: endpoint, p256dh, auth
   assert.deepEqual({ tabla, operacion, opciones }, {
     tabla: 'push_subscriptions',
     operacion: 'upsert',
-    opciones: { onConflict: 'subscription_json' },
+    opciones: { onConflict: 'endpoint', ignoreDuplicates: true },
   });
-  assert.deepEqual(fila.subscription_json, {
-    endpoint: 'https://push.example/nuevo',
-    expirationTime: null,
-    keys: { p256dh: 'BPx-y_z', auth: 'au_th-1' },
-  });
-  assert.equal(fila.user_agent, 'Mozilla/5.0 (X11; Linux x86_64)');
+  assert.deepEqual(fila, { endpoint: 'https://push.example/nuevo', p256dh: 'BPx-y_z', auth: 'au_th-1' });
+});
+
+test('regresión 18/10: columna inexistente (42703) → mensaje de error del servidor con código', async () => {
+  const navegador = montar();
+  respuestas.upsert = {
+    error: { code: '42703', message: 'column "subscription_json" of relation "push_subscriptions" does not exist' },
+  };
+  const errores: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => errores.push(args);
+  try {
+    const resultado = await solicitarPermisoNotificacionesPush();
+    assert.deepEqual(resultado, { ok: false, motivo: 'error_guardado', detalle: '42703' });
+    assert.match(mensajeFalloPush(resultado as any), /servidor.*código: 42703/);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(navegador.obtener()?.bajas, 1, 'no deja una suscripción del navegador sin guardar');
+  assert.match(JSON.stringify(errores), /guardado en push_subscriptions.*42703/, 'queda un log con etapa y código');
 });
 
 test('si el service worker no responde, avisa en vez de quedar colgado', async () => {
@@ -118,7 +134,7 @@ test('si el service worker no responde, avisa en vez de quedar colgado', async (
     await new Promise((r) => setImmediate(r));
     mock.timers.tick(10_000);
     const resultado = await pendiente;
-    assert.deepEqual(resultado, { ok: false, motivo: 'error_servicio' });
+    assert.deepEqual(resultado, { ok: false, motivo: 'error_servicio', detalle: 'TimeoutError' });
     assert.equal(llamadas.length, 0);
   } finally {
     mock.timers.reset();
@@ -151,15 +167,21 @@ test('iPhone sin la app instalada recibe una explicación específica', async ()
 
 test('si no se puede guardar en la base, no dice "activadas" y da de baja', async () => {
   const navegador = montar();
-  respuestas.upsert = { error: { message: 'new row violates row-level security policy' } };
+  respuestas.upsert = { error: { code: '42501', message: 'new row violates row-level security policy' } };
   const resultado = await solicitarPermisoNotificacionesPush();
-  assert.deepEqual(resultado, { ok: false, motivo: 'error_guardado' });
+  assert.deepEqual(resultado, { ok: false, motivo: 'error_guardado', detalle: '42501' });
   assert.equal(navegador.obtener()?.bajas, 1);
 });
 
-test('si el navegador falla al suscribir, informa error', async () => {
-  montar({ subscribeFalla: true });
-  assert.deepEqual(await solicitarPermisoNotificacionesPush(), { ok: false, motivo: 'error_servicio' });
+test('si el servicio push del navegador falla, lo dice (no "error del servidor")', async () => {
+  montar({ subscribeFalla: 'AbortError' });
+  assert.deepEqual(await solicitarPermisoNotificacionesPush(), {
+    ok: false,
+    motivo: 'error_push_navegador',
+    detalle: 'AbortError',
+  });
+  montar({ subscribeFalla: 'NotAllowedError' });
+  assert.deepEqual(await solicitarPermisoNotificacionesPush(), { ok: false, motivo: 'denegado', detalle: 'NotAllowedError' });
 });
 
 test('reutiliza la suscripción existente con la misma clave (sin duplicados)', async () => {
@@ -172,10 +194,10 @@ test('reutiliza la suscripción existente con la misma clave (sin duplicados)', 
   assert.equal(contador.register, 0);
   // Dos activaciones = dos upsert del mismo endpoint (no dos filas)
   assert.deepEqual(
-    llamadas.map((l) => l.fila?.subscription_json.endpoint),
+    llamadas.map((l) => l.fila?.endpoint),
     ['https://push.example/existente', 'https://push.example/existente'],
   );
-  assert.ok(llamadas.every((l) => l.opciones.onConflict === 'subscription_json'));
+  assert.ok(llamadas.every((l) => l.opciones.onConflict === 'endpoint' && l.opciones.ignoreDuplicates));
   assert.ok(llamadas.every((l) => l.operacion === 'upsert'), 'reusar no borra ni rehace nada');
 });
 
@@ -190,8 +212,8 @@ test('si la suscripción previa usa otra clave VAPID, la rehace', async () => {
   assert.deepEqual(llamadas[0], {
     tabla: 'push_subscriptions',
     operacion: 'delete',
-    columna: 'subscription_json',
-    valor: JSON.stringify(previa.toJSON()),
+    columna: 'endpoint',
+    valor: 'https://push.example/vieja',
   });
   assert.equal(llamadas[1].operacion, 'upsert');
 });
@@ -214,8 +236,8 @@ test('darse de baja: anula la suscripción del navegador y borra la fila', async
     {
       tabla: 'push_subscriptions',
       operacion: 'delete',
-      columna: 'subscription_json',
-      valor: JSON.stringify(previa.toJSON()),
+      columna: 'endpoint',
+      valor: 'https://push.example/existente',
     },
   ]);
 });
