@@ -49,8 +49,8 @@ test('push con JSON: título, cuerpo, URL absoluta del sitio, ícono y etiqueta'
   assert.equal(opciones.body, 'Solo hoy');
   assert.equal(opciones.data.url, `${ORIGEN}/comercio/don-pepe`);
   assert.equal(opciones.tag, 'promo-7');
-  assert.equal(opciones.icon, '/pwa-192x192.png');
-  assert.equal(opciones.badge, '/badge-96x96.png');
+  assert.equal(opciones.icon, '/pwa-192x192.png?v=2');
+  assert.equal(opciones.badge, '/badge-96x96.png?v=2');
 });
 
 test('push con texto plano: se muestra igual (antes se perdía)', async () => {
