@@ -51,7 +51,11 @@ export const buildWhatsAppUrl = (phone: string, textMessage: string): string => 
 };
 
 /**
- * Reemplaza variables dinámicas en la plantilla de mensaje
+ * Reemplaza variables dinámicas en la plantilla de mensaje.
+ *
+ * Antes usaba expresiones como /[IMPORTE]/g, que en JavaScript significan
+ * "cualquiera de las letras I, M, P, O, R, T, E": reemplazaba letra por letra
+ * y destrozaba el mensaje. Ahora se reemplaza el texto exacto.
  */
 export const compileTemplate = (
   template: string,
@@ -64,10 +68,23 @@ export const compileTemplate = (
 ): string => {
   if (!template) return '';
 
-  return template
-    .replace(/[NOMBRE DEL COMERCIO]/g, data.nombreComercio || '')
-    .replace(/[IMPORTE]/g, data.importe || '')
-    .replace(/[PERIODO]/g, data.periodoFacturado || '')
-    .replace(/[FECHA DE VENCIMIENTO]/g, data.vencimiento || '')
-    .replace(/[VENCIMIENTO]/g, data.vencimiento || '');
+  const valores: Array<[string, string | undefined]> = [
+    ['[NOMBRE DEL COMERCIO]', data.nombreComercio],
+    ['[IMPORTE]', data.importe],
+    ['[PERIODO]', data.periodoFacturado],
+    ['[FECHA DE VENCIMIENTO]', data.vencimiento],
+    ['[VENCIMIENTO]', data.vencimiento],
+  ];
+
+  // Las variables sin dato quedan escritas tal cual, para poder detectarlas
+  // con variablesSinCompletar() y no mandar un mensaje con huecos.
+  return valores.reduce(
+    (texto, [variable, valor]) => (valor ? texto.split(variable).join(valor) : texto),
+    template
+  );
 };
+
+/** Variables tipo [IMPORTE] que quedaron sin reemplazar en un mensaje. */
+export const variablesSinCompletar = (texto: string): string[] => [
+  ...new Set(texto.match(/\[[A-ZÁÉÍÓÚÑ ]+\]/g) ?? []),
+];
