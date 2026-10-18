@@ -19,7 +19,7 @@ export const generarReportePDF = (
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text('NOGOYÁ CERCA', 14, 18);
+  doc.text('NOGOMAP', 14, 18);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -91,7 +91,7 @@ export const generarReportePDF = (
   // PIE DE PÁGINA
   doc.setFontSize(8);
   doc.setTextColor(156, 163, 175);
-  doc.text('Generado automáticamente por la plataforma Nogoyá Cerca - www.nogoyacerca.com.ar', 14, 285);
+  doc.text('Generado automáticamente por la plataforma NOGOMAP - www.nogoyacerca.com.ar', 14, 285);
 
-  doc.save(`Reporte_NogoyaCerca_${comercio.slug}.pdf`);
+  doc.save(`Reporte_NOGOMAP_${comercio.slug}.pdf`);
 };

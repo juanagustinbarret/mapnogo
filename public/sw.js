@@ -7,10 +7,12 @@
 //   { "title": "...", "body": "...", "url": "/comercio/slug", "tag": "promo-123", "icon": "/..." }
 // Todos los campos son opcionales.
 
+// Cambiar VERSION fuerza a los navegadores a instalar este archivo de nuevo.
+const VERSION = '2026-10-18-logo-rana';
 const TITULO_POR_DEFECTO = 'NOGOMAP 🏪';
 const CUERPO_POR_DEFECTO = '¡Hay una nueva oferta o novedad en el directorio!';
-const ICONO = '/pwa-192x192.png';
-const INSIGNIA = '/badge-96x96.png';
+const ICONO = '/pwa-192x192.png?v=2';
+const INSIGNIA = '/badge-96x96.png?v=2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

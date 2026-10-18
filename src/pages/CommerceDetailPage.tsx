@@ -102,7 +102,7 @@ export const CommerceDetailPage: React.FC = () => {
     if (navigator.share) {
       navigator.share({
         title: comercio?.nombre,
-        text: `Mirá la ficha de ${comercio?.nombre} en Nogoyá Cerca`,
+        text: `Mirá la ficha de ${comercio?.nombre} en NOGOMAP`,
         url: window.location.href,
       });
     } else {

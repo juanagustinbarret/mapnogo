@@ -42,7 +42,7 @@ export const FlyerGeneratorModal: React.FC<Props> = ({ comercio, promociones, on
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 42px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('NOGOYÁ CERCA • Directorio Comercial', 540, 215);
+    ctx.fillText('NOGOMAP • Directorio Comercial', 540, 215);
 
     // TARJETA CONTENEDORA PRINCIPAL
     ctx.fillStyle = '#ffffff';

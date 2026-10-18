@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { LogoNogomap } from '@/components/LogoNogomap';
 import {
-  MapPin,
   Sun,
   Moon,
   LogOut,
@@ -57,8 +57,8 @@ export const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
           {/* LOGO */}
-          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-brand-600 font-bold text-xl">
-            <MapPin className="w-6 h-6 text-brand-500 fill-brand-100" />
+          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-brand-600 font-bold text-xl" aria-label="NOGOMAP, ir al inicio">
+            <LogoNogomap className="w-8 h-8 shrink-0" />
             <span>NOGO<span className="text-gray-900 dark:text-white">MAP</span></span>
           </button>
 

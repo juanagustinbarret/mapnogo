@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#15803d"/>
+  <g transform="translate(256 256) scale(0.9) translate(-256 -286)">
+  <!-- cabeza -->
+  <circle cx="178" cy="172" r="58" fill="#4ade80"/>
+  <circle cx="334" cy="172" r="58" fill="#4ade80"/>
+  <ellipse cx="256" cy="262" rx="150" ry="104" fill="#4ade80"/>
+  <!-- ojos -->
+  <circle cx="178" cy="166" r="36" fill="#fff"/>
+  <circle cx="334" cy="166" r="36" fill="#fff"/>
+  <circle cx="186" cy="170" r="17" fill="#052e16"/>
+  <circle cx="326" cy="170" r="17" fill="#052e16"/>
+  <!-- sonrisa y mejillas -->
+  <path d="M206 262 Q256 300 306 262" fill="none" stroke="#14532d" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="160" cy="258" r="13" fill="#22c55e"/>
+  <circle cx="352" cy="258" r="13" fill="#22c55e"/>
+  <!-- mapa plegado -->
+  <path d="M92 330 L196 304 L316 330 L420 304 L420 432 L316 458 L196 432 L92 458 Z" fill="#fef3c7"/>
+  <path d="M196 304 L316 330 L316 458 L196 432 Z" fill="#fde68a"/>
+  <path d="M120 420 C170 380 220 420 260 386 S330 350 392 362" fill="none" stroke="#f59e0b" stroke-width="9" stroke-linecap="round" stroke-dasharray="2 18"/>
+  <!-- pin -->
+  <path d="M372 328 a24 24 0 0 1 24 24 c0 18 -24 40 -24 40 s-24 -22 -24 -40 a24 24 0 0 1 24 -24 Z" fill="#ef4444"/>
+  <circle cx="372" cy="352" r="8.5" fill="#fff"/>
+  <!-- patitas -->
+  <ellipse cx="184" cy="316" rx="34" ry="20" fill="#4ade80"/>
+  <ellipse cx="328" cy="316" rx="34" ry="20" fill="#4ade80"/>
+  <path d="M166 318 v10 M184 320 v11 M202 318 v10 M310 318 v10 M328 320 v11 M346 318 v10" stroke="#22c55e" stroke-width="6" stroke-linecap="round"/>
+</g>
+</svg>

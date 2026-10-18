@@ -2,8 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { ModalMetricasWhatsApp } from '@/components/ModalMetricasWhatsApp';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
-import { normalizeWhatsAppNumber, buildWhatsAppUrl, compileTemplate, variablesSinCompletar } from '@/lib/whatsapp';
-import { formatCurrency, formatDate } from '@/lib/formatters';
+import { normalizeWhatsAppNumber } from '@/lib/whatsapp';
+import { formatDate } from '@/lib/formatters';
+import {
+  PLANTILLAS_PREDETERMINADAS,
+  armarRecordatorio,
+  leerPlantillasGuardadas,
+  type ResultadoRecordatorio,
+  type TipoPlantilla,
+} from '@/lib/plantillasMensajes';
+import { EditorMensajeWhatsApp } from '@/components/EditorMensajeWhatsApp';
 import {
   MessageCircle,
   Clock,
@@ -21,13 +29,11 @@ import { useAuth } from '@/context/AuthContext';
 
 interface SuscripcionResumen {
   comercio_id: string;
-  precio_acordado: number;
+  precio_acordado: number | null;
   proximo_vencimiento: string | null;
   estado: string;
+  plan_id?: string | null;
 }
-
-const PLANTILLA_POR_DEFECTO =
-  'Hola, ¿cómo estás? 👋\nTe recordamos que el [VENCIMIENTO] vence la suscripción mensual de [NOMBRE DEL COMERCIO] a NOGOMAP, por un importe de [IMPORTE].\nCuando realices el pago, avisanos para que podamos registrarlo. ¡Gracias!';
 
 export const AdminExpirationsPage: React.FC = () => {
   const { signOut } = useAuth();
@@ -36,22 +42,25 @@ export const AdminExpirationsPage: React.FC = () => {
 
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [search, setSearch] = useState('');
-  // El mensaje sale de la plantilla "Próximo vencimiento" de Configuración.
-  // Antes decía "vence en 3 días" para todos, sin importar la fecha real.
-  const [mensajePersonalizado, setMensajePersonalizado] = useState(PLANTILLA_POR_DEFECTO);
+  // Plantillas de Configuración → Mensajes de WhatsApp (o las predeterminadas)
+  const [plantillas, setPlantillas] = useState<Record<TipoPlantilla, string>>(PLANTILLAS_PREDETERMINADAS);
   const [suscripciones, setSuscripciones] = useState<Record<string, SuscripcionResumen>>({});
+  const [planes, setPlanes] = useState<Record<string, string>>({});
   const [comercioMetricas, setComercioMetricas] = useState<Comercio | null>(null);
+  const [recordatorio, setRecordatorio] = useState<{ comercio: Comercio; resultado: Extract<ResultadoRecordatorio, { ok: true }> } | null>(null);
 
   useEffect(() => {
     fetchComercios();
   }, []);
 
   const fetchComercios = async () => {
-    const [{ data }, { data: subs }, { data: config }] = await Promise.all([
+    const [{ data }, { data: subs }, { data: config }, { data: listaPlanes }] = await Promise.all([
       supabase.from('comercios').select('*').order('nombre'),
-      supabase.from('suscripciones').select('comercio_id, precio_acordado, proximo_vencimiento, estado'),
+      supabase.from('suscripciones').select('comercio_id, precio_acordado, proximo_vencimiento, estado, plan_id'),
       supabase.from('configuracion_sistema').select('valor').eq('clave', 'plantillas_whatsapp').maybeSingle(),
+      supabase.from('planes').select('id, nombre'),
     ]);
+    if (listaPlanes) setPlanes(Object.fromEntries(listaPlanes.map((pl) => [pl.id, pl.nombre])));
     if (data) setComercios(data);
     if (subs) {
       const porComercio: Record<string, SuscripcionResumen> = {};
@@ -60,40 +69,29 @@ export const AdminExpirationsPage: React.FC = () => {
       });
       setSuscripciones(porComercio);
     }
-    const plantilla = (config?.valor as { proximo_vencimiento?: string } | undefined)?.proximo_vencimiento;
-    if (plantilla?.trim()) setMensajePersonalizado(plantilla);
+    setPlantillas(leerPlantillasGuardadas(config?.valor));
   };
 
+  // Antes (PR #4) se usaba una sola plantilla con [IMPORTE] y, si el comercio
+  // no tenía suscripción, se bloqueaba con "faltan datos para [IMPORTE]". Ahora
+  // armarRecordatorio decide el caso (sin WhatsApp / sin suscripción / sin
+  // importe) y siempre se abre el editor antes de WhatsApp.
   const handleEnviarWhatsApp = (comercio: Comercio) => {
-    const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-
-    if (!numInfo.isValid) {
-      alert(`⚠️ El comercio "${comercio.nombre}" no tiene un número de WhatsApp válido cargado.`);
-      return;
-    }
-
     const sub = suscripciones[comercio.id];
-    const mensajeFinal = compileTemplate(mensajePersonalizado, {
-      nombreComercio: comercio.nombre,
-      importe: sub ? formatCurrency(Number(sub.precio_acordado)) : undefined,
-      vencimiento: sub?.proximo_vencimiento ? formatDate(sub.proximo_vencimiento) : undefined,
-      periodoFacturado: sub?.proximo_vencimiento ? formatDate(sub.proximo_vencimiento).slice(3) : undefined,
-    });
-
-    // No mandar un mensaje con huecos como "[IMPORTE]" al cliente
-    const faltantes = variablesSinCompletar(mensajeFinal);
-    if (faltantes.length > 0) {
-      alert(
-        `⚠️ No se puede armar el mensaje para "${comercio.nombre}": faltan datos para ${faltantes.join(', ')}.` +
-          (sub ? '' : ' El comercio no tiene una suscripción cargada.')
-      );
+    const resultado = armarRecordatorio(
+      {
+        nombre: comercio.nombre,
+        whatsappValido: normalizeWhatsAppNumber(comercio.whatsapp).isValid,
+        suscripcion: sub ? { ...sub, plan: sub.plan_id ? planes[sub.plan_id] : null } : null,
+      },
+      plantillas,
+      { linkPanel: `${window.location.origin}/panel` },
+    );
+    if (!resultado.ok) {
+      alert(`⚠️ ${resultado.mensajeError}`);
       return;
     }
-
-    const conSaludo = mensajePersonalizado.includes('[NOMBRE DEL COMERCIO]')
-      ? mensajeFinal
-      : `Hola *${comercio.nombre}*! 👋\n\n${mensajeFinal}`;
-    window.open(buildWhatsAppUrl(numInfo.normalized, conSaludo), '_blank');
+    setRecordatorio({ comercio, resultado });
   };
 
   // Antes armaba el mensaje con los últimos 7 días fijos y lo abría directo.
@@ -168,19 +166,15 @@ export const AdminExpirationsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
-        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
-          Mensaje de Recordatorio de Vencimiento
-        </label>
-        <p className="text-[11px] text-gray-500">
-          Se carga desde Configuración → plantilla "Próximo vencimiento". Variables: [NOMBRE DEL COMERCIO], [IMPORTE], [VENCIMIENTO], [PERIODO].
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm text-xs text-gray-600 dark:text-gray-300 space-y-1">
+        <p>
+          Los mensajes salen de las plantillas de{' '}
+          <Link to="/admin/configuracion" className="font-bold text-brand-600 hover:underline">Configuración → Mensajes de WhatsApp</Link>.
+          Antes de abrir WhatsApp podés editar cada uno.
         </p>
-        <textarea
-          rows={4}
-          value={mensajePersonalizado}
-          onChange={(e) => setMensajePersonalizado(e.target.value)}
-          className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-xl text-xs dark:bg-gray-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-        />
+        <p className="text-gray-500">
+          Con suscripción: recordatorio de pago. Sin suscripción: invitación a activarla (sin importe). Sin WhatsApp válido: no se puede enviar.
+        </p>
       </div>
 
       <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
@@ -198,7 +192,8 @@ export const AdminExpirationsPage: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:hidden">
             {filtrados.map((c) => {
-              const tieneWhatsApp = Boolean(c.whatsapp && c.whatsapp.trim().length > 0);
+              const tieneWhatsApp = normalizeWhatsAppNumber(c.whatsapp).isValid;
+              const tieneSuscripcion = Boolean(suscripciones[c.id]);
               return (
                 <div key={c.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
                   <div>
@@ -216,6 +211,7 @@ export const AdminExpirationsPage: React.FC = () => {
                   <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t dark:border-gray-800">
                     <button
                       disabled={!tieneWhatsApp}
+                      title={tieneWhatsApp ? undefined : 'El comercio no tiene un WhatsApp válido cargado'}
                       onClick={() => handleEnviarMetricasWhatsApp(c)}
                       className="w-full py-2 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -224,12 +220,18 @@ export const AdminExpirationsPage: React.FC = () => {
 
                     <button
                       disabled={!tieneWhatsApp}
+                      title={tieneWhatsApp ? undefined : 'El comercio no tiene un WhatsApp válido cargado'}
                       onClick={() => handleEnviarWhatsApp(c)}
                       className="w-full py-2 bg-green-600 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      <MessageCircle className="w-4 h-4" /> Recordatorio <ExternalLink className="w-3 h-3" />
+                      <MessageCircle className="w-4 h-4" /> {tieneSuscripcion ? 'Recordatorio' : 'Invitar a suscribirse'} <ExternalLink className="w-3 h-3" />
                     </button>
                   </div>
+                  {!tieneWhatsApp && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                      Sin WhatsApp válido: cargalo en la edición del comercio para poder enviarle mensajes.
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -246,7 +248,8 @@ export const AdminExpirationsPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
                 {filtrados.map((c) => {
-                  const tieneWhatsApp = Boolean(c.whatsapp && c.whatsapp.trim().length > 0);
+                  const tieneWhatsApp = normalizeWhatsAppNumber(c.whatsapp).isValid;
+                  const tieneSuscripcion = Boolean(suscripciones[c.id]);
                   return (
                     <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
                       <td className="p-3.5 font-bold text-gray-900 dark:text-white truncate">
@@ -269,6 +272,7 @@ export const AdminExpirationsPage: React.FC = () => {
                       <td className="p-3.5 text-right space-x-2 whitespace-nowrap">
                         <button
                           disabled={!tieneWhatsApp}
+                          title={tieneWhatsApp ? undefined : 'El comercio no tiene un WhatsApp válido cargado'}
                           onClick={() => handleEnviarMetricasWhatsApp(c)}
                           className="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center gap-1 hover:bg-blue-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
@@ -277,10 +281,11 @@ export const AdminExpirationsPage: React.FC = () => {
 
                         <button
                           disabled={!tieneWhatsApp}
+                          title={tieneWhatsApp ? undefined : 'El comercio no tiene un WhatsApp válido cargado'}
                           onClick={() => handleEnviarWhatsApp(c)}
                           className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          <MessageCircle className="w-4 h-4" /> Enviar Recordatorio <ExternalLink className="w-3 h-3" />
+                          <MessageCircle className="w-4 h-4" /> {tieneSuscripcion ? 'Enviar Recordatorio' : 'Invitar a suscribirse'} <ExternalLink className="w-3 h-3" />
                         </button>
                       </td>
                     </tr>
@@ -292,7 +297,26 @@ export const AdminExpirationsPage: React.FC = () => {
         </div>
       </div>
       {comercioMetricas && (
-        <ModalMetricasWhatsApp comercio={comercioMetricas} onCerrar={() => setComercioMetricas(null)} />
+        <ModalMetricasWhatsApp
+          comercio={comercioMetricas}
+          plantilla={plantillas.metricas}
+          onCerrar={() => setComercioMetricas(null)}
+        />
+      )}
+      {recordatorio && (
+        <EditorMensajeWhatsApp
+          titulo={
+            recordatorio.resultado.tipo === 'recordatorio_pago'
+              ? `Recordatorio para ${recordatorio.comercio.nombre}`
+              : `Invitación a suscribirse para ${recordatorio.comercio.nombre}`
+          }
+          tipo={recordatorio.resultado.tipo}
+          textoInicial={recordatorio.resultado.texto}
+          valores={recordatorio.resultado.valores}
+          telefono={normalizeWhatsAppNumber(recordatorio.comercio.whatsapp).normalized}
+          aviso={recordatorio.resultado.aviso}
+          onCerrar={() => setRecordatorio(null)}
+        />
       )}
     </div>
   );

@@ -29,8 +29,8 @@ INSERT INTO public.configuracion_sistema (clave, valor)
 VALUES (
   'plantillas_whatsapp',
   '{
-    "proximo_vencimiento": "Hola, ¿cómo estás? 👋\nTe recordamos que el día 10 vence la suscripción mensual de [NOMBRE DEL COMERCIO] a Nogoyá Cerca, por un importe de [IMPORTE].\nCuando realices el pago, avisanos para que podamos registrarlo.\n¡Muchas gracias por ser parte de Nogoyá Cerca! 🙌",
-    "pago_vencido": "Hola, ¿cómo estás? 👋\nTe contactamos de Nogoyá Cerca porque registramos pendiente el pago del período [PERIODO] de [NOMBRE DEL COMERCIO] por un importe de [IMPORTE].\nPor favor, confirmanos si pudiste realizar la transferencia para regularizar la ficha comercial.\n¡Quedamos a disposición por cualquier consulta! 🙌"
+    "proximo_vencimiento": "Hola, ¿cómo estás? 👋\nTe recordamos que el día 10 vence la suscripción mensual de [NOMBRE DEL COMERCIO] a NOGOMAP, por un importe de [IMPORTE].\nCuando realices el pago, avisanos para que podamos registrarlo.\n¡Muchas gracias por ser parte de NOGOMAP! 🙌",
+    "pago_vencido": "Hola, ¿cómo estás? 👋\nTe contactamos de NOGOMAP porque registramos pendiente el pago del período [PERIODO] de [NOMBRE DEL COMERCIO] por un importe de [IMPORTE].\nPor favor, confirmanos si pudiste realizar la transferencia para regularizar la ficha comercial.\n¡Quedamos a disposición por cualquier consulta! 🙌"
   }'::jsonb
 ) ON CONFLICT (clave) DO NOTHING;
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
+import { EditorDelivery } from '@/components/EditorDelivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -781,6 +782,14 @@ export const MerchantDashboardPage: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* DELIVERY */}
+      <EditorDelivery
+        comercioId={comercio.id}
+        tieneDelivery={Boolean(comercio.tiene_delivery)}
+        turnosLocal={horarios}
+        onGuardado={(tiene) => setComercio((prev) => (prev ? { ...prev, tiene_delivery: tiene } : prev))}
+      />
 
       {/* PROMOCIONES Y NOVEDADES */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-6">

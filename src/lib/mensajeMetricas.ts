@@ -5,6 +5,7 @@
 // vista previa antes de abrir WhatsApp).
 
 import { describirRango, type RangoFechas } from './rangosFechas';
+import { PLANTILLAS_PREDETERMINADAS, completarPlantilla } from './plantillasMensajes';
 
 export interface ValoresMetricas {
   visitas: number;
@@ -31,27 +32,40 @@ export const DEFINICIONES_METRICAS: Array<{ clave: keyof ValoresMetricas; emoji:
   { clave: 'comoLlegar', emoji: '📍', singular: 'pedido de "Cómo llegar"', plural: 'pedidos de "Cómo llegar"' },
 ];
 
-export function armarMensajeMetricas(datos: {
+/** Las tres líneas de números, con la comparación entre paréntesis. */
+export function resumenMetricas(actual: ValoresMetricas, anterior?: ValoresMetricas): string {
+  return DEFINICIONES_METRICAS.map(({ clave, emoji, singular, plural }) => {
+    const valor = actual[clave];
+    const comparacion = variacion(valor, anterior?.[clave]);
+    return `${emoji} *${formatearNumero(valor)}* ${valor === 1 ? singular : plural}${comparacion ? ` (${comparacion})` : ''}`;
+  }).join('\n');
+}
+
+/** Valores de las variables del mensaje de métricas ({periodo}, {visitas}...). */
+export function valoresMensajeMetricas(datos: {
   nombreComercio: string;
   rango: RangoFechas;
   actual: ValoresMetricas;
   anterior?: ValoresMetricas;
   urlDetalle?: string;
-}): string {
-  const lineas = DEFINICIONES_METRICAS.map(({ clave, emoji, singular, plural }) => {
-    const valor = datos.actual[clave];
-    const comparacion = variacion(valor, datos.anterior?.[clave]);
-    return `${emoji} *${formatearNumero(valor)}* ${valor === 1 ? singular : plural}${comparacion ? ` (${comparacion})` : ''}`;
-  });
+}): Record<string, string | undefined> {
+  return {
+    nombre_comercio: datos.nombreComercio,
+    periodo: describirRango(datos.rango),
+    resumen_metricas: resumenMetricas(datos.actual, datos.anterior),
+    visitas: formatearNumero(datos.actual.visitas),
+    consultas_whatsapp: formatearNumero(datos.actual.whatsapp),
+    como_llegar: formatearNumero(datos.actual.comoLlegar),
+    link_panel: datos.urlDetalle,
+  };
+}
 
-  return [
-    `Hola *${datos.nombreComercio}*! 📊`,
-    `Tus números en NOGOMAP ${describirRango(datos.rango)}:`,
-    '',
-    ...lineas,
-    ...(datos.anterior ? ['', '_Entre paréntesis, la comparación con el período anterior._'] : []),
-    ...(datos.urlDetalle ? ['', `Ver el detalle: ${datos.urlDetalle}`] : []),
-  ].join('\n');
+/** Mensaje de métricas armado con la plantilla (la guardada o la predeterminada). */
+export function armarMensajeMetricas(
+  datos: Parameters<typeof valoresMensajeMetricas>[0],
+  plantilla: string = PLANTILLAS_PREDETERMINADAS.metricas,
+): { texto: string; faltantes: string[] } {
+  return completarPlantilla(plantilla, valoresMensajeMetricas(datos));
 }
 
 /** Link al panel del comercio con el mismo período elegido. */

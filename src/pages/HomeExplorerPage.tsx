@@ -2,15 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff, Bike } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { OpcionesRubros } from '@/components/OpcionesRubros';
-import { categoriaDeRubro } from '@/lib/catalogoRubros';
-
-const normalizarTexto = (texto: string) =>
-  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+import { FiltroDelivery } from '@/components/FiltroDelivery';
+import { filtrarComercios } from '@/lib/filtrosComercios';
+import {
+  DIAS_SEMANA,
+  aHora,
+  estadoDeliveryEn,
+  momentoArgentina,
+  textoEstadoDelivery,
+  type MomentoArgentina,
+  type RangoDelivery,
+} from '@/lib/delivery';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 import {
@@ -49,6 +56,29 @@ export const HomeExplorerPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
   const [soloAbiertos, setSoloAbiertos] = useState(false);
+
+  // Delivery: rangos por comercio, filtro y momento a evaluar (ahora u otro)
+  const [delivery, setDelivery] = useState<Record<string, RangoDelivery[]>>({});
+  const [soloDelivery, setSoloDelivery] = useState(false);
+  const [momentoElegido, setMomentoElegido] = useState<MomentoArgentina | null>(null);
+  const [eligiendoMomento, setEligiendoMomento] = useState(false);
+  // "Ahora" se recalcula cada minuto y al volver a la pestaña, así los
+  // estados (abierto, delivery activo) cambian solos sin recargar la página.
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const actualizar = () => setAhora(new Date());
+    const reloj = window.setInterval(actualizar, 60_000);
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') actualizar();
+    };
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', actualizar);
+    return () => {
+      window.clearInterval(reloj);
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', actualizar);
+    };
+  }, []);
 
   // Filtros de Cercanía Inteligente
   const [radioKm, setRadioKm] = useState<number | null>(null);
@@ -89,6 +119,20 @@ export const HomeExplorerPage: React.FC = () => {
       .eq('habilitado_admin', true);
 
     const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
+
+    // Si la tabla todavía no existe (falta el SQL de delivery) no pasa nada:
+    // ningún comercio aparece con delivery.
+    const { data: deliveryData, error: errorDelivery } = await supabase
+      .from('horarios_delivery')
+      .select('comercio_id, dia_semana, hora_inicio, hora_fin');
+    if (errorDelivery) console.warn('[delivery] No se pudieron leer los horarios de delivery:', errorDelivery.message);
+    if (deliveryData) {
+      const mapaDelivery: Record<string, RangoDelivery[]> = {};
+      deliveryData.forEach((d) => {
+        (mapaDelivery[d.comercio_id] ??= []).push(d);
+      });
+      setDelivery(mapaDelivery);
+    }
 
     if (rubrosData) setRubros(rubrosData);
     if (comerciosData) setComercios(comerciosData);
@@ -211,36 +255,32 @@ export const HomeExplorerPage: React.FC = () => {
     (r) => r.id === selectedRubro || comercios.some((c) => c.rubro_id === r.id),
   );
 
-  const filteredComercios = comercios
-    .map((c) => {
+  const momentoAhora = momentoArgentina(ahora);
+  const momentoDelivery = momentoElegido ?? momentoAhora;
+
+  const filteredComercios = filtrarComercios(
+    comercios.map((c) => {
       const posicion = posicionDeComercio(c);
       const distancia =
         userLocation && posicion ? calcularDistanciaKm(userLocation.lat, userLocation.lng, posicion.lat, posicion.lng) : null;
-      const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || []);
-      return { ...c, distancia, estadoAtencion };
-    })
-    .filter((c) => {
-      // Busca también por rubro y categoría ("pizzería", "salud"), sin
-      // importar tildes ni mayúsculas.
-      const termino = normalizarTexto(search.trim());
-      const matchSearch =
-        !termino ||
-        [c.nombre, c.descripcion_corta, c.direccion, c.rubro?.nombre, c.rubro ? categoriaDeRubro(c.rubro) : '']
-          .some((campo) => campo && normalizarTexto(campo).includes(termino));
-      const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
-      const matchAbierto = soloAbiertos ? c.estadoAtencion.estado === 'abierto' : true;
-      const matchRadio = filtrarPorRadio ? c.distancia !== null && c.distancia <= (radioKm as number) : true;
+      const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || [], ahora);
+      // Solo cuenta si el comercio activó "Tengo delivery"
+      const estadoDelivery = estadoDeliveryEn(c.tiene_delivery ? delivery[c.id] ?? [] : [], momentoDelivery);
+      return { ...c, distancia, estadoAtencion, estadoDelivery };
+    }),
+    {
+      busqueda: search,
+      rubroId: selectedRubro,
+      soloAbiertos,
+      soloDelivery,
+      radioKm: filtrarPorRadio ? radioKm : null,
+      ordenamiento,
+    },
+  );
 
-      return matchSearch && matchRubro && matchAbierto && matchRadio;
-    })
-    .sort((a, b) => {
-      if (ordenamiento === 'cercania') {
-        if (a.distancia !== null && b.distancia !== null) return a.distancia - b.distancia;
-        if (a.distancia !== null) return -1;
-        if (b.distancia !== null) return 1;
-      }
-      return a.nombre.localeCompare(b.nombre, 'es');
-    });
+  const etiquetaMomento = momentoElegido
+    ? `${DIAS_SEMANA[momentoElegido.dia].slice(0, 3)} ${aHora(momentoElegido.minutos)}`
+    : null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
@@ -386,6 +426,15 @@ export const HomeExplorerPage: React.FC = () => {
               <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
             </button>
 
+            <FiltroDelivery
+              anchoCompleto
+              activo={soloDelivery}
+              onCambiarActivo={setSoloDelivery}
+              momento={momentoElegido}
+              momentoAhora={momentoAhora}
+              onCambiarMomento={setMomentoElegido}
+            />
+
             <div className="relative w-full">
               <select
                 value={selectedRubro}
@@ -411,6 +460,14 @@ export const HomeExplorerPage: React.FC = () => {
             >
               <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
             </button>
+
+            <FiltroDelivery
+              activo={soloDelivery}
+              onCambiarActivo={setSoloDelivery}
+              momento={momentoElegido}
+              momentoAhora={momentoAhora}
+              onCambiarMomento={setMomentoElegido}
+            />
 
             <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-700 shrink-0 mx-0.5" />
 
@@ -462,7 +519,11 @@ export const HomeExplorerPage: React.FC = () => {
           {filteredComercios.length === 0 ? (
             <div className="text-center py-12 text-gray-500 space-y-2">
               <Store className="w-10 h-10 mx-auto opacity-40" />
-              <p className="text-sm font-semibold">No se encontraron negocios con esos filtros</p>
+              <p className="text-sm font-semibold">
+                {soloDelivery
+                  ? `Ningún comercio tiene delivery ${etiquetaMomento ? `el ${etiquetaMomento}` : 'activo en este momento'}`
+                  : 'No se encontraron negocios con esos filtros'}
+              </p>
             </div>
           ) : (
             filteredComercios.map((comercio) => (
@@ -487,6 +548,17 @@ export const HomeExplorerPage: React.FC = () => {
                     }`}>
                       {comercio.estadoAtencion.mensaje}
                     </span>
+                    {textoEstadoDelivery(comercio.estadoDelivery) && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
+                          comercio.estadoDelivery.estado === 'activo'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                        }`}
+                      >
+                        <Bike className="w-3 h-3" aria-hidden="true" /> {textoEstadoDelivery(comercio.estadoDelivery)}
+                      </span>
+                    )}
                     {comercio.distancia !== null && (
                       <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded-md">
                         {formatearDistanciaTexto(comercio.distancia)}

@@ -65,6 +65,8 @@ export interface Comercio {
   distancia_km?: number; // Calculado dinámicamente según ubicación del usuario
   distanciaCalculada?: number; // Alias de compatibilidad
   estado_horario?: 'abierto' | 'cierra_pronto' | 'cerrado' | 'no_informado';
+  /** Columna nueva (supabase/propuestas/20261018_delivery.sql); falta en bases sin migrar */
+  tiene_delivery?: boolean;
 }
 
 export interface HorarioAtencion {
@@ -89,4 +91,13 @@ export interface Suscripcion {
   proximo_vencimiento: string;
   dias_gracia: number;
   suspension_manual: boolean;
+}
+
+/** Rango de delivery (tabla horarios_delivery). 0 = Lunes … 6 = Domingo. */
+export interface HorarioDelivery {
+  id?: string;
+  comercio_id: string;
+  dia_semana: number;
+  hora_inicio: string;
+  hora_fin: string;
 }
