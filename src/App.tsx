@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -21,6 +21,20 @@ import { PromotionsPage } from '@/pages/PromotionsPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
 export const App: React.FC = () => {
+  // Registrar el Service Worker al montar la aplicación
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => {
+          console.log('Service Worker de Nogoyá Cerca registrado con éxito:', reg.scope);
+        })
+        .catch((err) => {
+          console.error('Error al registrar el Service Worker:', err);
+        });
+    }
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>
