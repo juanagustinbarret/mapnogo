@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
-import { InteractiveMap } from '@/components/InteractiveMap';
+import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
 import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
+import { InsigniaRubro } from '@/components/InsigniaRubro';
+import { calleEnCoordenadas } from '@/lib/geocodificacion';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -41,12 +43,24 @@ export const HomeExplorerPage: React.FC = () => {
   const [ordenamiento, setOrdenamiento] = useState<'cercania' | 'nombre'>('cercania');
   
   const [userAddress, setUserAddress] = useState<string>('Nogoyá, Entre Ríos');
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<UbicacionUsuario | null>(null);
   const [loadingLoc, setLoadingLoc] = useState(false);
+  const [pedidoCentrado, setPedidoCentrado] = useState(0);
+  const seguimientoId = useRef<number | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const detenerSeguimiento = useCallback(() => {
+    if (seguimientoId.current !== null) {
+      navigator.geolocation.clearWatch(seguimientoId.current);
+      seguimientoId.current = null;
+    }
+  }, []);
+
+  // Al salir de la página se deja de usar el GPS
+  useEffect(() => detenerSeguimiento, [detenerSeguimiento]);
 
   const fetchData = async () => {
     const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
@@ -71,32 +85,47 @@ export const HomeExplorerPage: React.FC = () => {
     }
   };
 
+  // Ubicación en vivo, como en los GPS: el punto azul se mueve con el usuario.
+  // Si ya se está siguiendo, el botón solo vuelve a centrar el mapa.
   const solicitarUbicacion = () => {
-    setLoadingLoc(true);
-
     if (!('geolocation' in navigator)) {
-      setLoadingLoc(false);
       alert('La geolocalización no está soportada en este navegador.');
       return;
     }
+    if (seguimientoId.current !== null) {
+      if (userLocation) setPedidoCentrado((n) => n + 1);
+      return;
+    }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        setUserLocation({ lat, lng });
+    setLoadingLoc(true);
+    let tuvoUbicacion = false;
 
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-          const data = await res.json();
-          const calle = data.address?.road || data.address?.pedestrian || 'Tu ubicación';
-          setUserAddress(`${calle}, Nogoyá`);
-        } catch {
-          setUserAddress('Ubicación GPS detectada');
-        }
+    seguimientoId.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude: lat, longitude: lng, accuracy, heading } = position.coords;
+        setUserLocation({
+          lat,
+          lng,
+          precision: Number.isFinite(accuracy) ? accuracy : null,
+          // El rumbo solo viene cuando el usuario se está moviendo
+          rumbo: heading !== null && Number.isFinite(heading) ? heading : null,
+        });
         setLoadingLoc(false);
+
+        // La calle se averigua una sola vez, no en cada lectura del GPS
+        if (!tuvoUbicacion) {
+          tuvoUbicacion = true;
+          calleEnCoordenadas(lat, lng)
+            .then((calle) => setUserAddress(`${calle || 'Tu ubicación'}, Nogoyá`))
+            .catch(() => setUserAddress('Ubicación GPS detectada'));
+        }
       },
       (error) => {
+        // Si ya hay una ubicación, un corte momentáneo de señal no se avisa:
+        // se deja el último punto y el GPS sigue intentando.
+        if (tuvoUbicacion && error.code !== error.PERMISSION_DENIED) return;
+
+        detenerSeguimiento();
         setLoadingLoc(false);
         switch (error.code) {
           case error.PERMISSION_DENIED:
@@ -113,10 +142,10 @@ export const HomeExplorerPage: React.FC = () => {
             break;
         }
       },
-      { 
-        enableHighAccuracy: false,
-        timeout: 15000, 
-        maximumAge: 60000 
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 10000,
       }
     );
   };
@@ -170,7 +199,8 @@ export const HomeExplorerPage: React.FC = () => {
           disabled={loadingLoc}
           className="w-full md:w-auto px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
         >
-          <Navigation className="w-4 h-4" /> {loadingLoc ? 'Obteniendo...' : 'Actualizar Mi Ubicación'}
+          <Navigation className="w-4 h-4" />{' '}
+          {loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar en Mi Ubicación' : 'Usar Mi Ubicación'}
         </button>
       </div>
 
@@ -292,12 +322,14 @@ export const HomeExplorerPage: React.FC = () => {
               <button
                 key={r.id}
                 onClick={() => setSelectedRubro(r.id)}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 ${
                   selectedRubro === r.id
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
+                {/* Mismo ícono y color que el pin del mapa: sirve de referencia */}
+                <InsigniaRubro rubro={r} className={selectedRubro === r.id ? 'ring-2 ring-white/70' : ''} />
                 {r.nombre}
               </button>
             ))}
@@ -310,7 +342,13 @@ export const HomeExplorerPage: React.FC = () => {
       {/* MAPA Y LISTADO */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
         <div className="lg:col-span-2 h-[350px] lg:h-full rounded-2xl overflow-hidden border dark:border-gray-700">
-          <InteractiveMap comercios={filteredComercios} userLocation={userLocation} />
+          <InteractiveMap
+            comercios={filteredComercios}
+            userLocation={userLocation}
+            onSolicitarUbicacion={solicitarUbicacion}
+            buscandoUbicacion={loadingLoc}
+            pedidoCentrado={pedidoCentrado}
+          />
         </div>
 
         <div className="overflow-y-auto space-y-3 max-h-[500px] lg:max-h-full pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -330,7 +368,10 @@ export const HomeExplorerPage: React.FC = () => {
                         <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       </span>
                     </h3>
-                    <span className="text-[11px] font-bold text-brand-600">{comercio.rubro?.nombre || 'General'}</span>
+                    <span className="text-[11px] font-bold text-brand-600 inline-flex items-center gap-1.5">
+                      <InsigniaRubro rubro={comercio.rubro} />
+                      {comercio.rubro?.nombre || 'General'}
+                    </span>
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
