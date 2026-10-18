@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 
+// Convertir la clave VAPID pública de Base64 a Uint8Array
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -23,39 +24,69 @@ export async function verificarEstadoSuscripcionPush(): Promise<boolean> {
   }
 }
 
-// Activar notificaciones Push
+// Activar o Re-activar notificaciones Push
 export async function solicitarPermisoNotificacionesPush() {
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('Push no soportado en este navegador.');
+      return null;
+    }
 
-    const permiso = await Notification.requestPermission();
-    if (permiso !== 'granted') return null;
+    // 1. Verificar si el permiso ya fue otorgado previamente o solicitarlo
+    let permiso = Notification.permission;
+    if (permiso === 'default') {
+      permiso = await Notification.requestPermission();
+    }
 
+    if (permiso !== 'granted') {
+      console.warn('El permiso de notificaciones fue denegado o bloqueado.');
+      return null;
+    }
+
+    // 2. Obtener el Service Worker activo
     const registro = await navigator.serviceWorker.ready;
+    if (!registro) {
+      console.error('Service Worker no disponible.');
+      return null;
+    }
+
+    // 3. Obtener la clave VAPID pública desde las variables de entorno
     const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'TU_VAPID_PUBLIC_KEY';
     const convertedKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
 
+    // 4. Si existía una suscripción previa (inactiva/desincronizada), la limpiamos para forzar una nueva tokenización limpia
     let suscripcion = await registro.pushManager.getSubscription();
-    if (!suscripcion) {
-      suscripcion = await registro.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
+    if (suscripcion) {
+      await suscripcion.unsubscribe();
     }
+
+    // 5. Suscribir nuevamente al servicio Push del navegador
+    suscripcion = await registro.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedKey,
+    });
 
     const subJson = suscripcion.toJSON();
 
-    await supabase
+    // 6. Guardar la nueva suscripción en la base de datos de Supabase
+    const { error } = await supabase
       .from('push_subscriptions')
-      .upsert({
-        subscription_json: subJson,
-        user_agent: navigator.userAgent,
-        created_at: new Date().toISOString()
-      }, { onConflict: 'subscription_json' });
+      .upsert(
+        {
+          subscription_json: subJson,
+          user_agent: navigator.userAgent,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'subscription_json' }
+      );
+
+    if (error) {
+      console.error('Error guardando suscripción en Supabase:', error);
+    }
 
     return suscripcion;
   } catch (error) {
-    console.error('Error al suscribir Push:', error);
+    console.error('Error al suscribir a notificaciones Push:', error);
     return null;
   }
 }
