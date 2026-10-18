@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Comercio, HorarioAtencion, Promocion } from '@/types/database.types';
@@ -27,6 +28,19 @@ export const CommerceDetailPage: React.FC = () => {
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
 
+  const { user, profile, loading: cargandoSesion } = useAuth();
+  // El dueño mirando su propia ficha y los admins no suman métricas
+  const esPropioOAdmin = (c: Comercio | null) =>
+    Boolean(c && ((user && c.propietario_id === user.id) || profile?.rol === 'admin'));
+  const visitaRegistrada = useRef<string | null>(null);
+
+  // La visita se registra una vez por ficha, cuando ya se sabe quién mira
+  useEffect(() => {
+    if (!comercio || cargandoSesion || visitaRegistrada.current === comercio.id) return;
+    visitaRegistrada.current = comercio.id;
+    void registrarInteraccion(comercio.id, 'visita', { excluir: esPropioOAdmin(comercio) });
+  }, [comercio, cargandoSesion]);
+
   const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
   useEffect(() => {
@@ -37,8 +51,6 @@ export const CommerceDetailPage: React.FC = () => {
     const { data: c } = await supabase.from('comercios').select('*, rubro:rubros(*)').eq('slug', slug).single();
     if (c) {
       setComercio(c);
-
-      registrarInteraccion(c.id, 'visita');
 
       const { data: h } = await supabase
         .from('horarios_atencion')
@@ -60,16 +72,16 @@ export const CommerceDetailPage: React.FC = () => {
 
   const handleWhatsAppClick = () => {
     if (!comercio) return;
-    registrarInteraccion(comercio.id, 'whatsapp');
+    void registrarInteraccion(comercio.id, 'whatsapp', { excluir: esPropioOAdmin(comercio) });
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi tu comercio en Nogoyá Cerca y quisiera hacerles una consulta.`;
+    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi tu comercio en NOGOMAP y quisiera hacerles una consulta.`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
     window.open(url, '_blank');
   };
 
   const handleComoLlegarClick = () => {
     if (!comercio) return;
-    registrarInteraccion(comercio.id, 'como_llegar');
+    void registrarInteraccion(comercio.id, 'como_llegar', { excluir: esPropioOAdmin(comercio) });
     // Si el comercio no tiene coordenadas propias (quedó con el centro de
     // Nogoyá por defecto) se busca por dirección; antes se mandaba a la plaza.
     const query = tieneCoordenadasPropias(comercio)

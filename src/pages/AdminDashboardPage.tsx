@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { PanelMetricas } from '@/components/PanelMetricas';
+import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/context/AuthContext';
-import { obtenerMetricasComercio, obtenerMetricasGlobales } from '@/lib/metrics';
 import {
   Store,
   DollarSign,
@@ -129,11 +130,6 @@ export const AdminDashboardPage: React.FC = () => {
   });
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
-  const [metricasLocal, setMetricasLocal] = useState({
-    visitas: 0,
-    whatsapp: 0,
-    comoLlegar: 0,
-  });
 
   const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
   const [rubrosEdicion, setRubrosEdicion] = useState<Rubro[]>([]);
@@ -230,28 +226,6 @@ export const AdminDashboardPage: React.FC = () => {
       cancelado = true;
     };
   }, [modalEditar?.id]);
-
-  useEffect(() => {
-    let cancelado = false;
-
-    const cargarMetricas = async () => {
-      try {
-        const metricas =
-          selectedMetricaOption === 'global'
-            ? await obtenerMetricasGlobales()
-            : await obtenerMetricasComercio(selectedMetricaOption);
-        if (!cancelado) setMetricasLocal(metricas);
-      } catch (error) {
-        console.error('Error al cargar métricas:', error);
-      }
-    };
-
-    void cargarMetricas();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [selectedMetricaOption, comercios]);
 
   const handleToggleEstadoPago = async (
     id: string,
@@ -525,23 +499,7 @@ export const AdminDashboardPage: React.FC = () => {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700">
-            <Eye className="w-5 h-5 text-blue-600" />
-            <p className="text-xs text-gray-500 mt-2">Visitas a Fichas</p>
-            <p className="text-3xl font-black">{metricasLocal.visitas}</p>
-          </div>
-          <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700">
-            <MessageCircle className="w-5 h-5 text-green-600" />
-            <p className="text-xs text-gray-500 mt-2">Consultas WhatsApp</p>
-            <p className="text-3xl font-black text-green-600">{metricasLocal.whatsapp}</p>
-          </div>
-          <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700">
-            <Navigation className="w-5 h-5 text-purple-600" />
-            <p className="text-xs text-gray-500 mt-2">Rutas 'Cómo Llegar'</p>
-            <p className="text-3xl font-black text-purple-600">{metricasLocal.comoLlegar}</p>
-          </div>
-        </div>
+        <PanelMetricas comercioId={selectedMetricaOption === 'global' ? undefined : selectedMetricaOption} />
       </div>
 
       {/* LISTA DE COMERCIOS */}
@@ -693,9 +651,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <label className={etiquetaClase}>Rubro *</label>
                     <select required value={modalEditar.rubro_id} onChange={(e) => actualizarCampo('rubro_id', e.target.value)} className={campoClase}>
                       <option value="">Seleccioná un rubro</option>
-                      {rubrosEdicion.map((rubro) => (
-                        <option key={rubro.id} value={rubro.id}>{rubro.nombre}</option>
-                      ))}
+                      <OpcionesRubros rubros={rubrosEdicion} />
                     </select>
                   </div>
                   <div className="sm:col-span-2">

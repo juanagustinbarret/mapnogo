@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MENSAJES_FALLO_PUSH, solicitarPermisoNotificacionesPush } from '@/lib/pushNotifications';
+import { mensajeFalloPush, solicitarPermisoNotificacionesPush } from '@/lib/pushNotifications';
 
 export function NotificationButton() {
   const [activado, setActivado] = useState(false);
@@ -14,7 +14,7 @@ export function NotificationButton() {
       setActivado(true);
       alert('¡Notificaciones activadas con éxito!');
     } else {
-      alert(MENSAJES_FALLO_PUSH[resultado.motivo]);
+      alert(mensajeFalloPush(resultado));
     }
   };
 

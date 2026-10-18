@@ -23,3 +23,41 @@ test('textoVencimiento: hoy, mañana, en N días, fecha y vencida', () => {
   assert.deepEqual(textoVencimiento('2026-10-17', hoy), { texto: 'Vencida', estaPorVencer: true });
   assert.deepEqual(textoVencimiento(null, hoy), { texto: '', estaPorVencer: false });
 });
+
+import { estaVigente, fechaCalendario, formatearFecha, formatearFechaHora, limitesDelRango } from '../src/lib/fechasArgentina.ts';
+import { formatDate } from '../src/lib/formatters.ts';
+
+test('fecha_fin como la devuelve la base (medianoche UTC) se muestra sin correr el día', () => {
+  // Bug de "Mis Publicaciones": se veía "Hasta: 2026-11-17T00:00:00+00:00"
+  assert.equal(fechaCalendario('2026-11-17T00:00:00+00:00'), '2026-11-17');
+  assert.equal(formatearFecha('2026-11-17T00:00:00+00:00'), '17/11/2026');
+  assert.equal(formatearFecha('2026-11-17'), '17/11/2026');
+  assert.equal(formatDate('2026-11-17T00:00:00+00:00'), '17/11/2026');
+  assert.equal(formatearFecha(''), '');
+  assert.equal(formatearFecha(null), '');
+});
+
+test('borde de medianoche: una oferta "hasta el 17" vale todo el 17 en Argentina', () => {
+  const fin = '2026-11-17T00:00:00+00:00';
+  // 16/11 21:30 en Argentina (00:30 UTC del 17): sigue vigente
+  assert.equal(estaVigente(fin, hoyArgentina(new Date('2026-11-17T00:30:00Z'))), true);
+  // 17/11 23:59 en Argentina (02:59 UTC del 18): sigue vigente
+  assert.equal(estaVigente(fin, hoyArgentina(new Date('2026-11-18T02:59:00Z'))), true);
+  // 18/11 00:01 en Argentina (03:01 UTC): vencida
+  assert.equal(estaVigente(fin, hoyArgentina(new Date('2026-11-18T03:01:00Z'))), false);
+  assert.equal(estaVigente(null, '2026-11-18'), true);
+});
+
+test('instantes (created_at) se muestran en hora argentina', () => {
+  // 18/10 01:30 UTC = 17/10 22:30 en Argentina
+  assert.equal(formatearFecha('2026-10-18T01:30:00.123+00:00'), '17/10/2026');
+  assert.equal(formatearFechaHora('2026-10-18T01:30:00Z'), '17/10/2026 22:30');
+  assert.equal(formatDate('2026-10-16T12:57:05.993781+00:00'), '16/10/2026');
+});
+
+test('limitesDelRango cubre días argentinos completos', () => {
+  assert.deepEqual(limitesDelRango('2026-10-01', '2026-10-31'), {
+    desdeISO: '2026-10-01T00:00:00-03:00',
+    hastaISO: '2026-11-01T00:00:00-03:00',
+  });
+});

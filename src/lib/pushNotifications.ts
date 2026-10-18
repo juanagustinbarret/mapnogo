@@ -25,9 +25,13 @@ export type MotivoFalloPush =
   | 'descartado' // cerró el cartel de permiso sin elegir
   | 'sin_clave' // falta la clave VAPID
   | 'error_servicio' // el service worker no se registró o no respondió
+  | 'error_push_navegador' // el servicio push del navegador (FCM, etc.) rechazó la suscripción
   | 'error_guardado'; // el navegador se suscribió pero no se pudo guardar en la base
 
-export type ResultadoPush = { ok: true; suscripcion: PushSubscription } | { ok: false; motivo: MotivoFalloPush };
+export type ResultadoPush =
+  | { ok: true; suscripcion: PushSubscription }
+  // `detalle` es el código técnico (ej. 42703 de Postgres) para poder diagnosticar
+  | { ok: false; motivo: MotivoFalloPush; detalle?: string };
 
 export const MENSAJES_FALLO_PUSH: Record<MotivoFalloPush, string> = {
   no_soportado: 'Este navegador no permite recibir notificaciones.',
@@ -38,7 +42,34 @@ export const MENSAJES_FALLO_PUSH: Record<MotivoFalloPush, string> = {
   descartado: 'No se activaron las notificaciones. Podés volver a intentarlo cuando quieras.',
   sin_clave: 'Las notificaciones no están configuradas todavía. Probá más tarde.',
   error_servicio: 'No pudimos activar las notificaciones en este momento. Probá de nuevo en unos minutos.',
-  error_guardado: 'No pudimos registrar tu suscripción. Probá de nuevo en unos minutos.',
+  error_push_navegador:
+    'El servicio de notificaciones de tu navegador no respondió. Si usás Brave, activá "Usar los servicios de Google para mensajería push" en la configuración; si no, probá con Chrome.',
+  error_guardado: 'No pudimos registrar tu suscripción en el servidor. Probá de nuevo en unos minutos.',
+};
+
+/** Mensaje para el usuario, con el código técnico si lo hay (sirve para soporte). */
+export const mensajeFalloPush = (resultado: { motivo: MotivoFalloPush; detalle?: string }) =>
+  MENSAJES_FALLO_PUSH[resultado.motivo] + (resultado.detalle ? ` (código: ${resultado.detalle})` : '');
+
+// Log estructurado en la consola del navegador: etapa, código y detalle del
+// error, en vez de solo el mensaje genérico.
+function registrarErrorPush(etapa: string, error: unknown) {
+  const e = (error ?? {}) as { name?: string; code?: string; message?: string; details?: string; hint?: string };
+  console.error(`[push] Falló: ${etapa}`, {
+    nombre: e.name,
+    codigo: e.code,
+    mensaje: e.message,
+    detalle: e.details,
+    pista: e.hint,
+    navegador: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+  });
+}
+
+// La tabla real (verificado en producción el 18/10) tiene las columnas
+// id, endpoint, p256dh, auth y created_at.
+const filaDeSuscripcion = (suscripcion: PushSubscription) => {
+  const { endpoint, keys } = suscripcion.toJSON();
+  return { endpoint: endpoint ?? '', p256dh: keys?.p256dh ?? '', auth: keys?.auth ?? '' };
 };
 
 const esIOS = () =>
@@ -72,7 +103,7 @@ const mismaClave = (a: ArrayBuffer | null | undefined, b: Uint8Array) => {
 
 function conTiempoLimite<T>(promesa: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolver, rechazar) => {
-    const reloj = setTimeout(() => rechazar(new Error('Tiempo de espera agotado')), ms);
+    const reloj = setTimeout(() => rechazar(Object.assign(new Error('Tiempo de espera agotado'), { name: 'TimeoutError' })), ms);
     promesa.then(
       (valor) => {
         clearTimeout(reloj);
@@ -128,7 +159,13 @@ export async function solicitarPermisoNotificacionesPush(): Promise<ResultadoPus
 
   let suscripcion: PushSubscription;
   try {
-    const registro = await obtenerRegistro();
+    let registro: ServiceWorkerRegistration;
+    try {
+      registro = await obtenerRegistro();
+    } catch (error) {
+      registrarErrorPush('registro del service worker', error);
+      return { ok: false, motivo: 'error_servicio', detalle: (error as Error)?.name };
+    }
     const clave = urlBase64ToUint8Array(vapidPublicKey);
 
     // Reusar la suscripción que ya tenga este navegador (el upsert de abajo
@@ -140,34 +177,38 @@ export async function solicitarPermisoNotificacionesPush(): Promise<ResultadoPus
       suscripcion = actual;
     } else {
       if (actual) {
-        const vieja = JSON.stringify(actual.toJSON());
+        const viejo = actual.endpoint;
         await actual.unsubscribe();
-        await supabase.from('push_subscriptions').delete().eq('subscription_json', vieja);
+        await supabase.from('push_subscriptions').delete().eq('endpoint', viejo);
       }
       suscripcion = await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: clave });
     }
   } catch (error) {
-    console.error('Error al suscribir a notificaciones push:', error);
-    return { ok: false, motivo: 'error_servicio' };
+    registrarErrorPush('alta en el servicio push del navegador', error);
+    const nombre = (error as Error)?.name;
+    if (nombre === 'NotAllowedError') return { ok: false, motivo: 'denegado', detalle: nombre };
+    return { ok: false, motivo: 'error_push_navegador', detalle: nombre };
   }
 
-  // Formato de la tabla según el último cambio de main (subscription_json +
-  // user_agent, sin duplicar por subscription_json).
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    {
-      subscription_json: suscripcion.toJSON(),
-      user_agent: navigator.userAgent,
-      created_at: new Date().toISOString(),
-    },
-    { onConflict: 'subscription_json' },
-  );
+  // Causa del error en producción (18/10): el commit "Se agregaron
+  // notificaciones" pasó a guardar { subscription_json, user_agent }, pero la
+  // tabla no tiene esas columnas → Postgres 42703 "column ... does not exist"
+  // y el mensaje "No pudimos registrar tu suscripción".
+  // ignoreDuplicates (ON CONFLICT DO NOTHING) solo necesita permiso de INSERT:
+  // si el endpoint ya estaba guardado no hace falta actualizarlo.
+  const fila = filaDeSuscripcion(suscripcion);
+  if (!fila.endpoint || !fila.p256dh || !fila.auth) {
+    registrarErrorPush('lectura de claves de la suscripción', { message: 'faltan endpoint/p256dh/auth' });
+    return { ok: false, motivo: 'error_push_navegador', detalle: 'sin_claves' };
+  }
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .upsert(fila, { onConflict: 'endpoint', ignoreDuplicates: true });
 
   if (error) {
-    // Antes este error se ignoraba y al usuario se le decía "activadas"
-    // aunque el servidor nunca iba a poder avisarle.
-    console.error('Error al guardar la suscripción push en Supabase:', error);
+    registrarErrorPush('guardado en push_subscriptions', error);
     await suscripcion.unsubscribe().catch(() => undefined);
-    return { ok: false, motivo: 'error_guardado' };
+    return { ok: false, motivo: 'error_guardado', detalle: error.code || String(error.message ?? '') };
   }
 
   return { ok: true, suscripcion };
@@ -177,19 +218,19 @@ export async function solicitarPermisoNotificacionesPush(): Promise<ResultadoPus
 export async function cancelarSuscripcionNotificacionesPush(): Promise<boolean> {
   const suscripcion = await obtenerSuscripcionPushActual();
   if (!suscripcion) return true;
-  const subJson = suscripcion.toJSON();
+  const { endpoint } = suscripcion;
   try {
     // Con la baja en el navegador, la suscripción deja de servir: aunque el
     // borrado de la fila falle, a este dispositivo ya no le llegan avisos.
     await suscripcion.unsubscribe();
   } catch (error) {
-    console.error('No se pudo dar de baja la suscripción push:', error);
+    registrarErrorPush('baja en el navegador', error);
     return false;
   }
   const { error } = await supabase
     .from('push_subscriptions')
     .delete()
-    .eq('subscription_json', JSON.stringify(subJson));
-  if (error) console.warn('No se pudo borrar la suscripción push de la base:', error.message);
+    .eq('endpoint', endpoint);
+  if (error) registrarErrorPush('borrado en push_subscriptions (la baja en el navegador sí se hizo)', error);
   return true;
 }

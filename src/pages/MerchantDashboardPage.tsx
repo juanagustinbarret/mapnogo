@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { PanelMetricas } from '@/components/PanelMetricas';
+import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
-import { hoyArgentina, sumarDias } from '@/lib/fechasArgentina';
+import { estaVigente, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import {
   Store,
   CreditCard,
@@ -218,9 +220,16 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!comercio) return;
     setSavingPromo(true);
 
-    // Fechas en hora de Argentina (en UTC, de 21 a 24 h ya era "mañana")
+    // Fechas en hora de Argentina (en UTC, de 21 a 24 h ya era "mañana").
+    // Se guardan como fecha sola (YYYY-MM-DD): la oferta vale hasta el final
+    // de ese día en Argentina (ver estaVigente en fechasArgentina.ts).
     const hoy = hoyArgentina();
     const fechaFinCalculada = promoForm.fecha_fin || sumarDias(hoy, 30);
+    if (fechaFinCalculada < hoy) {
+      alert('La fecha de vencimiento no puede ser anterior a hoy.');
+      setSavingPromo(false);
+      return;
+    }
 
     const newPromo = {
       comercio_id: comercio.id,
@@ -249,7 +258,13 @@ export const MerchantDashboardPage: React.FC = () => {
   const handleDeletePromo = async (id: string) => {
     if (!confirm('¿Deseás eliminar esta publicación?')) return;
     const { error } = await supabase.from('promociones').delete().eq('id', id);
-    if (!error) fetchMerchantData();
+    // Antes un error (por ejemplo de permisos) no mostraba nada
+    if (error) {
+      console.error('[promociones] No se pudo eliminar', error);
+      alert('No se pudo eliminar la publicación: ' + error.message);
+      return;
+    }
+    fetchMerchantData();
   };
 
   // GENERADOR DE FLYER FORMATO HISTORIA DE INSTAGRAM (1080x1920) CON QR DE RESEÑAS
@@ -347,7 +362,12 @@ export const MerchantDashboardPage: React.FC = () => {
       hora_cierre: '12:00',
       activo: true,
     });
-    if (!error) fetchMerchantData();
+    if (error) {
+      console.error('[horarios] No se pudo agregar el turno', error);
+      alert('No se pudo agregar el turno: ' + error.message);
+      return;
+    }
+    fetchMerchantData();
   };
 
   const handleUpdateHorario = async (horario: any) => {
@@ -377,7 +397,12 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const handleDeleteHorario = async (id: string) => {
     const { error } = await supabase.from('horarios_atencion').delete().eq('id', id);
-    if (!error) fetchMerchantData();
+    if (error) {
+      console.error('[horarios] No se pudo eliminar el turno', error);
+      alert('No se pudo eliminar el turno: ' + error.message);
+      return;
+    }
+    fetchMerchantData();
   };
 
   const handleSignOut = async () => {
@@ -497,7 +522,7 @@ export const MerchantDashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Visitas Ficha (Reales)</p>
+            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Visitas a la ficha (total)</p>
             <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasReales.visitas}</p>
           </div>
           <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
@@ -525,6 +550,16 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MÉTRICAS POR PERÍODO */}
+      {comercio && (
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Eye className="w-5 h-5 text-brand-600" /> Tus métricas
+          </h3>
+          <PanelMetricas comercioId={comercio.id} rangoInicial={rangoDesdeUrl(location.search)} />
+        </div>
+      )}
 
       {/* BLOQUES INFORMACIÓN */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -777,7 +812,18 @@ export const MerchantDashboardPage: React.FC = () => {
                     {p.tipo === 'novedad' ? 'Novedad' : 'Oferta'}
                   </span>
                   {p.fecha_fin && (
-                    <span className="text-[10px] text-gray-400">Hasta: {p.fecha_fin}</span>
+                    // Antes mostraba la fecha cruda: "Hasta: 2026-11-17T00:00:00+00:00"
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        !estaVigente(p.fecha_fin)
+                          ? 'text-red-500'
+                          : textoVencimiento(p.fecha_fin).estaPorVencer
+                            ? 'text-amber-600'
+                            : 'text-gray-400'
+                      }`}
+                    >
+                      {estaVigente(p.fecha_fin) ? textoVencimiento(p.fecha_fin).texto : `Vencida (${formatDate(p.fecha_fin)})`}
+                    </span>
                   )}
                 </div>
 
@@ -851,6 +897,7 @@ export const MerchantDashboardPage: React.FC = () => {
                 <label className="block text-xs font-semibold mb-1">Fecha de Vencimiento</label>
                 <input
                   type="date"
+                  min={hoyArgentina()}
                   value={promoForm.fecha_fin}
                   onChange={(e) => setPromoForm({ ...promoForm, fecha_fin: e.target.value })}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
