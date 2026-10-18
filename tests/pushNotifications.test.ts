@@ -4,10 +4,10 @@ import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { llamadas, respuestas, reiniciar } from './soporte/supabase-falso.mjs';
 import {
-  cancelarNotificacionesPush,
-  obtenerSuscripcionPushActual,
+  cancelarSuscripcionNotificacionesPush,
   solicitarPermisoNotificacionesPush,
   urlBase64ToUint8Array,
+  verificarEstadoSuscripcionPush,
 } from '../src/lib/pushNotifications.ts';
 
 const CLAVE = 'BFjU2t_4zHJBLGlfY4UTdp-f6aHfI_X5GR-R6OaA0a_Tkep9IBMLn5ST1Sxtow3d1atu48SBpH4BLYWWK4zhsTA';
@@ -30,7 +30,7 @@ function crearSuscripcion(endpoint: string, clave: Uint8Array) {
     endpoint,
     options: { applicationServerKey: clave.buffer },
     bajas: 0,
-    toJSON: () => ({ endpoint, keys: { p256dh: 'BPx-y_z', auth: 'au_th-1' } }),
+    toJSON: () => ({ endpoint, expirationTime: null, keys: { p256dh: 'BPx-y_z', auth: 'au_th-1' } }),
     unsubscribe: async () => {
       s.bajas++;
       return true;
@@ -89,20 +89,25 @@ beforeEach(() => {
   (globalThis as any).__ENV__ = {};
 });
 
-test('registra el service worker, se suscribe y guarda claves base64url por endpoint', async () => {
+test('si el service worker no estaba registrado, lo registra, se suscribe y guarda la suscripción', async () => {
   montar();
   const resultado = await solicitarPermisoNotificacionesPush();
   assert.equal(resultado.ok, true);
-  assert.equal(contador.register, 1, 'antes nunca se registraba /sw.js');
+  assert.equal(contador.register, 1, 'reintenta el registro si el de App.tsx no está');
   assert.equal(contador.subscribe, 1);
-  assert.deepEqual(llamadas, [
-    {
-      tabla: 'push_subscriptions',
-      operacion: 'upsert',
-      fila: { endpoint: 'https://push.example/nuevo', p256dh: 'BPx-y_z', auth: 'au_th-1' },
-      opciones: { onConflict: 'endpoint' },
-    },
-  ]);
+  assert.equal(llamadas.length, 1);
+  const { tabla, operacion, fila, opciones } = llamadas[0];
+  assert.deepEqual({ tabla, operacion, opciones }, {
+    tabla: 'push_subscriptions',
+    operacion: 'upsert',
+    opciones: { onConflict: 'subscription_json' },
+  });
+  assert.deepEqual(fila.subscription_json, {
+    endpoint: 'https://push.example/nuevo',
+    expirationTime: null,
+    keys: { p256dh: 'BPx-y_z', auth: 'au_th-1' },
+  });
+  assert.equal(fila.user_agent, 'Mozilla/5.0 (X11; Linux x86_64)');
 });
 
 test('si el service worker no responde, avisa en vez de quedar colgado', async () => {
@@ -167,9 +172,10 @@ test('reutiliza la suscripción existente con la misma clave (sin duplicados)', 
   assert.equal(contador.register, 0);
   // Dos activaciones = dos upsert del mismo endpoint (no dos filas)
   assert.deepEqual(
-    llamadas.map((l) => l.fila?.endpoint),
+    llamadas.map((l) => l.fila?.subscription_json.endpoint),
     ['https://push.example/existente', 'https://push.example/existente'],
   );
+  assert.ok(llamadas.every((l) => l.opciones.onConflict === 'subscription_json'));
 });
 
 test('si la suscripción previa usa otra clave VAPID, la rehace', async () => {
@@ -193,10 +199,15 @@ test('usa la clave VAPID del entorno si está definida', async () => {
 test('darse de baja: anula la suscripción del navegador y borra la fila', async () => {
   const previa = crearSuscripcion('https://push.example/existente', urlBase64ToUint8Array(CLAVE));
   montar({ registrado: true, suscripcionPrevia: previa, permiso: 'granted' });
-  assert.equal(await cancelarNotificacionesPush(), true);
+  assert.equal(await cancelarSuscripcionNotificacionesPush(), true);
   assert.equal(previa.bajas, 1);
   assert.deepEqual(llamadas, [
-    { tabla: 'push_subscriptions', operacion: 'delete', columna: 'endpoint', valor: 'https://push.example/existente' },
+    {
+      tabla: 'push_subscriptions',
+      operacion: 'delete',
+      columna: 'subscription_json',
+      valor: JSON.stringify(previa.toJSON()),
+    },
   ]);
 });
 
@@ -204,12 +215,18 @@ test('darse de baja funciona aunque falle el borrado en la base', async () => {
   const previa = crearSuscripcion('https://push.example/existente', urlBase64ToUint8Array(CLAVE));
   montar({ registrado: true, suscripcionPrevia: previa, permiso: 'granted' });
   respuestas.delete = { error: { message: 'permission denied' } };
-  assert.equal(await cancelarNotificacionesPush(), true);
+  assert.equal(await cancelarSuscripcionNotificacionesPush(), true);
   assert.equal(previa.bajas, 1);
 });
 
 test('el estado inicial del botón no pide permisos ni registra nada', async () => {
   montar({ permiso: 'default' });
-  assert.equal(await obtenerSuscripcionPushActual(), null);
+  assert.equal(await verificarEstadoSuscripcionPush(), false);
   assert.equal(contador.requestPermission + contador.register + contador.subscribe, 0);
+});
+
+test('el estado inicial detecta una suscripción existente sin esperar a "ready"', async () => {
+  const previa = crearSuscripcion('https://push.example/existente', urlBase64ToUint8Array(CLAVE));
+  montar({ registrado: true, suscripcionPrevia: previa, permiso: 'granted', readyNunca: true });
+  assert.equal(await verificarEstadoSuscripcionPush(), true);
 });

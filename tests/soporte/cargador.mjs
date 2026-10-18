@@ -1,5 +1,6 @@
 // Hooks de módulos de Node para los tests.
-//  - "@/lib/supabase" → doble de prueba (nunca se conecta a la base real)
+//  - "@/lib/supabase" o "./supabase" desde src/lib → doble de prueba
+//    (nunca se conecta a la base real)
 //  - "@/..."          → src/... (con extensión .ts)
 //  - import.meta.env  → objeto vacío (en Vite lo completa el bundler)
 import { existsSync } from 'node:fs';
@@ -8,7 +9,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const raiz = new URL('../../', import.meta.url);
 
 export async function resolve(especificador, contexto, siguiente) {
-  if (especificador === '@/lib/supabase') {
+  const esSupabase =
+    especificador === '@/lib/supabase' ||
+    (especificador === './supabase' && contexto.parentURL?.includes('/src/lib/'));
+  if (esSupabase) {
     return { url: new URL('tests/soporte/supabase-falso.mjs', raiz).href, shortCircuit: true };
   }
   if (especificador.startsWith('@/')) {
