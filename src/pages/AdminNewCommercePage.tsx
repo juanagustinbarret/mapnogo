@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { hoyArgentina } from '@/lib/fechasArgentina';
 import { supabase } from '@/lib/supabase';
 import { Rubro } from '@/types/database.types';
 import { ArrowLeft, Save, Building, User } from 'lucide-react';
@@ -187,16 +188,10 @@ export const AdminNewCommercePage: React.FC = () => {
       }
 
       // El vencimiento se calcula para el día 10 del mes siguiente.
-      const proximoVencimiento = new Date();
-      proximoVencimiento.setDate(1);
-      proximoVencimiento.setMonth(proximoVencimiento.getMonth() + 1);
-      proximoVencimiento.setDate(10);
-
-      const fechaVencimiento = [
-        proximoVencimiento.getFullYear(),
-        String(proximoVencimiento.getMonth() + 1).padStart(2, '0'),
-        String(proximoVencimiento.getDate()).padStart(2, '0'),
-      ].join('-');
+      // Mes calculado en hora de Argentina (no la del dispositivo)
+      const [anio, mes] = hoyArgentina().split('-').map(Number);
+      const fechaVencimiento =
+        mes === 12 ? `${anio + 1}-01-10` : `${anio}-${String(mes + 1).padStart(2, '0')}-10`;
 
       const { data, error: functionError } =
         await supabase.functions.invoke('admin-crear-comerciante', {

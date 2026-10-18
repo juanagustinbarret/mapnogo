@@ -1,3 +1,5 @@
+import { formatearFecha } from './fechasArgentina';
+
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -6,19 +8,6 @@ export const formatCurrency = (amount: number): string => {
   }).format(amount || 0);
 };
 
-export const formatDate = (dateString: string): string => {
-  if (!dateString) return '';
-  
-  // Si la fecha viene como YYYY-MM-DD
-  const parts = dateString.split('T')[0].split('-');
-  if (parts.length === 3) {
-    const [year, month, day] = parts;
-    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-  }
-
-  return new Intl.DateTimeFormat('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(dateString));
-};
+// Fecha en formato argentino (dd/mm/aaaa). Fechas de calendario sin correr
+// el día; instantes (created_at) en hora de Argentina. Ver fechasArgentina.ts.
+export const formatDate = (dateString: string): string => formatearFecha(dateString);

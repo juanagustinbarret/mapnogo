@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Promocion } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
-import { Tag, MessageCircle, Store } from 'lucide-react';
+import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
+import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
+import { CalendarDays, Tag, MessageCircle, Store } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const PromotionsPage: React.FC = () => {
@@ -10,11 +12,21 @@ export const PromotionsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Antes se listaban todas las promociones aprobadas, incluso las vencidas
+    // y las de comercios dados de baja. Ahora solo las vigentes hoy (en hora
+    // de Argentina) de comercios aprobados y habilitados.
+    const hoy = hoyArgentina();
     supabase
       .from('promociones')
-      .select('*, comercio:comercios(*)')
+      .select('*, comercio:comercios!inner(*)')
       .eq('aprobada', true)
-      .then(({ data }) => {
+      .gte('fecha_fin', hoy)
+      .lte('fecha_inicio', hoy)
+      .eq('comercio.aprobado', true)
+      .eq('comercio.habilitado_admin', true)
+      .order('fecha_fin', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) console.error('[promociones] No se pudieron cargar', error);
         if (data) setPromociones(data);
         setLoading(false);
       });
@@ -42,7 +54,7 @@ export const PromotionsPage: React.FC = () => {
             <div key={p.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:border-amber-500 transition space-y-3 p-5">
               <div className="flex justify-between items-start">
                 <span className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full">
-                  Oferta Especial
+                  {p.tipo === 'novedad' ? 'Novedad' : 'Oferta Especial'}
                 </span>
                 <Link to={`/comercio/${p.comercio?.slug}`} className="text-xs text-brand-600 font-semibold flex items-center gap-1 hover:underline">
                   <Store className="w-3.5 h-3.5" /> {p.comercio?.nombre}
@@ -51,6 +63,15 @@ export const PromotionsPage: React.FC = () => {
 
               <h3 className="font-bold text-lg text-gray-900 dark:text-white">{p.titulo}</h3>
               <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{p.descripcion}</p>
+              {p.fecha_fin && (
+                <p
+                  className={`text-[11px] font-semibold flex items-center gap-1 ${
+                    textoVencimiento(p.fecha_fin).estaPorVencer ? 'text-amber-600' : 'text-gray-500'
+                  }`}
+                >
+                  <CalendarDays className="w-3 h-3" /> {textoVencimiento(p.fecha_fin).texto}
+                </p>
+              )}
 
               {(p.precio_promocional || p.precio_anterior) && (
                 <div className="flex items-baseline gap-2 pt-2">
@@ -64,7 +85,10 @@ export const PromotionsPage: React.FC = () => {
               )}
 
               <a
-                href={`https://wa.me/${p.comercio?.whatsapp}?text=Hola,%20vi%20la%20promoción%20"${encodeURIComponent(p.titulo)}"%20en%20Nogoyá%20Cerca%20y%20quiero%20consultar.`}
+                href={buildWhatsAppUrl(
+                  normalizeWhatsAppNumber(p.comercio?.whatsapp ?? '').normalized,
+                  `Hola, vi la promoción "${p.titulo}" en NOGOMAP y quiero consultar.`
+                )}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition mt-2"

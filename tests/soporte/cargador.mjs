@@ -22,6 +22,14 @@ export async function resolve(especificador, contexto, siguiente) {
       if (existsSync(candidato)) return { url: pathToFileURL(candidato).href, shortCircuit: true };
     }
   }
+  // Imports relativos sin extensión dentro de src (Vite los resuelve solo)
+  if (/^\.\.?\//.test(especificador) && contexto.parentURL?.includes('/src/') && !/\.[cm]?[jt]sx?$/.test(especificador)) {
+    const base = new URL(especificador, contexto.parentURL);
+    for (const extension of ['.ts', '.tsx']) {
+      const candidato = fileURLToPath(base) + extension;
+      if (existsSync(candidato)) return { url: pathToFileURL(candidato).href, shortCircuit: true };
+    }
+  }
   return siguiente(especificador, contexto);
 }
 
