@@ -174,12 +174,12 @@ export const HomeExplorerPage: React.FC = () => {
         </button>
       </div>
 
-      {/* CONTROLES Y FILTROS ESTILIZADOS */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-3">
+      {/* PANEL PRINCIPAL DE CONTROLES */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 pt-4 pb-3 space-y-3">
         
         {/* BUSCADOR */}
-        <div className="relative w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="px-4 relative w-full">
+          <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Buscar por negocio o calle..."
@@ -189,8 +189,8 @@ export const HomeExplorerPage: React.FC = () => {
           />
         </div>
 
-        {/* FILA DE CONTROLES: RADIO Y ORDENAR */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        {/* FILA DE RADIO Y ORDENAR */}
+        <div className="px-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           
           {/* BOTONES DE RADIO */}
           <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -229,43 +229,57 @@ export const HomeExplorerPage: React.FC = () => {
           </select>
         </div>
 
-        {/* SECCIÓN DE RUBROS ADAPTABLE */}
-        <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        {/* SECCIÓN DE RUBROS (ENVOLVENTE EN DESKTOP) */}
+        <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full">
           
-          {/* BOTÓN ABIERTOS AHORA */}
-          <button
-            onClick={() => setSoloAbiertos(!soloAbiertos)}
-            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shrink-0 ${
-              soloAbiertos
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
-          </button>
-
-          {/* OPCIÓN 1: SELECTOR DESPLEGABLE PARA PANTALLAS CHICAS (MOBILE) */}
-          <div className="sm:hidden relative w-full">
-            <select
-              value={selectedRubro}
-              onChange={(e) => setSelectedRubro(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 font-bold text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none appearance-none pr-8"
+          {/* VISTA MOBILE (DESPLEGABLE SELECT) */}
+          <div className="px-4 sm:hidden flex flex-col gap-2">
+            <button
+              onClick={() => setSoloAbiertos(!soloAbiertos)}
+              className={`w-full py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
+                soloAbiertos
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300'
+              }`}
             >
-              <option value="">Todos los Rubros</option>
-              {rubros.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.nombre}
-                </option>
-              ))}
-            </select>
-            <Filter className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
+            </button>
+
+            <div className="relative w-full">
+              <select
+                value={selectedRubro}
+                onChange={(e) => setSelectedRubro(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 font-bold text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none appearance-none pr-8"
+              >
+                <option value="">Todos los Rubros</option>
+                {rubros.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre}
+                  </option>
+                ))}
+              </select>
+              <Filter className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
 
-          {/* OPCIÓN 2: BOTONES HORIZONTALES PARA TABLET/DESKTOP */}
-          <div className="hidden sm:flex items-center gap-2 overflow-x-auto w-full py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {/* VISTA DESKTOP / TABLET (ENVUELVE TODOS LOS BOTONES) */}
+          <div className="hidden sm:flex flex-wrap items-center gap-2 px-4 py-1 w-full">
+            <button
+              onClick={() => setSoloAbiertos(!soloAbiertos)}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                soloAbiertos
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
+            </button>
+
+            <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-700 shrink-0 mx-0.5" />
+
             <button
               onClick={() => setSelectedRubro('')}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition shrink-0 ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
                 selectedRubro === ''
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -278,7 +292,7 @@ export const HomeExplorerPage: React.FC = () => {
               <button
                 key={r.id}
                 onClick={() => setSelectedRubro(r.id)}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition shrink-0 ${
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
                   selectedRubro === r.id
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
