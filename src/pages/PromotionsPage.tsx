@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { registrarInteraccion } from '@/lib/metrics';
 import { supabase } from '@/lib/supabase';
 import { Promocion } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
@@ -91,6 +92,8 @@ export const PromotionsPage: React.FC = () => {
                 )}
                 target="_blank"
                 rel="noreferrer"
+                // Antes las consultas desde Promociones no se contaban
+                onClick={() => p.comercio_id && void registrarInteraccion(p.comercio_id, 'whatsapp')}
                 className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition mt-2"
               >
                 <MessageCircle className="w-4 h-4" /> Consultar al Comercio por WhatsApp

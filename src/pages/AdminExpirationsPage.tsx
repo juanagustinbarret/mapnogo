@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ModalMetricasWhatsApp } from '@/components/ModalMetricasWhatsApp';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl, compileTemplate, variablesSinCompletar } from '@/lib/whatsapp';
@@ -39,7 +40,7 @@ export const AdminExpirationsPage: React.FC = () => {
   // Antes decía "vence en 3 días" para todos, sin importar la fecha real.
   const [mensajePersonalizado, setMensajePersonalizado] = useState(PLANTILLA_POR_DEFECTO);
   const [suscripciones, setSuscripciones] = useState<Record<string, SuscripcionResumen>>({});
-  const [enviandoMetricas, setEnviandoMetricas] = useState<string | null>(null);
+  const [comercioMetricas, setComercioMetricas] = useState<Comercio | null>(null);
 
   useEffect(() => {
     fetchComercios();
@@ -95,52 +96,15 @@ export const AdminExpirationsPage: React.FC = () => {
     window.open(buildWhatsAppUrl(numInfo.normalized, conSaludo), '_blank');
   };
 
-  const handleEnviarMetricasWhatsApp = async (comercio: Comercio) => {
+  // Antes armaba el mensaje con los últimos 7 días fijos y lo abría directo.
+  // Ahora se elige el período y se ve una vista previa (ModalMetricasWhatsApp).
+  const handleEnviarMetricasWhatsApp = (comercio: Comercio) => {
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-
     if (!numInfo.isValid) {
       alert(`⚠️ El comercio "${comercio.nombre}" no tiene un número de WhatsApp válido cargado.`);
       return;
     }
-
-    // Antes el número de visitas era inventado (Math.random) y se le mandaba
-    // al cliente como si fuera real. Ahora se cuentan las interacciones de
-    // los últimos 7 días.
-    // La pestaña se abre antes de esperar la consulta para que el navegador
-    // no la bloquee como ventana emergente.
-    const ventana = window.open('', '_blank');
-    if (ventana) ventana.opener = null;
-    setEnviandoMetricas(comercio.id);
-    try {
-      const desde = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const contar = async (tipo: 'visita' | 'whatsapp' | 'como_llegar') => {
-        const { count, error } = await supabase
-          .from('metricas_interacciones')
-          .select('*', { count: 'exact', head: true })
-          .eq('comercio_id', comercio.id)
-          .eq('tipo_interaccion', tipo)
-          .gte('created_at', desde);
-        if (error) throw error;
-        return count ?? 0;
-      };
-      const [visitas, whatsapp, comoLlegar] = await Promise.all([contar('visita'), contar('whatsapp'), contar('como_llegar')]);
-
-      const mensajeMetricas =
-        `Hola *${comercio.nombre}*! 🚀\n\nEn los últimos 7 días tu ficha en NOGOMAP tuvo:\n` +
-        `• *${visitas}* ${visitas === 1 ? 'visita' : 'visitas'}\n` +
-        `• *${whatsapp}* ${whatsapp === 1 ? 'consulta' : 'consultas'} por WhatsApp\n` +
-        `• *${comoLlegar}* ${comoLlegar === 1 ? 'pedido' : 'pedidos'} de "Cómo llegar"\n\n¡Gracias por confiar en nosotros! 🙌`;
-
-      const url = buildWhatsAppUrl(numInfo.normalized, mensajeMetricas);
-      if (ventana) ventana.location.href = url;
-      else window.open(url, '_blank');
-    } catch (error) {
-      ventana?.close();
-      console.error('No se pudieron leer las métricas:', error);
-      alert(`No se pudieron leer las métricas de "${comercio.nombre}". No se envió nada.`);
-    } finally {
-      setEnviandoMetricas(null);
-    }
+    setComercioMetricas(comercio);
   };
 
   const filtrados = comercios.filter((c) =>
@@ -251,7 +215,7 @@ export const AdminExpirationsPage: React.FC = () => {
 
                   <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t dark:border-gray-800">
                     <button
-                      disabled={!tieneWhatsApp || enviandoMetricas === c.id}
+                      disabled={!tieneWhatsApp}
                       onClick={() => handleEnviarMetricasWhatsApp(c)}
                       className="w-full py-2 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -304,7 +268,7 @@ export const AdminExpirationsPage: React.FC = () => {
                       </td>
                       <td className="p-3.5 text-right space-x-2 whitespace-nowrap">
                         <button
-                          disabled={!tieneWhatsApp || enviandoMetricas === c.id}
+                          disabled={!tieneWhatsApp}
                           onClick={() => handleEnviarMetricasWhatsApp(c)}
                           className="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold inline-flex items-center gap-1 hover:bg-blue-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
@@ -327,6 +291,9 @@ export const AdminExpirationsPage: React.FC = () => {
           </div>
         </div>
       </div>
+      {comercioMetricas && (
+        <ModalMetricasWhatsApp comercio={comercioMetricas} onCerrar={() => setComercioMetricas(null)} />
+      )}
     </div>
   );
 };

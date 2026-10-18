@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { registrarInteraccion } from '@/lib/metrics';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -241,6 +242,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                       href={googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
+                      // Antes este "Cómo llegar" del mapa no se contaba en las métricas
+                      onClick={() => void registrarInteraccion(comercio.id, 'como_llegar')}
                       className="text-blue-600 font-semibold hover:underline flex items-center gap-1"
                     >
                       <Navigation className="w-3 h-3" /> Cómo llegar

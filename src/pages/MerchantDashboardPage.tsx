@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { PanelMetricas } from '@/components/PanelMetricas';
+import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
@@ -520,7 +522,7 @@ export const MerchantDashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Visitas Ficha (Reales)</p>
+            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Visitas a la ficha (total)</p>
             <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasReales.visitas}</p>
           </div>
           <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
@@ -548,6 +550,16 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MÉTRICAS POR PERÍODO */}
+      {comercio && (
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Eye className="w-5 h-5 text-brand-600" /> Tus métricas
+          </h3>
+          <PanelMetricas comercioId={comercio.id} rangoInicial={rangoDesdeUrl(location.search)} />
+        </div>
+      )}
 
       {/* BLOQUES INFORMACIÓN */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
