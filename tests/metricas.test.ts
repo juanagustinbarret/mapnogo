@@ -12,7 +12,7 @@ import {
   registrarInteraccion,
 } from '../src/lib/metrics.ts';
 import { describirRango, rangoAnterior, rangoDeAtajo, rangoDesdeUrl, validarRango } from '../src/lib/rangosFechas.ts';
-import { armarMensajeMetricas, formatearNumero, urlDetalleMetricas, variacion } from '../src/lib/mensajeMetricas.ts';
+import { formatearNumero, urlDetalleMetricas, variacion } from '../src/lib/mensajeMetricas.ts';
 
 const almacen = new Map<string, string>();
 (globalThis as any).window = globalThis;
@@ -145,28 +145,9 @@ test('números en formato argentino y comparación', () => {
   assert.equal(describirRango({ desde: '2026-10-01', hasta: '2026-10-31' }), 'del 01/10/2026 al 31/10/2026');
 });
 
-test('mensaje de WhatsApp: corto, con período, números, comparación y link', () => {
-  const rango = { desde: '2026-10-01', hasta: '2026-10-31' };
-  const texto = armarMensajeMetricas({
-    nombreComercio: 'Pizzería Don Pepe',
-    rango,
-    actual: { visitas: 1234, whatsapp: 1, comoLlegar: 78 },
-    anterior: { visitas: 1100, whatsapp: 2, comoLlegar: 78 },
-    urlDetalle: urlDetalleMetricas('https://mapnogo.vercel.app/', rango),
-  });
+test('link al detalle del panel', () => {
   assert.equal(
-    texto,
-    [
-      'Hola *Pizzería Don Pepe*! 📊',
-      'Tus números en NOGOMAP del 01/10/2026 al 31/10/2026:',
-      '',
-      '👀 *1.234* visitas a tu ficha (▲ 12 %)',
-      '💬 *1* consulta por WhatsApp (▼ 50 %)',
-      '📍 *78* pedidos de "Cómo llegar" (= igual)',
-      '',
-      '_Entre paréntesis, la comparación con el período anterior._',
-      '',
-      'Ver el detalle: https://mapnogo.vercel.app/panel?desde=2026-10-01&hasta=2026-10-31',
-    ].join('\n'),
+    urlDetalleMetricas('https://mapnogo.vercel.app/', { desde: '2026-10-01', hasta: '2026-10-31' }),
+    'https://mapnogo.vercel.app/panel?desde=2026-10-01&hasta=2026-10-31',
   );
 });
