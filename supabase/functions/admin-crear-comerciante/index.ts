@@ -1,4 +1,3 @@
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -390,13 +389,14 @@ Deno.serve(async (req: Request) => {
       }, 409);
     }
 
-    // Crear la cuenta Auth. El trigger debe crear su perfil.
+    // 1. Crear la cuenta Auth AUTO-CONFIRMADA e indicando a Supabase que SUPRIMA el correo saliente
     const authResult = await adminRequest("/auth/v1/admin/users", {
       method: "POST",
       body: {
         email,
         password,
         email_confirm: true,
+        suppress_send_email: true, // <-- Evita que intente enviar mail vía Resend y salte el error 550
         user_metadata: {
           nombre: profileName,
           rol: "comerciante",
@@ -413,22 +413,22 @@ Deno.serve(async (req: Request) => {
 
     createdUserId = authResult.id;
 
-    const profiles = await adminRequest(
-      `/rest/v1/profiles?id=eq.${createdUserId}&select=id,rol`,
-    ) as JsonObject[];
+    // 2. Garantizar/Crear explícitamente el perfil del comerciante para dar acceso al panel
+    await adminRequest(
+      "/rest/v1/profiles",
+      {
+        method: "POST",
+        prefer: "resolution=merge-duplicates",
+        body: {
+          id: createdUserId,
+          nombre: profileName,
+          rol: "comerciante",
+          email: email,
+        },
+      },
+    );
 
-    if (
-      !Array.isArray(profiles) ||
-      profiles.length !== 1 ||
-      profiles[0].rol !== "comerciante"
-    ) {
-      throw new ApiError(
-        "La cuenta se creó, pero no se pudo verificar el perfil del comerciante.",
-        500,
-      );
-    }
-
-    // Crear el comercio y asociarlo al nuevo usuario.
+    // 3. Crear el comercio y asociarlo al nuevo usuario.
     const commerceResult = await adminRequest(
       "/rest/v1/comercios?select=id",
       {
@@ -473,7 +473,7 @@ Deno.serve(async (req: Request) => {
 
     createdCommerceId = commerceResult[0].id;
 
-    // Registrar la suscripción con el precio real del plan.
+    // 4. Registrar la suscripción con el precio real del plan.
     await adminRequest("/rest/v1/suscripciones", {
       method: "POST",
       body: {
