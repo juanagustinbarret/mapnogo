@@ -8,7 +8,8 @@ import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
-import { 
+import {
+  MENSAJES_FALLO_PUSH,
   solicitarPermisoNotificacionesPush, 
   cancelarSuscripcionNotificacionesPush, 
   verificarEstadoSuscripcionPush 
@@ -113,14 +114,15 @@ export const HomeExplorerPage: React.FC = () => {
       }
     } else {
       // Proceso de alta
-      const suscripcion = await solicitarPermisoNotificacionesPush();
+      const resultado = await solicitarPermisoNotificacionesPush();
       setActivandoPush(false);
 
-      if (suscripcion) {
+      if (resultado.ok) {
         setPushActivado(true);
         alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.');
       } else {
-        alert('No se pudieron activar las notificaciones o el permiso fue denegado.');
+        // Mensaje según lo que pasó (permiso bloqueado, iPhone sin instalar, etc.)
+        alert(MENSAJES_FALLO_PUSH[resultado.motivo]);
       }
     }
   };
