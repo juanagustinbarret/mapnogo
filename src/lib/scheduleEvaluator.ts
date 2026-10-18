@@ -1,4 +1,5 @@
 import { HorarioAtencion } from '@/types/database.types';
+import { momentoArgentina } from '@/lib/delivery';
 
 export interface StatusHorarioResult {
   estado: 'abierto' | 'cierra_pronto' | 'cerrado' | 'no_informado';
@@ -13,13 +14,10 @@ export const evaluarEstadoHorario = (
     return { estado: 'no_informado', mensaje: 'Horario no informado' };
   }
 
-  // Convertir día de JavaScript (0 = Domingo) a índice DB (0 = Lunes, ..., 6 = Domingo)
-  const jsDay = nowDate.getDay();
-  const currentDayIndex = jsDay === 0 ? 6 : jsDay - 1;
-
-  const currentHour = nowDate.getHours();
-  const currentMinute = nowDate.getMinutes();
-  const currentMinutes = currentHour * 60 + currentMinute;
+  // Día (0 = Lunes … 6 = Domingo) y minuto en hora de Argentina. Antes se
+  // usaba la hora del dispositivo (getDay/getHours): un celular con otra zona
+  // horaria veía comercios abiertos o cerrados a destiempo.
+  const { dia: currentDayIndex, minutos: currentMinutes } = momentoArgentina(nowDate);
 
   const horariosHoy = horarios.filter((h) => h.dia_semana === currentDayIndex && h.activo);
 
@@ -40,7 +38,7 @@ export const evaluarEstadoHorario = (
 
     if (cruzaMedianoche) {
       if (currentMinutes >= startMinutes || currentMinutes < endMinutes) {
-        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
+        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre.slice(0, 5)}` };
       }
     } else {
       if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
@@ -48,7 +46,7 @@ export const evaluarEstadoHorario = (
         if (diff <= 30) {
           return { estado: 'cierra_pronto', mensaje: `Cierra pronto (${diff} min)` };
         }
-        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre}` };
+        return { estado: 'abierto', mensaje: `Abierto hasta las ${h.hora_cierre.slice(0, 5)}` };
       }
     }
   }
