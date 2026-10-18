@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
@@ -129,8 +128,7 @@ export const AdminDashboardPage: React.FC = () => {
     ingresosMes: 0,
   });
 
-  const [selectedComercioMetrica, setSelectedComercioMetrica] =
-    useState<Comercio | null>(null);
+  const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
   const [metricasLocal, setMetricasLocal] = useState({
     visitas: 0,
     whatsapp: 0,
@@ -173,19 +171,6 @@ export const AdminDashboardPage: React.FC = () => {
         totalComercios: count ?? lista.length,
         ingresosMes: totalRecaudado,
       });
-
-      if (lista.length > 0) {
-        setSelectedComercioMetrica((actual) => {
-          const comercioActual = actual
-            ? lista.find((c) => c.id === actual.id)
-            : null;
-
-          return comercioActual ?? lista[0];
-        });
-      } else {
-        setSelectedComercioMetrica(null);
-        setMetricasLocal({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
-      }
     } catch (err) {
       console.error('Error al cargar el panel de administración:', err);
       alert(
@@ -250,14 +235,23 @@ export const AdminDashboardPage: React.FC = () => {
     let cancelado = false;
 
     const cargarMetricas = async () => {
-      if (!selectedComercioMetrica) return;
-
       try {
-        const metricas = await obtenerMetricasComercio(
-          selectedComercioMetrica.id
-        );
+        if (selectedMetricaOption === 'global') {
+          const { data: interacciones } = await supabase
+            .from('metricas_interacciones')
+            .select('*');
 
-        if (!cancelado) setMetricasLocal(metricas);
+          if (!interacciones || cancelado) return;
+
+          const visitas = interacciones.filter((i) => i.tipo_interaccion === 'visita').length;
+          const whatsapp = interacciones.filter((i) => i.tipo_interaccion === 'whatsapp').length;
+          const comoLlegar = interacciones.filter((i) => i.tipo_interaccion === 'como_llegar').length;
+
+          setMetricasLocal({ visitas, whatsapp, comoLlegar });
+        } else {
+          const metricas = await obtenerMetricasComercio(selectedMetricaOption);
+          if (!cancelado) setMetricasLocal(metricas);
+        }
       } catch (error) {
         console.error('Error al cargar métricas:', error);
       }
@@ -268,11 +262,7 @@ export const AdminDashboardPage: React.FC = () => {
     return () => {
       cancelado = true;
     };
-  }, [selectedComercioMetrica?.id]);
-
-  const cargarMetricasDeComercio = (comercio: Comercio) => {
-    setSelectedComercioMetrica(comercio);
-  };
+  }, [selectedMetricaOption, comercios]);
 
   const handleToggleEstadoPago = async (
     id: string,
@@ -304,8 +294,8 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    if (selectedComercioMetrica?.id === id) {
-      setSelectedComercioMetrica(null);
+    if (selectedMetricaOption === id) {
+      setSelectedMetricaOption('global');
     }
 
     alert(`Comercio "${nombre}" eliminado con éxito.`);
@@ -525,24 +515,22 @@ export const AdminDashboardPage: React.FC = () => {
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2">
               <BarChart2 className="w-5 h-5 text-brand-600" />
-              Rendimiento por comercio
+              Métricas e Interacciones
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Visitas, contactos y rutas solicitadas.
+              Visualizá el impacto global o filtrá por comercio individual.
             </p>
           </div>
 
           <select
-            value={selectedComercioMetrica?.id ?? ''}
-            onChange={(e) => {
-              const comercio = comercios.find((c) => c.id === e.target.value);
-              if (comercio) cargarMetricasDeComercio(comercio);
-            }}
-            className={`${campoClase} sm:max-w-sm`}
+            value={selectedMetricaOption}
+            onChange={(e) => setSelectedMetricaOption(e.target.value)}
+            className={`${campoClase} sm:max-w-sm font-semibold`}
           >
+            <option value="global">📊 TODAS LAS MÉTRICAS COMBINADAS (GLOBAL)</option>
             {comercios.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nombre} ({c.direccion})
+                {c.nombre} ({c.direccion || 'Sin dirección'})
               </option>
             ))}
           </select>
@@ -551,7 +539,7 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700">
             <Eye className="w-5 h-5 text-blue-600" />
-            <p className="text-xs text-gray-500 mt-2">Visitas a la ficha</p>
+            <p className="text-xs text-gray-500 mt-2">Visitas a Fichas</p>
             <p className="text-3xl font-black">{metricasLocal.visitas}</p>
           </div>
           <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700">
@@ -561,7 +549,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
           <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700">
             <Navigation className="w-5 h-5 text-purple-600" />
-            <p className="text-xs text-gray-500 mt-2">Cómo llegar</p>
+            <p className="text-xs text-gray-500 mt-2">Rutas 'Cómo Llegar'</p>
             <p className="text-3xl font-black text-purple-600">{metricasLocal.comoLlegar}</p>
           </div>
         </div>

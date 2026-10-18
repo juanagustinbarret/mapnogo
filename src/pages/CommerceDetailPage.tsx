@@ -12,11 +12,32 @@ import {
   CheckCircle2, 
   CreditCard, 
   Share2, 
-  Copy 
+  Copy,
+  CalendarDays
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { registrarInteraccion } from '@/lib/metrics';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
+import { formatDate } from '@/lib/formatters';
+
+function obtenerTextoVencimiento(fechaISO?: string | null): { texto: string; estaPorVencer: boolean } {
+  if (!fechaISO) return { texto: '', estaPorVencer: false };
+
+  // Extraer sólo YYYY-MM-DD
+  const fechaLimpia = fechaISO.includes('T') ? fechaISO.split('T')[0] : fechaISO;
+  const fechaFin = new Date(`${fechaLimpia}T23:59:59`);
+  const hoy = new Date();
+
+  const difMilisegundos = fechaFin.getTime() - hoy.getTime();
+  const diasRestantes = Math.ceil(difMilisegundos / (1000 * 60 * 60 * 24));
+
+  if (diasRestantes < 0) return { texto: 'Vencida', estaPorVencer: true };
+  if (diasRestantes === 0) return { texto: 'Vence hoy', estaPorVencer: true };
+  if (diasRestantes === 1) return { texto: 'Vence mañana', estaPorVencer: true };
+  if (diasRestantes <= 5) return { texto: `Vence en ${diasRestantes} días`, estaPorVencer: true };
+
+  return { texto: `Hasta el ${formatDate(fechaLimpia)}`, estaPorVencer: false };
+}
 
 export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -35,10 +56,8 @@ export const CommerceDetailPage: React.FC = () => {
     if (c) {
       setComercio(c);
 
-      // REGISTRAR EVENTO DE VISITA REAL EN LA BASE DE DATOS
       registrarInteraccion(c.id, 'visita');
 
-      // Traer horarios de atención
       const { data: h } = await supabase
         .from('horarios_atencion')
         .select('*')
@@ -46,25 +65,20 @@ export const CommerceDetailPage: React.FC = () => {
         .order('dia_semana', { ascending: true });
       if (h) setHorarios(h);
 
-      // Traer ofertas y novedades VIGENTES (fecha_fin >= hoy)
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoyStr = new Date().toISOString().split('T')[0];
       const { data: p } = await supabase
         .from('promociones')
         .select('*')
         .eq('comercio_id', c.id)
         .eq('aprobada', true)
-        .gte('fecha_fin', hoy);
+        .gte('fecha_fin', hoyStr);
       if (p) setPromociones(p);
     }
   };
 
   const handleWhatsAppClick = () => {
     if (!comercio) return;
-
-    // 1. Registrar métrica real
     registrarInteraccion(comercio.id, 'whatsapp');
-
-    // 2. Abrir WhatsApp normalizado
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
     const mensaje = `Hola *${comercio.nombre}*! 👋 Vi tu comercio en Nogoyá Cerca y quisiera hacerles una consulta.`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
@@ -73,11 +87,7 @@ export const CommerceDetailPage: React.FC = () => {
 
   const handleComoLlegarClick = () => {
     if (!comercio) return;
-
-    // 1. Registrar métrica real
     registrarInteraccion(comercio.id, 'como_llegar');
-
-    // 2. Abrir ruta en Google Maps (priorizando lat/lng si existen)
     const query = (comercio.latitud && comercio.longitud)
       ? `${comercio.latitud},${comercio.longitud}`
       : encodeURIComponent(`${comercio.nombre}, ${comercio.direccion}, Nogoyá, Entre Ríos`);
@@ -143,7 +153,6 @@ export const CommerceDetailPage: React.FC = () => {
           {comercio.descripcion_corta || 'Sin descripción disponible.'}
         </p>
 
-        {/* SERVICIOS Y MEDIOS DE PAGO */}
         {(comercio.servicios?.length || comercio.medios_pago?.length) ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
             {comercio.servicios && comercio.servicios.length > 0 && (
@@ -178,7 +187,6 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         ) : null}
 
-        {/* HORARIOS DE ATENCIÓN */}
         <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl space-y-3 border dark:border-gray-700/60">
           <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
             <Clock className="w-4 h-4 text-brand-600" /> Horarios de Atención Semanal
@@ -200,7 +208,6 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* UBICACIÓN Y ACCIONES */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
             <div className="flex items-center gap-2">
@@ -233,38 +240,44 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* SECCIÓN DE OFERTAS Y NOVEDADES VIGENTES */}
       {promociones.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
             <Tag className="w-5 h-5 text-amber-500" /> Ofertas y Novedades Vigentes
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {promociones.map((p) => (
-              <div key={p.id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${
-                      p.tipo === 'novedad'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                    }`}
-                  >
-                    {p.tipo === 'novedad' ? 'Novedad' : 'Oferta'}
-                  </span>
-                  {p.fecha_fin && (
-                    <span className="text-[11px] text-gray-400">Hasta: {p.fecha_fin}</span>
+            {promociones.map((p) => {
+              const vencInfo = obtenerTextoVencimiento(p.fecha_fin);
+              return (
+                <div key={p.id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${
+                        p.tipo === 'novedad'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                      }`}
+                    >
+                      {p.tipo === 'novedad' ? 'Novedad' : 'Oferta'}
+                    </span>
+                    {vencInfo.texto && (
+                      <span className={`text-[11px] font-medium flex items-center gap-1 ${
+                        vencInfo.estaPorVencer ? 'text-amber-600 font-bold' : 'text-gray-500'
+                      }`}>
+                        <CalendarDays className="w-3 h-3" /> {vencInfo.texto}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="font-bold text-sm text-gray-900 dark:text-white">{p.titulo}</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">{p.descripcion}</p>
+                  {p.precio_promocional && (
+                    <div className="text-base font-extrabold text-green-600 dark:text-green-400">
+                      ${p.precio_promocional.toLocaleString('es-AR')}
+                    </div>
                   )}
                 </div>
-                <h4 className="font-bold text-sm text-gray-900 dark:text-white">{p.titulo}</h4>
-                <p className="text-xs text-gray-600 dark:text-gray-300">{p.descripcion}</p>
-                {p.precio_promocional && (
-                  <div className="text-base font-extrabold text-green-600 dark:text-green-400">
-                    ${p.precio_promocional.toLocaleString('es-AR')}
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

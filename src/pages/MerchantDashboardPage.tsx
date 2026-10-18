@@ -23,7 +23,9 @@ import {
   Sparkles,
   LayoutDashboard,
   Download,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Copy,
+  Save
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -37,6 +39,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const [promociones, setPromociones] = useState<Promocion[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
+  const [savingHorarios, setSavingHorarios] = useState(false);
 
   const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
   const [loading, setLoading] = useState(true);
@@ -114,6 +117,69 @@ export const MerchantDashboardPage: React.FC = () => {
       console.error('Error al cargar datos del comercio:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopiarHorarioLunesAViernes = async () => {
+    if (!comercio) return;
+    const turnosLunes = horarios.filter((h) => Number(h.dia_semana) === 0);
+
+    if (turnosLunes.length === 0) {
+      alert('⚠️ Primero agregá al menos un turno en el día Lunes para poder copiarlo.');
+      return;
+    }
+
+    if (!confirm('¿Querés copiar los horarios del Lunes a los días Martes, Miércoles, Jueves y Viernes?')) return;
+
+    setSavingHorarios(true);
+    try {
+      // Eliminar los turnos existentes de Martes a Viernes (días 1, 2, 3, 4)
+      await supabase.from('horarios_atencion').delete().eq('comercio_id', comercio.id).in('dia_semana', [1, 2, 3, 4]);
+
+      const nuevosTurnos = [];
+      for (let dia = 1; dia <= 4; dia++) {
+        for (const t of turnosLunes) {
+          nuevosTurnos.push({
+            comercio_id: comercio.id,
+            dia_semana: dia,
+            hora_apertura: t.hora_apertura,
+            hora_cierre: t.hora_cierre,
+            activo: true
+          });
+        }
+      }
+
+      await supabase.from('horarios_atencion').insert(nuevosTurnos);
+      alert('✅ Horarios copiados de Lunes a Viernes exitosamente.');
+      await fetchMerchantData();
+    } catch (e: any) {
+      alert('Error al copiar horarios: ' + e.message);
+    } finally {
+      setSavingHorarios(false);
+    }
+  };
+
+  const handleGuardarTodosLosHorarios = async () => {
+    if (!comercio) return;
+    setSavingHorarios(true);
+
+    try {
+      for (const h of horarios) {
+        await supabase
+          .from('horarios_atencion')
+          .update({
+            hora_apertura: h.hora_apertura,
+            hora_cierre: h.hora_cierre,
+            activo: h.activo,
+          })
+          .eq('id', h.id);
+      }
+      alert('✅ Todos los horarios semanales fueron actualizados.');
+      await fetchMerchantData();
+    } catch (e: any) {
+      alert('Error al guardar horarios: ' + e.message);
+    } finally {
+      setSavingHorarios(false);
     }
   };
 
@@ -522,10 +588,34 @@ export const MerchantDashboardPage: React.FC = () => {
 
       {/* HORARIOS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-4">
-        <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
-          <Clock className="w-5 h-5 text-brand-600" />
-          Horarios de Atención al Público
-        </h3>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-3">
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Clock className="w-5 h-5 text-brand-600" /> Horarios de Atención al Público
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">Configurá la atención semanal de tu local.</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              disabled={savingHorarios}
+              onClick={handleCopiarHorarioLunesAViernes}
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 transition"
+            >
+              <Copy className="w-3.5 h-3.5" /> Copiar Lunes a Viernes
+            </button>
+
+            <button
+              type="button"
+              disabled={savingHorarios}
+              onClick={handleGuardarTodosLosHorarios}
+              className="flex-1 sm:flex-none px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 transition shadow-sm disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" /> {savingHorarios ? 'Guardando...' : 'Guardar Todos los Cambios'}
+            </button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {diasSemana.map((dia, idx) => {

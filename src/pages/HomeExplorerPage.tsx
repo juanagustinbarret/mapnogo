@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
+import { solicitarPermisoNotificacionesPush } from '@/lib/pushNotifications';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -49,6 +50,10 @@ export const HomeExplorerPage: React.FC = () => {
   const [pedidoCentrado, setPedidoCentrado] = useState(0);
   const seguimientoId = useRef<number | null>(null);
 
+  // Estado para la activación de notificaciones Push
+  const [activandoPush, setActivandoPush] = useState(false);
+  const [pushActivado, setPushActivado] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -86,6 +91,20 @@ export const HomeExplorerPage: React.FC = () => {
     }
   };
 
+  // Manejar solicitud de permisos Push
+  const handleActivarNotificaciones = async () => {
+    setActivandoPush(true);
+    const suscripcion = await solicitarPermisoNotificacionesPush();
+    setActivandoPush(false);
+
+    if (suscripcion) {
+      setPushActivado(true);
+      alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.');
+    } else {
+      alert('No se pudieron activar las notificaciones o el permiso fue denegado.');
+    }
+  };
+
   // Ubicación en vivo, como en los GPS: el punto azul se mueve con el usuario.
   // Si ya se está siguiendo, el botón solo vuelve a centrar el mapa.
   const solicitarUbicacion = () => {
@@ -108,12 +127,10 @@ export const HomeExplorerPage: React.FC = () => {
           lat,
           lng,
           precision: Number.isFinite(accuracy) ? accuracy : null,
-          // El rumbo solo viene cuando el usuario se está moviendo
           rumbo: heading !== null && Number.isFinite(heading) ? heading : null,
         });
         setLoadingLoc(false);
 
-        // La calle se averigua una sola vez, no en cada lectura del GPS
         if (!tuvoUbicacion) {
           tuvoUbicacion = true;
           calleEnCoordenadas(lat, lng)
@@ -122,8 +139,6 @@ export const HomeExplorerPage: React.FC = () => {
         }
       },
       (error) => {
-        // Si ya hay una ubicación, un corte momentáneo de señal no se avisa:
-        // se deja el último punto y el GPS sigue intentando.
         if (tuvoUbicacion && error.code !== error.PERMISSION_DENIED) return;
 
         detenerSeguimiento();
@@ -151,11 +166,8 @@ export const HomeExplorerPage: React.FC = () => {
     );
   };
 
-  // Ubica los comercios sin coordenadas propias por su dirección (las mismas
-  // coordenadas que usa el mapa). Al llegar cada una se recalculan distancias.
   useGeocodificarComercios(comercios);
 
-  // El radio solo se puede aplicar cuando ya sabemos dónde está el usuario.
   const filtrarPorRadio = radioKm !== null && userLocation !== null;
 
   const elegirRadio = (valor: number | null) => {
@@ -165,9 +177,6 @@ export const HomeExplorerPage: React.FC = () => {
 
   const filteredComercios = comercios
     .map((c) => {
-      // Antes se medía desde las coordenadas de la base, y los comercios sin
-      // coordenadas quedaban todos "en la plaza": el radio y el orden por
-      // cercanía no coincidían con lo que mostraba el mapa.
       const posicion = posicionDeComercio(c);
       const distancia =
         userLocation && posicion ? calcularDistanciaKm(userLocation.lat, userLocation.lng, posicion.lat, posicion.lng) : null;
@@ -181,14 +190,11 @@ export const HomeExplorerPage: React.FC = () => {
         (c.direccion && c.direccion.toLowerCase().includes(search.toLowerCase()));
       const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
       const matchAbierto = soloAbiertos ? c.estadoAtencion.estado === 'abierto' : true;
-      // Los comercios que no se pudieron ubicar quedan afuera del radio.
       const matchRadio = filtrarPorRadio ? c.distancia !== null && c.distancia <= (radioKm as number) : true;
 
       return matchSearch && matchRubro && matchAbierto && matchRadio;
     })
     .sort((a, b) => {
-      // Por cercanía: primero los más cerca; los que no tienen distancia (sin
-      // ubicación del usuario o sin ubicar el comercio) van al final, por nombre.
       if (ordenamiento === 'cercania') {
         if (a.distancia !== null && b.distancia !== null) return a.distancia - b.distancia;
         if (a.distancia !== null) return -1;
@@ -212,14 +218,28 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={solicitarUbicacion}
-          disabled={loadingLoc}
-          className="w-full md:w-auto px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
-        >
-          <Navigation className="w-4 h-4" />{' '}
-          {loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar en Mi Ubicación' : 'Usar Mi Ubicación'}
-        </button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
+          {/* BOTÓN DE NOTIFICACIONES PUSH */}
+          <button
+            onClick={handleActivarNotificaciones}
+            disabled={activandoPush || pushActivado}
+            className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-gray-900 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 disabled:opacity-60"
+            title="Recibir avisos de ofertas y promociones"
+          >
+            <Bell className="w-4 h-4 text-gray-900" />
+            {pushActivado ? 'Ofertas Activas' : activandoPush ? 'Activando...' : 'Recibir Ofertas'}
+          </button>
+
+          {/* BOTÓN DE UBICACIÓN */}
+          <button
+            onClick={solicitarUbicacion}
+            disabled={loadingLoc}
+            className="px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
+          >
+            <Navigation className="w-4 h-4" />{' '}
+            {loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar en Mi Ubicación' : 'Usar Mi Ubicación'}
+          </button>
+        </div>
       </div>
 
       {/* PANEL PRINCIPAL DE CONTROLES */}
@@ -367,7 +387,6 @@ export const HomeExplorerPage: React.FC = () => {
                     : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
-                {/* Mismo ícono y color que el pin del mapa: sirve de referencia */}
                 <InsigniaRubro rubro={r} className={selectedRubro === r.id ? 'ring-2 ring-white/70' : ''} />
                 {r.nombre}
               </button>
