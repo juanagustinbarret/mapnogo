@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
+import { hoyArgentina, sumarDias } from '@/lib/fechasArgentina';
 import {
   Store,
   CreditCard,
@@ -217,13 +218,9 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!comercio) return;
     setSavingPromo(true);
 
-    const hoy = new Date();
-    let fechaFinCalculada = promoForm.fecha_fin;
-    if (!fechaFinCalculada) {
-      const f = new Date();
-      f.setDate(hoy.getDate() + 30);
-      fechaFinCalculada = f.toISOString().split('T')[0];
-    }
+    // Fechas en hora de Argentina (en UTC, de 21 a 24 h ya era "mañana")
+    const hoy = hoyArgentina();
+    const fechaFinCalculada = promoForm.fecha_fin || sumarDias(hoy, 30);
 
     const newPromo = {
       comercio_id: comercio.id,
@@ -232,7 +229,7 @@ export const MerchantDashboardPage: React.FC = () => {
       tipo: promoForm.tipo,
       precio_anterior: promoForm.precio_anterior ? parseFloat(promoForm.precio_anterior) : null,
       precio_promocional: promoForm.precio_promocional ? parseFloat(promoForm.precio_promocional) : null,
-      fecha_inicio: hoy.toISOString().split('T')[0],
+      fecha_inicio: hoy,
       fecha_fin: fechaFinCalculada,
       aprobada: true,
     };
