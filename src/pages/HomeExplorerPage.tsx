@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
+import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -150,11 +151,26 @@ export const HomeExplorerPage: React.FC = () => {
     );
   };
 
+  // Ubica los comercios sin coordenadas propias por su dirección (las mismas
+  // coordenadas que usa el mapa). Al llegar cada una se recalculan distancias.
+  useGeocodificarComercios(comercios);
+
+  // El radio solo se puede aplicar cuando ya sabemos dónde está el usuario.
+  const filtrarPorRadio = radioKm !== null && userLocation !== null;
+
+  const elegirRadio = (valor: number | null) => {
+    setRadioKm(valor);
+    if (valor !== null && !userLocation && !loadingLoc) solicitarUbicacion();
+  };
+
   const filteredComercios = comercios
     .map((c) => {
-      const latC = c.latitud || -32.3939;
-      const lngC = c.longitud || -59.7881;
-      const distancia = userLocation ? calcularDistanciaKm(userLocation.lat, userLocation.lng, latC, lngC) : null;
+      // Antes se medía desde las coordenadas de la base, y los comercios sin
+      // coordenadas quedaban todos "en la plaza": el radio y el orden por
+      // cercanía no coincidían con lo que mostraba el mapa.
+      const posicion = posicionDeComercio(c);
+      const distancia =
+        userLocation && posicion ? calcularDistanciaKm(userLocation.lat, userLocation.lng, posicion.lat, posicion.lng) : null;
       const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || []);
       return { ...c, distancia, estadoAtencion };
     })
@@ -165,18 +181,20 @@ export const HomeExplorerPage: React.FC = () => {
         (c.direccion && c.direccion.toLowerCase().includes(search.toLowerCase()));
       const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
       const matchAbierto = soloAbiertos ? c.estadoAtencion.estado === 'abierto' : true;
-      const matchRadio = radioKm !== null ? (c.distancia !== null && c.distancia <= radioKm) : true;
+      // Los comercios que no se pudieron ubicar quedan afuera del radio.
+      const matchRadio = filtrarPorRadio ? c.distancia !== null && c.distancia <= (radioKm as number) : true;
 
       return matchSearch && matchRubro && matchAbierto && matchRadio;
     })
     .sort((a, b) => {
-      if (ordenamiento === 'cercania' && a.distancia !== null && b.distancia !== null) {
-        return a.distancia - b.distancia;
+      // Por cercanía: primero los más cerca; los que no tienen distancia (sin
+      // ubicación del usuario o sin ubicar el comercio) van al final, por nombre.
+      if (ordenamiento === 'cercania') {
+        if (a.distancia !== null && b.distancia !== null) return a.distancia - b.distancia;
+        if (a.distancia !== null) return -1;
+        if (b.distancia !== null) return 1;
       }
-      if (ordenamiento === 'nombre') {
-        return a.nombre.localeCompare(b.nombre);
-      }
-      return 0;
+      return a.nombre.localeCompare(b.nombre, 'es');
     });
 
   return (
@@ -236,7 +254,7 @@ export const HomeExplorerPage: React.FC = () => {
             ].map((r) => (
               <button
                 key={r.label}
-                onClick={() => setRadioKm(r.val)}
+                onClick={() => elegirRadio(r.val)}
                 className={`px-2 py-1 rounded-lg font-bold transition text-[11px] shrink-0 ${
                   radioKm === r.val
                     ? 'bg-brand-600 text-white shadow-sm'
@@ -251,13 +269,34 @@ export const HomeExplorerPage: React.FC = () => {
           {/* DESPLEGABLE ORDENAR */}
           <select
             value={ordenamiento}
-            onChange={(e) => setOrdenamiento(e.target.value as 'cercania' | 'nombre')}
+            onChange={(e) => {
+              const valor = e.target.value as 'cercania' | 'nombre';
+              setOrdenamiento(valor);
+              if (valor === 'cercania' && !userLocation && !loadingLoc) solicitarUbicacion();
+            }}
             className="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 font-bold text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none shrink-0"
           >
             <option value="cercania">Ordenar por Cercanía</option>
             <option value="nombre">Ordenar por Nombre</option>
           </select>
         </div>
+
+        {/* AVISO: la cercanía necesita la ubicación del usuario */}
+        {!userLocation && (radioKm !== null || ordenamiento === 'cercania') && (
+          <p className="px-4 text-[11px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-1" role="status">
+            <LocateFixed className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            {loadingLoc ? (
+              'Buscando tu ubicación para medir las distancias...'
+            ) : (
+              <>
+                Para filtrar y ordenar por cercanía necesitamos tu ubicación.
+                <button onClick={solicitarUbicacion} className="font-bold text-brand-600 hover:underline">
+                  Activarla
+                </button>
+              </>
+            )}
+          </p>
+        )}
 
         {/* SECCIÓN DE RUBROS (ENVOLVENTE EN DESKTOP) */}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full">
@@ -348,6 +387,7 @@ export const HomeExplorerPage: React.FC = () => {
             onSolicitarUbicacion={solicitarUbicacion}
             buscandoUbicacion={loadingLoc}
             pedidoCentrado={pedidoCentrado}
+            radioKm={filtrarPorRadio ? radioKm : null}
           />
         </div>
 

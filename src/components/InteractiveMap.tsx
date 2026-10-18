@@ -9,7 +9,7 @@ import { NOGOYA_CENTER } from '@/lib/distance';
 import { visualDeRubro } from '@/lib/iconosRubro';
 import { ICONO_GPS, iconoDeComercio } from '@/lib/iconosMapa';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
-import { coordenadasGuardadas, geocodificarDireccion } from '@/lib/geocodificacion';
+import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 
 export interface UbicacionUsuario {
   lat: number;
@@ -28,6 +28,8 @@ interface InteractiveMapProps {
   buscandoUbicacion?: boolean;
   /** Cada vez que este número cambia, el mapa vuelve a centrarse en el usuario. */
   pedidoCentrado?: number;
+  /** Radio del filtro de cercanía, en km: se dibuja alrededor del usuario. */
+  radioKm?: number | null;
 }
 
 const CENTRO_POR_DEFECTO: [number, number] = [NOGOYA_CENTER.lat, NOGOYA_CENTER.lng];
@@ -41,9 +43,14 @@ const ESTILO_PRECISION: L.PathOptions = {
   fillColor: '#1a73e8',
   fillOpacity: 0.12,
 };
-
-const tieneCoordenadasPropias = (c: Comercio) =>
-  Boolean(c.latitud && c.longitud && c.latitud !== NOGOYA_CENTER.lat);
+const ESTILO_RADIO: L.PathOptions = {
+  color: '#15803d',
+  weight: 2,
+  opacity: 0.8,
+  dashArray: '6 6',
+  fillColor: '#15803d',
+  fillOpacity: 0.05,
+};
 
 // El listado le pasa al mapa una lista nueva en cada render (con la distancia
 // recalculada cada vez que se mueve el usuario). Esta firma junta solo lo que
@@ -67,57 +74,24 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   onSolicitarUbicacion,
   buscandoUbicacion = false,
   pedidoCentrado = 0,
+  radioKm = null,
 }) => {
   const [mapa, setMapa] = useState<L.Map | null>(null);
   const [marcadorGps, setMarcadorGps] = useState<L.Marker | null>(null);
-  const [versionGeo, setVersionGeo] = useState(0);
 
   // ─── Comercios y sus coordenadas ──────────────────────────────────────
   const comerciosEstables = useListaEstable(comercios, firmaDeComercios(comercios));
 
-  const direccionesPendientes = useMemo(
-    () =>
-      [
-        ...new Set(
-          comerciosEstables
-            .filter((c) => !tieneCoordenadasPropias(c) && c.direccion?.trim())
-            .map((c) => c.direccion.trim()),
-        ),
-      ]
-        .sort()
-        .join('\n'),
-    [comerciosEstables],
-  );
-
   // Busca en Nominatim, de a una, las direcciones que todavía no se conocen.
-  useEffect(() => {
-    if (!direccionesPendientes) return;
-    let vigente = true;
-    void (async () => {
-      for (const direccion of direccionesPendientes.split('\n')) {
-        if (!vigente) return;
-        if (coordenadasGuardadas(direccion) !== undefined) continue;
-        await geocodificarDireccion(direccion);
-        if (vigente) setVersionGeo((v) => v + 1);
-      }
-    })();
-    return () => {
-      vigente = false;
-    };
-  }, [direccionesPendientes]);
+  const versionGeo = useGeocodificarComercios(comerciosEstables);
 
   const marcadores = useMemo(
     () =>
       comerciosEstables.flatMap((comercio) => {
-        let posicion: [number, number];
-        if (tieneCoordenadasPropias(comercio)) {
-          posicion = [comercio.latitud, comercio.longitud];
-        } else {
-          const encontrada = comercio.direccion?.trim() ? coordenadasGuardadas(comercio.direccion) : null;
-          if (encontrada === undefined) return []; // todavía se está buscando
-          // Igual que antes: si la dirección no aparece, el pin va al centro de Nogoyá.
-          posicion = encontrada ? [encontrada.lat, encontrada.lng] : CENTRO_POR_DEFECTO;
-        }
+        const encontrada = posicionDeComercio(comercio);
+        if (encontrada === undefined) return []; // todavía se está buscando
+        // Igual que antes: si la dirección no aparece, el pin va al centro de Nogoyá.
+        const posicion: [number, number] = encontrada ? [encontrada.lat, encontrada.lng] : CENTRO_POR_DEFECTO;
         return [{ comercio, posicion, visual: visualDeRubro(comercio.rubro) }];
       }),
     // versionGeo no se usa adentro: solo avisa que llegaron coordenadas nuevas.
@@ -194,6 +168,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (hayRumbo) elemento.style.setProperty('--ng-rumbo', `${Math.round(rumbo)}deg`);
   }, [marcadorGps, rumbo]);
 
+  // Al elegir un radio, el mapa se acomoda para mostrar todo ese círculo.
+  const encuadrarRadioRef = useRef<() => void>(() => undefined);
+  encuadrarRadioRef.current = () => {
+    if (!mapa || !posicionUsuario || !radioKm) return;
+    volandoHasta.current = Date.now() + 1300;
+    mapa.flyToBounds(L.latLng(posicionUsuario).toBounds(radioKm * 2000), { padding: [16, 16], duration: 1 });
+  };
+  const hayUbicacion = posicionUsuario !== null;
+  useEffect(() => {
+    encuadrarRadioRef.current();
+  }, [radioKm, hayUbicacion, mapa]);
+
   const alTocarBotonUbicacion = () => {
     if (posicionUsuario) volarAlUsuario(posicionUsuario);
     else onSolicitarUbicacion?.();
@@ -267,6 +253,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         })}
 
         {/* TU UBICACIÓN: círculo de precisión + punto azul (va arriba de los pines) */}
+        {/* RADIO DEL FILTRO DE CERCANÍA */}
+        {posicionUsuario && radioKm ? (
+          <Circle center={posicionUsuario} radius={radioKm * 1000} pathOptions={ESTILO_RADIO} interactive={false} />
+        ) : null}
         {posicionUsuario && precision !== null && precision > 0 && precision <= PRECISION_MAXIMA_VISIBLE_M && (
           <Circle center={posicionUsuario} radius={precision} pathOptions={ESTILO_PRECISION} interactive={false} />
         )}
