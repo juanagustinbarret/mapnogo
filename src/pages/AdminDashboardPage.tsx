@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/context/AuthContext';
-import { obtenerMetricasComercio } from '@/lib/metrics';
+import { obtenerMetricasComercio, obtenerMetricasGlobales } from '@/lib/metrics';
 import {
   Store,
   DollarSign,
@@ -236,22 +236,11 @@ export const AdminDashboardPage: React.FC = () => {
 
     const cargarMetricas = async () => {
       try {
-        if (selectedMetricaOption === 'global') {
-          const { data: interacciones } = await supabase
-            .from('metricas_interacciones')
-            .select('*');
-
-          if (!interacciones || cancelado) return;
-
-          const visitas = interacciones.filter((i) => i.tipo_interaccion === 'visita').length;
-          const whatsapp = interacciones.filter((i) => i.tipo_interaccion === 'whatsapp').length;
-          const comoLlegar = interacciones.filter((i) => i.tipo_interaccion === 'como_llegar').length;
-
-          setMetricasLocal({ visitas, whatsapp, comoLlegar });
-        } else {
-          const metricas = await obtenerMetricasComercio(selectedMetricaOption);
-          if (!cancelado) setMetricasLocal(metricas);
-        }
+        const metricas =
+          selectedMetricaOption === 'global'
+            ? await obtenerMetricasGlobales()
+            : await obtenerMetricasComercio(selectedMetricaOption);
+        if (!cancelado) setMetricasLocal(metricas);
       } catch (error) {
         console.error('Error al cargar métricas:', error);
       }

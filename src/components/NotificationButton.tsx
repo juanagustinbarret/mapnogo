@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { solicitarPermisoNotificacionesPush } from '@/lib/pushNotifications';
+import { MENSAJES_FALLO_PUSH, solicitarPermisoNotificacionesPush } from '@/lib/pushNotifications';
 
 export function NotificationButton() {
   const [activado, setActivado] = useState(false);
@@ -7,14 +7,14 @@ export function NotificationButton() {
 
   const handleActivar = async () => {
     setCargando(true);
-    const suscripcion = await solicitarPermisoNotificacionesPush();
+    const resultado = await solicitarPermisoNotificacionesPush();
     setCargando(false);
 
-    if (suscripcion) {
+    if (resultado.ok) {
       setActivado(true);
       alert('¡Notificaciones activadas con éxito!');
     } else {
-      alert('No se pudieron activar las notificaciones o fueron denegadas.');
+      alert(MENSAJES_FALLO_PUSH[resultado.motivo]);
     }
   };
 

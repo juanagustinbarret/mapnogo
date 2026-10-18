@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "npx vite build",
     "lint": "eslint . --ext ts,tsx",
+    "test": "node --test --experimental-strip-types --import ./tests/soporte/registrar.mjs \"tests/**/*.test.*\"",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -18,26 +18,8 @@ import {
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { registrarInteraccion } from '@/lib/metrics';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
-import { formatDate } from '@/lib/formatters';
-
-function obtenerTextoVencimiento(fechaISO?: string | null): { texto: string; estaPorVencer: boolean } {
-  if (!fechaISO) return { texto: '', estaPorVencer: false };
-
-  // Extraer sólo YYYY-MM-DD
-  const fechaLimpia = fechaISO.includes('T') ? fechaISO.split('T')[0] : fechaISO;
-  const fechaFin = new Date(`${fechaLimpia}T23:59:59`);
-  const hoy = new Date();
-
-  const difMilisegundos = fechaFin.getTime() - hoy.getTime();
-  const diasRestantes = Math.ceil(difMilisegundos / (1000 * 60 * 60 * 24));
-
-  if (diasRestantes < 0) return { texto: 'Vencida', estaPorVencer: true };
-  if (diasRestantes === 0) return { texto: 'Vence hoy', estaPorVencer: true };
-  if (diasRestantes === 1) return { texto: 'Vence mañana', estaPorVencer: true };
-  if (diasRestantes <= 5) return { texto: `Vence en ${diasRestantes} días`, estaPorVencer: true };
-
-  return { texto: `Hasta el ${formatDate(fechaLimpia)}`, estaPorVencer: false };
-}
+import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
+import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
 
 export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -65,7 +47,7 @@ export const CommerceDetailPage: React.FC = () => {
         .order('dia_semana', { ascending: true });
       if (h) setHorarios(h);
 
-      const hoyStr = new Date().toISOString().split('T')[0];
+      const hoyStr = hoyArgentina();
       const { data: p } = await supabase
         .from('promociones')
         .select('*')
@@ -88,7 +70,9 @@ export const CommerceDetailPage: React.FC = () => {
   const handleComoLlegarClick = () => {
     if (!comercio) return;
     registrarInteraccion(comercio.id, 'como_llegar');
-    const query = (comercio.latitud && comercio.longitud)
+    // Si el comercio no tiene coordenadas propias (quedó con el centro de
+    // Nogoyá por defecto) se busca por dirección; antes se mandaba a la plaza.
+    const query = tieneCoordenadasPropias(comercio)
       ? `${comercio.latitud},${comercio.longitud}`
       : encodeURIComponent(`${comercio.nombre}, ${comercio.direccion}, Nogoyá, Entre Ríos`);
     
@@ -247,7 +231,7 @@ export const CommerceDetailPage: React.FC = () => {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {promociones.map((p) => {
-              const vencInfo = obtenerTextoVencimiento(p.fecha_fin);
+              const vencInfo = textoVencimiento(p.fecha_fin);
               return (
                 <div key={p.id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
                   <div className="flex justify-between items-center">

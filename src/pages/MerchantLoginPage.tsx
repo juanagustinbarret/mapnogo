@@ -55,7 +55,13 @@ export const MerchantLoginPage: React.FC = () => {
 
     if (resetErr) {
       console.error('[MapNogo reset password]', resetErr);
-      setError('No se pudo enviar el correo. Verificá la dirección ingresada.');
+      // Supabase limita los correos por hora; antes ese caso (y una falla del
+      // servidor de correo) se informaba como "verificá la dirección".
+      setError(
+        resetErr.status === 429
+          ? 'Ya se pidieron varios correos hace poco. Esperá unos minutos y volvé a intentar.'
+          : 'No pudimos enviar el correo en este momento. Probá de nuevo más tarde o avisá a un administrador.'
+      );
     } else {
       setSuccess('Enviamos un correo con el enlace para restablecer tu contraseña. Revisá tu bandeja de entrada o SPAM.');
     }

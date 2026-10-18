@@ -13,18 +13,33 @@ export const registrarInteraccion = async (comercioId: string, tipo: 'visita' | 
   }
 };
 
-// Consultar métricas reales acumuladas por comercio
-export const obtenerMetricasComercio = async (comercioId: string) => {
-  const { data: interacciones } = await supabase
+type TipoInteraccion = 'visita' | 'whatsapp' | 'como_llegar';
+
+// Cuenta en la base en vez de traer todas las filas: PostgREST devuelve como
+// máximo 1000 filas por consulta, así que al contar en el navegador los totales
+// se clavaban en 1000 sin avisar (y se descargaba toda la tabla).
+const contarInteracciones = async (tipo: TipoInteraccion, comercioId?: string) => {
+  let consulta = supabase
     .from('metricas_interacciones')
-    .select('*')
-    .eq('comercio_id', comercioId);
+    .select('*', { count: 'exact', head: true })
+    .eq('tipo_interaccion', tipo);
+  if (comercioId) consulta = consulta.eq('comercio_id', comercioId);
+  const { count, error } = await consulta;
+  if (error) throw error;
+  return count ?? 0;
+};
 
-  if (!interacciones) return { visitas: 0, whatsapp: 0, comoLlegar: 0 };
-
-  const visitas = interacciones.filter(i => i.tipo_interaccion === 'visita').length;
-  const whatsapp = interacciones.filter(i => i.tipo_interaccion === 'whatsapp').length;
-  const comoLlegar = interacciones.filter(i => i.tipo_interaccion === 'como_llegar').length;
-
+const contarTodo = async (comercioId?: string) => {
+  const [visitas, whatsapp, comoLlegar] = await Promise.all([
+    contarInteracciones('visita', comercioId),
+    contarInteracciones('whatsapp', comercioId),
+    contarInteracciones('como_llegar', comercioId),
+  ]);
   return { visitas, whatsapp, comoLlegar };
 };
+
+// Consultar métricas reales acumuladas por comercio
+export const obtenerMetricasComercio = (comercioId: string) => contarTodo(comercioId);
+
+// Métricas de todos los comercios juntos (panel del admin)
+export const obtenerMetricasGlobales = () => contarTodo();

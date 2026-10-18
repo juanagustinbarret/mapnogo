@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
+import { hoyArgentina, sumarDias } from '@/lib/fechasArgentina';
 import {
   Store,
   CreditCard,
@@ -131,31 +132,51 @@ export const MerchantDashboardPage: React.FC = () => {
 
     if (!confirm('¿Querés copiar los horarios del Lunes a los días Martes, Miércoles, Jueves y Viernes?')) return;
 
+    // Copia de seguridad de Martes a Viernes por si algo falla a mitad de camino.
+    // Antes los errores de Supabase no se revisaban (no lanzan excepción): si
+    // el alta fallaba después del borrado, se perdían los horarios de esos
+    // días y aun así se mostraba "copiados exitosamente".
+    const respaldo = horarios.filter((h) => [1, 2, 3, 4].includes(Number(h.dia_semana)));
+
+    const nuevosTurnos = [1, 2, 3, 4].flatMap((dia) =>
+      turnosLunes.map((t) => ({
+        comercio_id: comercio.id,
+        dia_semana: dia,
+        hora_apertura: t.hora_apertura,
+        hora_cierre: t.hora_cierre,
+        activo: t.activo ?? true,
+        ...(t.turno !== undefined ? { turno: t.turno } : {}),
+        ...(t.cruza_medianoche !== undefined ? { cruza_medianoche: t.cruza_medianoche } : {}),
+      }))
+    );
+
     setSavingHorarios(true);
     try {
-      // Eliminar los turnos existentes de Martes a Viernes (días 1, 2, 3, 4)
-      await supabase.from('horarios_atencion').delete().eq('comercio_id', comercio.id).in('dia_semana', [1, 2, 3, 4]);
+      const { error: errorBorrado } = await supabase
+        .from('horarios_atencion')
+        .delete()
+        .eq('comercio_id', comercio.id)
+        .in('dia_semana', [1, 2, 3, 4]);
+      if (errorBorrado) throw errorBorrado;
 
-      const nuevosTurnos = [];
-      for (let dia = 1; dia <= 4; dia++) {
-        for (const t of turnosLunes) {
-          nuevosTurnos.push({
-            comercio_id: comercio.id,
-            dia_semana: dia,
-            hora_apertura: t.hora_apertura,
-            hora_cierre: t.hora_cierre,
-            activo: true
-          });
-        }
+      const { error: errorAlta } = await supabase.from('horarios_atencion').insert(nuevosTurnos);
+      if (errorAlta) {
+        const { error: errorRestaurar } = respaldo.length
+          ? await supabase.from('horarios_atencion').insert(respaldo)
+          : { error: null };
+        throw new Error(
+          errorRestaurar
+            ? `${errorAlta.message}. Además no se pudieron restaurar los horarios anteriores: revisalos.`
+            : `${errorAlta.message}. Se dejaron los horarios como estaban.`
+        );
       }
 
-      await supabase.from('horarios_atencion').insert(nuevosTurnos);
       alert('✅ Horarios copiados de Lunes a Viernes exitosamente.');
-      await fetchMerchantData();
     } catch (e: any) {
       alert('Error al copiar horarios: ' + e.message);
     } finally {
       setSavingHorarios(false);
+      await fetchMerchantData();
     }
   };
 
@@ -164,17 +185,26 @@ export const MerchantDashboardPage: React.FC = () => {
     setSavingHorarios(true);
 
     try {
-      for (const h of horarios) {
-        await supabase
-          .from('horarios_atencion')
-          .update({
-            hora_apertura: h.hora_apertura,
-            hora_cierre: h.hora_cierre,
-            activo: h.activo,
-          })
-          .eq('id', h.id);
+      // Antes se informaba "actualizados" aunque alguno fallara.
+      const resultados = await Promise.all(
+        horarios.map((h) =>
+          supabase
+            .from('horarios_atencion')
+            .update({
+              hora_apertura: h.hora_apertura,
+              hora_cierre: h.hora_cierre,
+              activo: h.activo,
+            })
+            .eq('id', h.id)
+            .eq('comercio_id', comercio.id)
+        )
+      );
+      const fallidos = resultados.filter((r) => r.error);
+      if (fallidos.length > 0) {
+        alert(`⚠️ No se pudieron guardar ${fallidos.length} de ${horarios.length} turnos: ${fallidos[0].error?.message}`);
+      } else {
+        alert('✅ Todos los horarios semanales fueron actualizados.');
       }
-      alert('✅ Todos los horarios semanales fueron actualizados.');
       await fetchMerchantData();
     } catch (e: any) {
       alert('Error al guardar horarios: ' + e.message);
@@ -188,13 +218,9 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!comercio) return;
     setSavingPromo(true);
 
-    const hoy = new Date();
-    let fechaFinCalculada = promoForm.fecha_fin;
-    if (!fechaFinCalculada) {
-      const f = new Date();
-      f.setDate(hoy.getDate() + 30);
-      fechaFinCalculada = f.toISOString().split('T')[0];
-    }
+    // Fechas en hora de Argentina (en UTC, de 21 a 24 h ya era "mañana")
+    const hoy = hoyArgentina();
+    const fechaFinCalculada = promoForm.fecha_fin || sumarDias(hoy, 30);
 
     const newPromo = {
       comercio_id: comercio.id,
@@ -203,7 +229,7 @@ export const MerchantDashboardPage: React.FC = () => {
       tipo: promoForm.tipo,
       precio_anterior: promoForm.precio_anterior ? parseFloat(promoForm.precio_anterior) : null,
       precio_promocional: promoForm.precio_promocional ? parseFloat(promoForm.precio_promocional) : null,
-      fecha_inicio: hoy.toISOString().split('T')[0],
+      fecha_inicio: hoy,
       fecha_fin: fechaFinCalculada,
       aprobada: true,
     };
