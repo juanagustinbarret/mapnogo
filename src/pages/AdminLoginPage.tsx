@@ -75,7 +75,7 @@ export const AdminLoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
-                placeholder="admin@nogoyacerca.com"
+                placeholder="admin@ejemplo.com"
               />
             </div>
           </div>
