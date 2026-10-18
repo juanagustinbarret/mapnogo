@@ -2,13 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
-import { solicitarPermisoNotificacionesPush } from '@/lib/pushNotifications';
+import { 
+  solicitarPermisoNotificacionesPush, 
+  cancelarSuscripcionNotificacionesPush, 
+  verificarEstadoSuscripcionPush 
+} from '@/lib/pushNotifications';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -50,12 +54,14 @@ export const HomeExplorerPage: React.FC = () => {
   const [pedidoCentrado, setPedidoCentrado] = useState(0);
   const seguimientoId = useRef<number | null>(null);
 
-  // Estado para la activación de notificaciones Push
+  // Estado para la activación / desactivación de notificaciones Push
   const [activandoPush, setActivandoPush] = useState(false);
   const [pushActivado, setPushActivado] = useState(false);
 
   useEffect(() => {
     fetchData();
+    // Verificar si el usuario ya está suscrito en este dispositivo
+    verificarEstadoSuscripcionPush().then((activo) => setPushActivado(activo));
   }, []);
 
   const detenerSeguimiento = useCallback(() => {
@@ -91,22 +97,35 @@ export const HomeExplorerPage: React.FC = () => {
     }
   };
 
-  // Manejar solicitud de permisos Push
-  const handleActivarNotificaciones = async () => {
+  // Alternar (Activar / Desactivar) notificaciones Push
+  const handleToggleNotificaciones = async () => {
     setActivandoPush(true);
-    const suscripcion = await solicitarPermisoNotificacionesPush();
-    setActivandoPush(false);
 
-    if (suscripcion) {
-      setPushActivado(true);
-      alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.');
+    if (pushActivado) {
+      // Proceso de baja
+      const exito = await cancelarSuscripcionNotificacionesPush();
+      setActivandoPush(false);
+      if (exito) {
+        setPushActivado(false);
+        alert('Te diste de baja de las notificaciones de ofertas.');
+      } else {
+        alert('No se pudo cancelar la suscripción.');
+      }
     } else {
-      alert('No se pudieron activar las notificaciones o el permiso fue denegado.');
+      // Proceso de alta
+      const suscripcion = await solicitarPermisoNotificacionesPush();
+      setActivandoPush(false);
+
+      if (suscripcion) {
+        setPushActivado(true);
+        alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.');
+      } else {
+        alert('No se pudieron activar las notificaciones o el permiso fue denegado.');
+      }
     }
   };
 
   // Ubicación en vivo, como en los GPS: el punto azul se mueve con el usuario.
-  // Si ya se está siguiendo, el botón solo vuelve a centrar el mapa.
   const solicitarUbicacion = () => {
     if (!('geolocation' in navigator)) {
       alert('La geolocalización no está soportada en este navegador.');
@@ -219,15 +238,28 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
-          {/* BOTÓN DE NOTIFICACIONES PUSH */}
+          {/* BOTÓN DE TOGGLE DE NOTIFICACIONES PUSH */}
           <button
-            onClick={handleActivarNotificaciones}
-            disabled={activandoPush || pushActivado}
-            className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-gray-900 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 disabled:opacity-60"
-            title="Recibir avisos de ofertas y promociones"
+            onClick={handleToggleNotificaciones}
+            disabled={activandoPush}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 disabled:opacity-60 ${
+              pushActivado
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                : 'bg-amber-400 hover:bg-amber-300 text-gray-900'
+            }`}
+            title={pushActivado ? 'Hacé clic para desactivar ofertas' : 'Recibir avisos de ofertas y promociones'}
           >
-            <Bell className="w-4 h-4 text-gray-900" />
-            {pushActivado ? 'Ofertas Activas' : activandoPush ? 'Activando...' : 'Recibir Ofertas'}
+            {pushActivado ? (
+              <>
+                <BellOff className="w-4 h-4 text-white" />
+                {activandoPush ? 'Procesando...' : 'Ofertas Activas (Desactivar)'}
+              </>
+            ) : (
+              <>
+                <Bell className="w-4 h-4 text-gray-900" />
+                {activandoPush ? 'Activando...' : 'Recibir Ofertas'}
+              </>
+            )}
           </button>
 
           {/* BOTÓN DE UBICACIÓN */}
