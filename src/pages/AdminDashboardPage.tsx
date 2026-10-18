@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
@@ -693,9 +694,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <label className={etiquetaClase}>Rubro *</label>
                     <select required value={modalEditar.rubro_id} onChange={(e) => actualizarCampo('rubro_id', e.target.value)} className={campoClase}>
                       <option value="">Seleccioná un rubro</option>
-                      {rubrosEdicion.map((rubro) => (
-                        <option key={rubro.id} value={rubro.id}>{rubro.nombre}</option>
-                      ))}
+                      <OpcionesRubros rubros={rubrosEdicion} />
                     </select>
                   </div>
                   <div className="sm:col-span-2">

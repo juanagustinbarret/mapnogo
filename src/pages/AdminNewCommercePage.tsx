@@ -1,4 +1,5 @@
 
+import { OpcionesRubros } from '@/components/OpcionesRubros';
 import React, { useState, useEffect } from 'react';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { supabase } from '@/lib/supabase';
@@ -376,11 +377,7 @@ export const AdminNewCommercePage: React.FC = () => {
                     </option>
                   )}
 
-                  {rubros.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre}
-                    </option>
-                  ))}
+                  <OpcionesRubros rubros={rubros} />
                 </select>
               </div>
 

@@ -6,6 +6,11 @@ import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckC
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
+import { OpcionesRubros } from '@/components/OpcionesRubros';
+import { categoriaDeRubro } from '@/lib/catalogoRubros';
+
+const normalizarTexto = (texto: string) =>
+  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 import {
@@ -199,6 +204,13 @@ export const HomeExplorerPage: React.FC = () => {
     if (valor !== null && !userLocation && !loadingLoc) solicitarUbicacion();
   };
 
+  // En los filtros solo se muestran los rubros que tienen al menos un comercio
+  // publicado: con el catálogo completo (más de 150 rubros) la mayoría
+  // estarían vacíos.
+  const rubrosEnUso = rubros.filter(
+    (r) => r.id === selectedRubro || comercios.some((c) => c.rubro_id === r.id),
+  );
+
   const filteredComercios = comercios
     .map((c) => {
       const posicion = posicionDeComercio(c);
@@ -208,10 +220,13 @@ export const HomeExplorerPage: React.FC = () => {
       return { ...c, distancia, estadoAtencion };
     })
     .filter((c) => {
+      // Busca también por rubro y categoría ("pizzería", "salud"), sin
+      // importar tildes ni mayúsculas.
+      const termino = normalizarTexto(search.trim());
       const matchSearch =
-        c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        (c.descripcion_corta && c.descripcion_corta.toLowerCase().includes(search.toLowerCase())) ||
-        (c.direccion && c.direccion.toLowerCase().includes(search.toLowerCase()));
+        !termino ||
+        [c.nombre, c.descripcion_corta, c.direccion, c.rubro?.nombre, c.rubro ? categoriaDeRubro(c.rubro) : '']
+          .some((campo) => campo && normalizarTexto(campo).includes(termino));
       const matchRubro = selectedRubro ? c.rubro_id === selectedRubro : true;
       const matchAbierto = soloAbiertos ? c.estadoAtencion.estado === 'abierto' : true;
       const matchRadio = filtrarPorRadio ? c.distancia !== null && c.distancia <= (radioKm as number) : true;
@@ -287,7 +302,7 @@ export const HomeExplorerPage: React.FC = () => {
           <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por negocio o calle..."
+            placeholder="Buscar por negocio, rubro o calle..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
@@ -378,11 +393,7 @@ export const HomeExplorerPage: React.FC = () => {
                 className="w-full bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 font-bold text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none appearance-none pr-8"
               >
                 <option value="">Todos los Rubros</option>
-                {rubros.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nombre}
-                  </option>
-                ))}
+                <OpcionesRubros rubros={rubrosEnUso} />
               </select>
               <Filter className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -414,7 +425,7 @@ export const HomeExplorerPage: React.FC = () => {
               Todos los Rubros
             </button>
 
-            {rubros.map((r) => (
+            {rubrosEnUso.map((r) => (
               <button
                 key={r.id}
                 onClick={() => setSelectedRubro(r.id)}
