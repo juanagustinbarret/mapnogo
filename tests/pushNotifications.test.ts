@@ -176,6 +176,7 @@ test('reutiliza la suscripción existente con la misma clave (sin duplicados)', 
     ['https://push.example/existente', 'https://push.example/existente'],
   );
   assert.ok(llamadas.every((l) => l.opciones.onConflict === 'subscription_json'));
+  assert.ok(llamadas.every((l) => l.operacion === 'upsert'), 'reusar no borra ni rehace nada');
 });
 
 test('si la suscripción previa usa otra clave VAPID, la rehace', async () => {
@@ -185,6 +186,14 @@ test('si la suscripción previa usa otra clave VAPID, la rehace', async () => {
   assert.equal(resultado.ok, true);
   assert.equal(previa.bajas, 1);
   assert.equal(contador.subscribe, 1);
+  // La fila vieja se borra para no dejar endpoints muertos en la base
+  assert.deepEqual(llamadas[0], {
+    tabla: 'push_subscriptions',
+    operacion: 'delete',
+    columna: 'subscription_json',
+    valor: JSON.stringify(previa.toJSON()),
+  });
+  assert.equal(llamadas[1].operacion, 'upsert');
 });
 
 test('usa la clave VAPID del entorno si está definida', async () => {
