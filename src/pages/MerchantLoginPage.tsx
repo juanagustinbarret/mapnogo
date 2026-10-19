@@ -44,24 +44,27 @@ export const MerchantLoginPage: React.FC = () => {
     setError('');
     setSuccess('');
 
-    // Apuntar siempre a la ruta de producción o de desarrollo actual
-    const redirectTo = window.location.hostname === 'localhost'
-      ? `${window.location.origin}/reset-password`
-      : 'https://mapnogo.vercel.app/reset-password';
+    // Obtener dinámicamente la URL base actual sin forzar dominios duros
+    const redirectTo = `${window.location.origin}/reset-password`;
 
     const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo,
     });
 
     if (resetErr) {
-      console.error('[MapNogo reset password]', resetErr);
-      // Supabase limita los correos por hora; antes ese caso (y una falla del
-      // servidor de correo) se informaba como "verificá la dirección".
-      setError(
-        resetErr.status === 429
-          ? 'Ya se pidieron varios correos hace poco. Esperá unos minutos y volvé a intentar.'
-          : 'No pudimos enviar el correo en este momento. Probá de nuevo más tarde o avisá a un administrador.'
-      );
+      console.error('[MapNogo reset password details]', {
+        message: resetErr.message,
+        status: resetErr.status,
+        name: resetErr.name
+      });
+
+      if (resetErr.status === 429) {
+        setError('Ya se pidieron varios correos hace poco. Esperá unos minutos y volvé a intentar.');
+      } else if (resetErr.message.includes('redirect')) {
+        setError('La URL de redirección no está autorizada en Supabase Auth.');
+      } else {
+        setError(`No se pudo enviar el correo: ${resetErr.message}`);
+      }
     } else {
       setSuccess('Enviamos un correo con el enlace para restablecer tu contraseña. Revisá tu bandeja de entrada o SPAM.');
     }

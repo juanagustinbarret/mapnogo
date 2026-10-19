@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff, Bike } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -25,6 +25,7 @@ import {
   cancelarSuscripcionNotificacionesPush, 
   verificarEstadoSuscripcionPush 
 } from '@/lib/pushNotifications';
+import { hoyArgentina } from '@/lib/fechasArgentina';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -55,6 +56,9 @@ export const HomeExplorerPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
   
+  // Farmacia de Turno Hoy
+  const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
+
   // FILTRO DINÁMICO DE ABIERTOS AHORA
   const [soloAbiertos, setSoloAbiertos] = useState(false);
 
@@ -117,6 +121,18 @@ export const HomeExplorerPage: React.FC = () => {
       .eq('habilitado_admin', true);
 
     const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
+
+    // Cargar Farmacia de Turno para la fecha de hoy en Argentina
+    const fechaHoy = hoyArgentina();
+    const { data: turnoData } = await supabase
+      .from('farmacias_turno')
+      .select('comercio_id, comercio:comercios(*, rubro:rubros(*))')
+      .eq('fecha', fechaHoy)
+      .maybeSingle();
+
+    if (turnoData?.comercio) {
+      setFarmaciaDeTurno(turnoData.comercio as unknown as Comercio);
+    }
 
     const { data: deliveryData, error: errorDelivery } = await supabase
       .from('horarios_delivery')
@@ -255,7 +271,6 @@ export const HomeExplorerPage: React.FC = () => {
       return { ...c, distancia, estadoAtencion, estadoDelivery };
     })
     .filter((c) => {
-      // 1. Filtro Búsqueda por texto (nombre, descripción, dirección, rubro)
       if (search.trim()) {
         const q = search.toLowerCase();
         const coincideNombre = c.nombre.toLowerCase().includes(q);
@@ -267,12 +282,10 @@ export const HomeExplorerPage: React.FC = () => {
         }
       }
 
-      // 2. Filtro por Rubro Seleccionado
       if (selectedRubro && c.rubro_id !== selectedRubro) {
         return false;
       }
 
-      // 3. FILTRO "ABIERTOS AHORA" (Muestra solo abiertos o cierra pronto)
       if (soloAbiertos) {
         const est = c.estadoAtencion.estado;
         if (est !== 'abierto' && est !== 'cierra_pronto') {
@@ -280,14 +293,12 @@ export const HomeExplorerPage: React.FC = () => {
         }
       }
 
-      // 4. Filtro por Delivery Activo
       if (soloDelivery) {
         if (c.estadoDelivery.estado !== 'activo') {
           return false;
         }
       }
 
-      // 5. Filtro por Radio de Distancia (Cercanía)
       if (filtrarPorRadio && radioKm !== null) {
         if (c.distancia === null || c.distancia > radioKm) {
           return false;
@@ -297,7 +308,6 @@ export const HomeExplorerPage: React.FC = () => {
       return true;
     })
     .sort((a, b) => {
-      // Ordenamiento por cercanía o por nombre
       if (ordenamiento === 'cercania') {
         if (a.distancia !== null && b.distancia !== null) {
           return a.distancia - b.distancia;
@@ -315,6 +325,48 @@ export const HomeExplorerPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
       
+      {/* BANNER DESTACADO: FARMACIA DE TURNO HOY */}
+      {farmaciaDeTurno && (
+        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-blue-700 rounded-3xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-rose-400/30">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md text-white shrink-0 shadow-inner">
+              <HeartPulse className="w-7 h-7 animate-pulse text-rose-200" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 bg-white/20 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase backdrop-blur-md text-rose-100">
+                🏥 Farmacia de Turno Hoy en Nogoyá
+              </div>
+              <h2 className="text-lg sm:text-xl font-black mt-0.5">
+                {farmaciaDeTurno.nombre}
+              </h2>
+              <p className="text-xs text-rose-100 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-rose-200" /> {farmaciaDeTurno.direccion || 'Nogoyá, Entre Ríos'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/20">
+            {farmaciaDeTurno.whatsapp && (
+              <a
+                href={`https://wa.me/${farmaciaDeTurno.whatsapp}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-md transition"
+              >
+                <MessageCircle className="w-4 h-4" /> WhatsApp
+              </a>
+            )}
+
+            <Link
+              to={`/comercio/${farmaciaDeTurno.slug}`}
+              className="flex-1 sm:flex-none px-4 py-2 bg-white text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-md transition"
+            >
+              Ver Ficha <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* TARJETA DE BIENVENIDA Y UBICACIÓN */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-1">
@@ -364,8 +416,6 @@ export const HomeExplorerPage: React.FC = () => {
 
       {/* PANEL PRINCIPAL DE CONTROLES Y FILTROS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 pt-4 pb-3 space-y-3">
-        
-        {/* BUSCADOR */}
         <div className="px-4 relative w-full">
           <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -377,7 +427,6 @@ export const HomeExplorerPage: React.FC = () => {
           />
         </div>
 
-        {/* FILA DE RADIO Y ORDENAR */}
         <div className="px-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <span className="text-gray-500 font-bold px-1.5 flex items-center gap-1 text-[11px] shrink-0">
@@ -434,10 +483,7 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         )}
 
-        {/* SECCIÓN DE BOTONES DE FILTRO Y RUBROS */}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full">
-          
-          {/* VISTA MOBILE */}
           <div className="px-4 sm:hidden flex flex-col gap-2">
             <button
               onClick={() => setSoloAbiertos(!soloAbiertos)}
@@ -472,7 +518,6 @@ export const HomeExplorerPage: React.FC = () => {
             </div>
           </div>
 
-          {/* VISTA DESKTOP / TABLET */}
           <div className="hidden sm:flex flex-wrap items-center gap-2 px-4 py-1 w-full">
             <button
               onClick={() => setSoloAbiertos(!soloAbiertos)}

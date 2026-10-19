@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/context/AuthContext';
+import { hoyArgentina } from '@/lib/fechasArgentina';
 import {
   Store,
   DollarSign,
@@ -26,6 +27,8 @@ import {
   Clock,
   LayoutDashboard,
   X,
+  HeartPulse,
+  Calendar,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -126,12 +129,18 @@ export const AdminDashboardPage: React.FC = () => {
     ingresosMes: 0,
   });
 
-  // Estados para override manual de la recaudación activa (pruebas)
+  // Estados para override manual de la recaudación activa
   const [overrideRecaudacion, setOverrideRecaudacion] = useState<number | null>(null);
   const [editandoRecaudacion, setEditandoRecaudacion] = useState(false);
   const [tempMontoRecaudacion, setTempMontoRecaudacion] = useState('');
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
+
+  // Estados para la Gestión de Farmacias de Turno
+  const [fechaTurno, setFechaTurno] = useState(hoyArgentina());
+  const [farmaciaSeleccionadaId, setFarmaciaSeleccionadaId] = useState('');
+  const [guardandoTurno, setGuardandoTurno] = useState(false);
+  const [farmaciaTurnoActual, setFarmaciaTurnoActual] = useState<any | null>(null);
 
   const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
   const [rubrosEdicion, setRubrosEdicion] = useState<Rubro[]>([]);
@@ -169,6 +178,8 @@ export const AdminDashboardPage: React.FC = () => {
         totalComercios: count ?? lista.length,
         ingresosMes: totalRecaudado,
       });
+
+      fetchFarmaciaDeTurno(fechaTurno);
     } catch (err) {
       console.error('Error al cargar el panel de administración:', err);
       alert(
@@ -178,6 +189,22 @@ export const AdminDashboardPage: React.FC = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFarmaciaDeTurno = async (fecha: string) => {
+    const { data } = await supabase
+      .from('farmacias_turno')
+      .select('*, comercio:comercios(*)')
+      .eq('fecha', fecha)
+      .maybeSingle();
+
+    if (data) {
+      setFarmaciaTurnoActual(data);
+      setFarmaciaSeleccionadaId(data.comercio_id);
+    } else {
+      setFarmaciaTurnoActual(null);
+      setFarmaciaSeleccionadaId('');
     }
   };
 
@@ -199,6 +226,10 @@ export const AdminDashboardPage: React.FC = () => {
       void supabase.removeChannel(channel);
     };
   }, []);
+
+  useEffect(() => {
+    fetchFarmaciaDeTurno(fechaTurno);
+  }, [fechaTurno]);
 
   useEffect(() => {
     let cancelado = false;
@@ -228,6 +259,31 @@ export const AdminDashboardPage: React.FC = () => {
       cancelado = true;
     };
   }, [modalEditar?.id]);
+
+  const handleGuardarFarmaciaTurno = async () => {
+    if (!farmaciaSeleccionadaId) {
+      alert('Seleccioná una farmacia.');
+      return;
+    }
+
+    setGuardandoTurno(true);
+
+    const { error } = await supabase
+      .from('farmacias_turno')
+      .upsert(
+        { fecha: fechaTurno, comercio_id: farmaciaSeleccionadaId },
+        { onConflict: 'fecha' }
+      );
+
+    setGuardandoTurno(false);
+
+    if (error) {
+      alert('Error al asignar la farmacia de turno: ' + error.message);
+    } else {
+      alert('✅ Farmacia de turno asignada correctamente para el ' + fechaTurno);
+      fetchFarmaciaDeTurno(fechaTurno);
+    }
+  };
 
   const handleToggleEstadoPago = async (
     id: string,
@@ -391,6 +447,12 @@ export const AdminDashboardPage: React.FC = () => {
       c.whatsapp?.includes(search)
   );
 
+  // Lista de farmacias para el asignador de turno
+  const farmaciasDisponibles = comercios.filter((c) =>
+    c.nombre.toLowerCase().includes('farmacia') ||
+    c.rubro?.nombre?.toLowerCase().includes('farmacia')
+  );
+
   const rutaActiva = (ruta: string) =>
     location.pathname === ruta
       ? 'bg-brand-600 text-white shadow-sm'
@@ -516,6 +578,75 @@ export const AdminDashboardPage: React.FC = () => {
             <p className="text-2xl font-bold mt-1">Nogoyá</p>
           </div>
           <MapPin className="w-7 h-7 text-purple-600" />
+        </div>
+      </div>
+
+      {/* MODULO DE GESTIÓN DE FARMACIAS DE TURNO */}
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border dark:border-gray-700 space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-3">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <HeartPulse className="w-5 h-5 text-rose-500" />
+              Gestión de Farmacia de Turno
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Asigná qué farmacia estará de turno en Nogoyá para cada fecha.
+            </p>
+          </div>
+
+          {farmaciaTurnoActual?.comercio && (
+            <span className="px-3 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              🏥 Asignada: {farmaciaTurnoActual.comercio.nombre}
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+          <div>
+            <label className={etiquetaClase}>
+              <Calendar className="w-3.5 h-3.5 inline mr-1 text-gray-400" /> Fecha del Turno
+            </label>
+            <input
+              type="date"
+              value={fechaTurno}
+              onChange={(e) => setFechaTurno(e.target.value)}
+              className={campoClase}
+            />
+          </div>
+
+          <div>
+            <label className={etiquetaClase}>Farmacia Asignada</label>
+            <select
+              value={farmaciaSeleccionadaId}
+              onChange={(e) => setFarmaciaSeleccionadaId(e.target.value)}
+              className={campoClase}
+            >
+              <option value="">Seleccionar farmacia...</option>
+              {farmaciasDisponibles.length === 0 ? (
+                comercios.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))
+              ) : (
+                farmaciasDisponibles.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            disabled={guardandoTurno}
+            onClick={handleGuardarFarmaciaTurno}
+            className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+          >
+            <Save className="w-4 h-4" />
+            {guardandoTurno ? 'Guardando...' : 'Asignar Farmacia de Turno'}
+          </button>
         </div>
       </div>
 
