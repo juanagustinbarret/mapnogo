@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
+import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
-import { estaVigente, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
-import { generarReportePDF } from '@/lib/generatePdfReport';
+import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
+import { estrellasValidas } from '@/lib/resenas';
 import {
   Store,
   CreditCard,
@@ -52,7 +53,9 @@ export const MerchantDashboardPage: React.FC = () => {
   const [promociones, setPromociones] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [resenas, setResenas] = useState<any[]>([]);
-  const [esFarmaciaDeTurno, setEsFarmaciaDeTurno] = useState<boolean>(false);
+  // Próximo turno asignado (hoy o más adelante), o null
+  const [proximoTurno, setProximoTurno] = useState<string | null>(null);
+  const esFarmaciaDeTurno = proximoTurno !== null;
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
 
@@ -119,19 +122,30 @@ export const MerchantDashboardPage: React.FC = () => {
         if (s) {
           setSuscripcion(s);
           if (s.proximo_vencimiento) {
-            const hoy = new Date();
-            const vencimiento = new Date(s.proximo_vencimiento);
-            const diferenciaTiempo = vencimiento.getTime() - hoy.getTime();
-            const dias = Math.ceil(diferenciaTiempo / (1000 * 3600 * 24));
-            setDiasParaVencer(dias);
+            // Días de calendario en Argentina: con horas y Math.ceil, el
+            // mismo día del vencimiento a la noche ya decía "vencida"
+            setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
           }
         }
 
-        const { data: p } = await supabase
+        // Los clics salen de interacciones_ofertas. Si esa tabla o su
+        // relación no existen, PostgREST da error y antes la lista de
+        // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
+        const consultaConClics = await supabase
           .from('promociones')
           .select('*, metricas_clics:interacciones_ofertas(count)')
           .eq('comercio_id', c.id)
           .order('created_at', { ascending: false });
+        let p = consultaConClics.data;
+        if (consultaConClics.error) {
+          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
+          const simple = await supabase
+            .from('promociones')
+            .select('*')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false });
+          p = simple.data;
+        }
         if (p) setPromociones(p);
 
         const { data: h } = await supabase
@@ -149,13 +163,17 @@ export const MerchantDashboardPage: React.FC = () => {
           .order('created_at', { ascending: false });
         if (r) setResenas(r);
 
-        // Verificar si está en la lista de farmacias de turno
+        // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
+        // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
+        // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
         const { data: ft } = await supabase
           .from('farmacias_turno')
-          .select('id')
+          .select('fecha')
           .eq('comercio_id', c.id)
-          .maybeSingle();
-        setEsFarmaciaDeTurno(Boolean(ft));
+          .gte('fecha', hoyArgentina())
+          .order('fecha', { ascending: true })
+          .limit(1);
+        setProximoTurno(ft?.[0]?.fecha ?? null);
       }
     } catch (error) {
       console.error('Error al cargar datos del comercio:', error);
@@ -166,13 +184,15 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const handleQuitarDeTurno = async () => {
     if (!comercio) return;
-    if (!confirm('¿Seguro que querés quitar este comercio de las farmacias de turno?')) return;
+    if (!confirm('¿Seguro que querés quitar tus próximos turnos de farmacia (desde hoy)?')) return;
 
     try {
+      // Solo hoy y lo que viene: el historial de turnos pasados se conserva
       const { error } = await supabase
         .from('farmacias_turno')
         .delete()
-        .eq('comercio_id', comercio.id);
+        .eq('comercio_id', comercio.id)
+        .gte('fecha', hoyArgentina());
 
       if (error) {
         console.error('[farmacias_turno] Error al eliminar:', error);
@@ -180,7 +200,7 @@ export const MerchantDashboardPage: React.FC = () => {
         return;
       }
 
-      setEsFarmaciaDeTurno(false);
+      setProximoTurno(null);
       alert('✅ El comercio ya no figura como farmacia de turno.');
       await fetchMerchantData();
     } catch (err: any) {
@@ -191,13 +211,8 @@ export const MerchantDashboardPage: React.FC = () => {
   const handlePausarDelivery = async (horas: number | 'hoy') => {
     if (!comercio) return;
     setPausandoDelivery(true);
-    let fechaHasta = new Date();
-
-    if (horas === 'hoy') {
-      fechaHasta.setHours(23, 59, 59, 999);
-    } else {
-      fechaHasta.setHours(fechaHasta.getHours() + horas);
-    }
+    // Siempre en hora argentina (antes "por hoy" usaba la medianoche del celular)
+    const fechaHasta = finDePausa(horas);
 
     const isoFecha = fechaHasta.toISOString();
 
@@ -208,7 +223,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
     if (!error) {
       setDeliveryPausadoHasta(isoFecha);
-      alert(`Delivery pausado hasta las ${fechaHasta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      alert(`Delivery pausado hasta las ${horaArgentina(fechaHasta)}`);
     } else {
       alert('Error al actualizar la pausa de delivery.');
     }
@@ -225,6 +240,8 @@ export const MerchantDashboardPage: React.FC = () => {
 
     if (!error) {
       setDeliveryPausadoHasta(null);
+    } else {
+      alert('No se pudo reanudar el delivery: ' + error.message);
     }
     setPausandoDelivery(false);
   };
@@ -438,9 +455,15 @@ export const MerchantDashboardPage: React.FC = () => {
     };
   };
 
-  const handleExportarReporte = () => {
+  const handleExportarReporte = async () => {
     if (!comercio) return;
-    generarReportePDF(comercio, metricasReales, suscripcion, promociones);
+    try {
+      // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
+      const { generarReportePDF } = await import('@/lib/generatePdfReport');
+      generarReportePDF(comercio, metricasReales, suscripcion, promociones);
+    } catch (err: any) {
+      alert('No se pudo generar el reporte PDF: ' + (err?.message ?? err));
+    }
   };
 
   const handleAddHorario = async (diaIndex: number) => {
@@ -550,8 +573,10 @@ export const MerchantDashboardPage: React.FC = () => {
             </div>
             <div>
               <h4 className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                {diasParaVencer <= 0 
-                  ? '¡Tu suscripción ha vencido!' 
+                {diasParaVencer < 0
+                  ? '¡Tu suscripción venció!'
+                  : diasParaVencer === 0
+                  ? 'Tu suscripción vence hoy'
                   : `Tu suscripción vence en ${diasParaVencer} día${diasParaVencer > 1 ? 's' : ''}`}
               </h4>
               <p className="text-xs text-gray-600 dark:text-amber-200/80 mt-0.5">
@@ -652,10 +677,10 @@ export const MerchantDashboardPage: React.FC = () => {
             </div>
             <div>
               <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                Farmacia de Turno Activa
+                {proximoTurno === hoyArgentina() ? 'Farmacia de turno hoy' : `Próximo turno: ${formatDate(proximoTurno ?? '')}`}
               </h4>
               <p className="text-xs text-gray-500 mt-0.5">
-                Tu farmacia figura actualmente en el banner destacado de farmacias de turno del mapa público.
+                Ese día tu farmacia aparece en el banner de farmacia de turno del mapa público.
               </p>
             </div>
           </div>
@@ -824,7 +849,7 @@ export const MerchantDashboardPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
                   <div className="flex items-center gap-0.5">
-                    {[...Array(r.estrellas)].map((_, i) => (
+                    {[...Array(estrellasValidas(r.estrellas))].map((_, i) => (
                       <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
@@ -995,7 +1020,7 @@ export const MerchantDashboardPage: React.FC = () => {
             {deliveryPausadoHasta && new Date(deliveryPausadoHasta) > new Date() ? (
               <span className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">
                 <PauseCircle className="w-4 h-4" />
-                Pausado hasta las {new Date(deliveryPausadoHasta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                Pausado hasta las {horaArgentina(deliveryPausadoHasta)}
               </span>
             ) : (
               <span className="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">
@@ -1098,6 +1123,7 @@ export const MerchantDashboardPage: React.FC = () => {
                   )}
                 </div>
 
+                {Array.isArray(p.metricas_clics) && (
                 <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800 text-xs">
                   <span className="text-gray-500 flex items-center gap-1 font-medium">
                     <Eye className="w-3.5 h-3.5 text-blue-500" /> Interacciones:
@@ -1106,6 +1132,7 @@ export const MerchantDashboardPage: React.FC = () => {
                     {p.metricas_clics?.[0]?.count || 0} clics
                   </span>
                 </div>
+                )}
 
               </div>
             ))}

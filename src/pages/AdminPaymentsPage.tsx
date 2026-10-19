@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { leerImporte } from '@/lib/importes';
+import { fechaCalendario } from '@/lib/fechasArgentina';
 import { 
   CreditCard, 
   CheckCircle, 
@@ -153,6 +155,11 @@ export const AdminPaymentsPage: React.FC = () => {
   const handleConfirmarPago = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comercioModalPago) return;
+    const importe = leerImporte(montoPago);
+    if (importe === null) {
+      alert('Ingresá un importe válido mayor a $ 0 (por ejemplo 10.000).');
+      return;
+    }
     setSavingPayment(true);
 
     try {
@@ -173,7 +180,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
       const { error } = await supabase.rpc('registrar_pago_comercio', {
         p_comercio_id: comercioModalPago.id,
-        p_importe: parseFloat(montoPago),
+        p_importe: importe,
         p_metodo_pago: metodoEnum,
         p_registrado_por: user.id
       });
@@ -181,7 +188,7 @@ export const AdminPaymentsPage: React.FC = () => {
       if (error) {
         alert('Error al registrar el pago: ' + error.message);
       } else {
-        alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatCurrency(parseFloat(montoPago))}`);
+        alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatCurrency(importe)}`);
         setComercioModalPago(null);
         fetchComercios();
         fetchAuditoriaGlobal();
@@ -196,6 +203,11 @@ export const AdminPaymentsPage: React.FC = () => {
   const handleGuardarEdicionPago = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pagoAEditar) return;
+    const nuevoImporte = leerImporte(montoEditado);
+    if (nuevoImporte === null) {
+      alert('Ingresá un importe válido mayor a $ 0 (por ejemplo 10.000).');
+      return;
+    }
     setSavingEdition(true);
 
     try {
@@ -209,7 +221,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
       const { error } = await supabase.rpc('editar_pago_comercio', {
         p_pago_id: pagoAEditar.id,
-        p_nuevo_importe: parseFloat(montoEditado),
+        p_nuevo_importe: nuevoImporte,
         p_nuevo_metodo: metodoEnum
       });
 
@@ -308,7 +320,8 @@ export const AdminPaymentsPage: React.FC = () => {
       p.registrado_por_nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.metodo_pago.toLowerCase().includes(search.toLowerCase());
 
-    const fechaPagoStr = p.created_at.split('T')[0];
+    // Día del pago en Argentina (con split('T') un pago de las 22 h caía al día siguiente)
+    const fechaPagoStr = fechaCalendario(p.created_at);
     const coincideDesde = !fechaDesde || fechaPagoStr >= fechaDesde;
     const coincideHasta = !fechaHasta || fechaPagoStr <= fechaHasta;
 
@@ -641,8 +654,10 @@ export const AdminPaymentsPage: React.FC = () => {
               <div>
                 <label className="text-xs font-semibold block mb-1">Monto Cobrado ($)</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   required
+                  placeholder="10.000"
                   value={montoPago}
                   onChange={(e) => setMontoPago(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
@@ -695,8 +710,10 @@ export const AdminPaymentsPage: React.FC = () => {
               <div>
                 <label className="text-xs font-semibold block mb-1">Monto Correcto ($)</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   required
+                  placeholder="10.000"
                   value={montoEditado}
                   onChange={(e) => setMontoEditado(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"

@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Comercio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { estaVigente } from '@/lib/fechasArgentina';
 
 export const generarReportePDF = (
   comercio: Comercio,
@@ -23,7 +24,7 @@ export const generarReportePDF = (
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Reporte Mensual de Rendimiento Comercial', 14, 25);
+  doc.text('Reporte de Rendimiento Comercial', 14, 25);
   doc.text(`Fecha: ${fechaActual}`, 150, 25);
 
   // DATOS DEL COMERCIO
@@ -56,17 +57,24 @@ export const generarReportePDF = (
   doc.text(`${metricas.whatsapp}`, 80, 83);
   doc.text(`${metricas.comoLlegar}`, 142, 83);
 
+  // Las métricas son totales desde el alta (no del mes): antes el título
+  // decía "Reporte Mensual"
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.text('Totales desde el alta del comercio en NOGOMAP.', 14, 95);
+
   // TABLA DE PROMOCIONES ACTIVAS
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(31, 41, 55);
-  doc.text('Promociones Publicadas en el Período', 14, 102);
+  doc.text('Publicaciones', 14, 102);
 
   const filasPromos = promociones.map((p) => [
     p.titulo,
     p.descripcion || '-',
     p.precio_promocional ? formatCurrency(p.precio_promocional) : 'Consulte',
-    p.aprobada ? 'Activa' : 'Pausada'
+    !p.aprobada ? 'Pausada' : estaVigente(p.fecha_fin) ? 'Vigente' : 'Vencida'
   ]);
 
   autoTable(doc, {
@@ -85,8 +93,9 @@ export const generarReportePDF = (
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Estado actual: ${suscripcion?.estado || 'Activa'}`, 14, finalY + 6);
-  doc.text(`Próximo Vencimiento: ${suscripcion?.proximo_vencimiento ? formatDate(suscripcion.proximo_vencimiento) : 'Al día'}`, 14, finalY + 12);
+  // Antes, sin suscripción decía "Activa" y "Al día"
+  doc.text(`Estado actual: ${suscripcion?.estado ?? 'Sin suscripción cargada'}`, 14, finalY + 6);
+  doc.text(`Próximo vencimiento: ${suscripcion?.proximo_vencimiento ? formatDate(suscripcion.proximo_vencimiento) : '-'}`, 14, finalY + 12);
 
   // PIE DE PÁGINA
   doc.setFontSize(8);

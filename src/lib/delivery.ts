@@ -92,7 +92,28 @@ export type EstadoDelivery =
   | { estado: 'sin_delivery' }
   | { estado: 'activo'; hasta: string | null } // hasta = null → 24 hs sin corte
   | { estado: 'mas_tarde'; desde: string } // empieza más tarde ese mismo día
+  | { estado: 'pausado'; hasta: string } // el comercio lo pausó (hora argentina)
   | { estado: 'inactivo' };
+
+/**
+ * Minutos que faltan para que termine el rango activo en ese momento
+ * (encadenando rangos pegados o superpuestos, ej. 20:00–24:00 + 00:00–02:00).
+ * null si no hay ninguno activo; Infinity si está activo toda la semana.
+ */
+export function minutosHastaElFin(rangos: RangoDelivery[], momento: MomentoArgentina): number | null {
+  const ahora = momento.dia * DIA + momento.minutos;
+  const lista = intervalosSemana(rangos);
+  const activos = lista.filter(([i, f]) => i <= ahora && ahora < f);
+  if (!activos.length) return null;
+  let fin = Math.max(...activos.map(([, f]) => f));
+  for (let vuelta = 0; vuelta < 30; vuelta++) {
+    const siguiente = lista.filter(([i, f]) => i <= fin && f > fin);
+    if (!siguiente.length) break;
+    fin = Math.max(...siguiente.map(([, f]) => f));
+    if (fin - ahora >= 7 * DIA) return Infinity;
+  }
+  return fin - ahora;
+}
 
 /** Estado del delivery en un momento (día y minuto en Argentina). */
 export function estadoDeliveryEn(rangos: RangoDelivery[], momento: MomentoArgentina): EstadoDelivery {
@@ -100,17 +121,9 @@ export function estadoDeliveryEn(rangos: RangoDelivery[], momento: MomentoArgent
   const ahora = momento.dia * DIA + momento.minutos;
   const lista = intervalosSemana(rangos);
 
-  const activos = lista.filter(([i, f]) => i <= ahora && ahora < f);
-  if (activos.length) {
-    // Encadenar rangos pegados o superpuestos (ej. 20:00–24:00 + 00:00–02:00)
-    let fin = Math.max(...activos.map(([, f]) => f));
-    for (let vuelta = 0; vuelta < 30; vuelta++) {
-      const siguiente = lista.filter(([i, f]) => i <= fin && f > fin);
-      if (!siguiente.length) break;
-      fin = Math.max(...siguiente.map(([, f]) => f));
-      if (fin - ahora >= 7 * DIA) return { estado: 'activo', hasta: null };
-    }
-    return { estado: 'activo', hasta: aHora(fin) };
+  const faltan = minutosHastaElFin(rangos, momento);
+  if (faltan !== null) {
+    return { estado: 'activo', hasta: faltan === Infinity ? null : aHora(ahora + faltan) };
   }
 
   const finDelDia = (momento.dia + 1) * DIA;
@@ -123,6 +136,50 @@ export function estadoDeliveryEn(rangos: RangoDelivery[], momento: MomentoArgent
 export const estadoDelivery = (rangos: RangoDelivery[], fecha: Date = new Date()) =>
   estadoDeliveryEn(rangos, momentoArgentina(fecha));
 
+/**
+ * Rangos con los que se evalúa el delivery de un comercio que tiene delivery:
+ * los propios o, si no cargó ninguno, los de atención al público (es lo que
+ * muestra la ficha: "Mismo horario que atención al público").
+ */
+export function rangosDeDelivery(
+  propios: RangoDelivery[] | undefined,
+  turnosLocal: Array<{ dia_semana: number; hora_apertura: string; hora_cierre: string; activo?: boolean | null }> = [],
+): RangoDelivery[] {
+  if (propios && propios.length) return propios;
+  return turnosLocal
+    .filter((t) => t.activo !== false && t.hora_apertura && t.hora_cierre)
+    .map((t) => ({ dia_semana: Number(t.dia_semana), hora_inicio: t.hora_apertura, hora_fin: t.hora_cierre }));
+}
+
+const HORA_ARGENTINA = new Intl.DateTimeFormat('en-GB', { timeZone: ZONA, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+/** Hora argentina (HH:MM) de un instante. */
+export const horaArgentina = (fecha: Date | string) => HORA_ARGENTINA.format(new Date(fecha));
+
+/**
+ * Hasta cuándo dura una pausa del delivery: unas horas desde ahora, o "por
+ * hoy" = hasta las 23:59 de hoy en Argentina (antes se usaba la medianoche
+ * del celular).
+ */
+export function finDePausa(opcion: number | 'hoy', ahora: Date = new Date()): Date {
+  if (opcion === 'hoy') {
+    const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);
+    return new Date(`${hoy}T23:59:59-03:00`);
+  }
+  return new Date(ahora.getTime() + opcion * 3_600_000);
+}
+
+/**
+ * Si el comercio pausó el delivery (delivery_pausado_hasta en el futuro), el
+ * estado pasa a "pausado" con la hora argentina en que se reanuda.
+ */
+export function aplicarPausa(estado: EstadoDelivery, pausadoHasta: string | null | undefined, ahora: Date = new Date()): EstadoDelivery {
+  if (!pausadoHasta || estado.estado === 'sin_delivery') return estado;
+  const fin = new Date(pausadoHasta);
+  if (Number.isNaN(fin.getTime()) || fin <= ahora) return estado;
+  return { estado: 'pausado', hasta: horaArgentina(fin) };
+}
+
 /** Texto de la etiqueta de la tarjeta, o null si no corresponde mostrar nada. */
 export function textoEstadoDelivery(estado: EstadoDelivery): string | null {
   switch (estado.estado) {
@@ -130,6 +187,8 @@ export function textoEstadoDelivery(estado: EstadoDelivery): string | null {
       return estado.hasta ? `Delivery activo hasta las ${estado.hasta}` : 'Delivery activo las 24 hs';
     case 'mas_tarde':
       return `Delivery desde las ${estado.desde}`;
+    case 'pausado':
+      return `Delivery pausado hasta las ${estado.hasta}`;
     default:
       return null;
   }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { normalizarTexto } from '@/lib/filtrosComercios';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { supabase } from '@/lib/supabase';
 import { Rubro } from '@/types/database.types';
@@ -166,8 +167,9 @@ export const AdminNewCommercePage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Sin importar tildes ni mayúsculas ("panaderia" encuentra Panadería)
   const rubrosFiltrados = rubros.filter((r) =>
-    r.nombre.toLowerCase().includes(busquedaRubro.toLowerCase())
+    normalizarTexto(r.nombre).includes(normalizarTexto(busquedaRubro.trim()))
   );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -193,7 +195,7 @@ export const AdminNewCommercePage: React.FC = () => {
       }
 
       if (!formData.rubro_id) {
-        throw new Error('Seleccioná un rubro válido para el comercio.');
+        throw new Error('Elegí un rubro de la lista (escribí y tocá una opción).');
       }
 
       const email = formData.email.trim().toLowerCase();
@@ -387,8 +389,14 @@ export const AdminNewCommercePage: React.FC = () => {
                     placeholder={loadingRubros ? "Cargando rubros..." : "Escribí para buscar rubro..."}
                     value={busquedaRubro}
                     onChange={(e) => {
-                      setBusquedaRubro(e.target.value);
+                      const texto = e.target.value;
+                      setBusquedaRubro(texto);
                       setMostrarDropdownRubros(true);
+                      // Antes, al escribir otro rubro sin elegirlo de la lista,
+                      // se guardaba el rubro anterior sin aviso. Ahora el rubro
+                      // queda elegido solo si el texto coincide exacto con uno.
+                      const exacto = rubros.find((r) => normalizarTexto(r.nombre) === normalizarTexto(texto.trim()));
+                      setFormData((prev) => ({ ...prev, rubro_id: exacto ? exacto.id : '' }));
                     }}
                     onFocus={() => setMostrarDropdownRubros(true)}
                     className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
