@@ -535,7 +535,7 @@ export const CommerceDetailPage: React.FC = () => {
               <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" /> Reportar Información Incorrecta
               </h3>
-              <button onClick={() => setModalReporteOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setModalReporteOpen(false)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
