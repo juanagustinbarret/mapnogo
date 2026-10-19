@@ -8,7 +8,6 @@ import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { FiltroDelivery } from '@/components/FiltroDelivery';
-import { filtrarComercios } from '@/lib/filtrosComercios';
 import {
   DIAS_SEMANA,
   aHora,
@@ -55,15 +54,16 @@ export const HomeExplorerPage: React.FC = () => {
   const [horarios, setHorarios] = useState<Record<string, HorarioAtencion[]>>({});
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
+  
+  // FILTRO DINÁMICO DE ABIERTOS AHORA
   const [soloAbiertos, setSoloAbiertos] = useState(false);
 
-  // Delivery: rangos por comercio, filtro y momento a evaluar (ahora u otro)
+  // Delivery: rangos por comercio, filtro y momento a evaluar
   const [delivery, setDelivery] = useState<Record<string, RangoDelivery[]>>({});
   const [soloDelivery, setSoloDelivery] = useState(false);
   const [momentoElegido, setMomentoElegido] = useState<MomentoArgentina | null>(null);
-  const [eligiendoMomento, setEligiendoMomento] = useState(false);
-  // "Ahora" se recalcula cada minuto y al volver a la pestaña, así los
-  // estados (abierto, delivery activo) cambian solos sin recargar la página.
+
+  // Re-evaluación automática de horarios cada 60 segundos
   const [ahora, setAhora] = useState(() => new Date());
   useEffect(() => {
     const actualizar = () => setAhora(new Date());
@@ -90,13 +90,12 @@ export const HomeExplorerPage: React.FC = () => {
   const [pedidoCentrado, setPedidoCentrado] = useState(0);
   const seguimientoId = useRef<number | null>(null);
 
-  // Estado para la activación / desactivación de notificaciones Push
+  // Notificaciones Push
   const [activandoPush, setActivandoPush] = useState(false);
   const [pushActivado, setPushActivado] = useState(false);
 
   useEffect(() => {
     fetchData();
-    // Verificar si el usuario ya está suscrito en este dispositivo
     verificarEstadoSuscripcionPush().then((activo) => setPushActivado(activo));
   }, []);
 
@@ -107,7 +106,6 @@ export const HomeExplorerPage: React.FC = () => {
     }
   }, []);
 
-  // Al salir de la página se deja de usar el GPS
   useEffect(() => detenerSeguimiento, [detenerSeguimiento]);
 
   const fetchData = async () => {
@@ -120,8 +118,6 @@ export const HomeExplorerPage: React.FC = () => {
 
     const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
 
-    // Si la tabla todavía no existe (falta el SQL de delivery) no pasa nada:
-    // ningún comercio aparece con delivery.
     const { data: deliveryData, error: errorDelivery } = await supabase
       .from('horarios_delivery')
       .select('comercio_id, dia_semana, hora_inicio, hora_fin');
@@ -147,12 +143,10 @@ export const HomeExplorerPage: React.FC = () => {
     }
   };
 
-  // Alternar (Activar / Desactivar) notificaciones Push
   const handleToggleNotificaciones = async () => {
     setActivandoPush(true);
 
     if (pushActivado) {
-      // Proceso de baja
       const exito = await cancelarSuscripcionNotificacionesPush();
       setActivandoPush(false);
       if (exito) {
@@ -162,7 +156,6 @@ export const HomeExplorerPage: React.FC = () => {
         setTimeout(() => alert('No se pudo cancelar la suscripción.'), 50);
       }
     } else {
-      // Proceso de alta
       const resultado = await solicitarPermisoNotificacionesPush();
       setActivandoPush(false);
 
@@ -170,16 +163,12 @@ export const HomeExplorerPage: React.FC = () => {
         setPushActivado(true);
         setTimeout(() => alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.'), 50);
       } else {
-        // Mensaje según lo que pasó (permiso bloqueado, iPhone sin instalar,
-        // error del servidor...). Se muestra después de que el botón deje de
-        // decir "Activando..." (alert bloquea el redibujado).
         const mensaje = mensajeFalloPush(resultado);
         setTimeout(() => alert(mensaje), 50);
       }
     }
   };
 
-  // Ubicación en vivo, como en los GPS: el punto azul se mueve con el usuario.
   const solicitarUbicacion = () => {
     if (!('geolocation' in navigator)) {
       alert('La geolocalización no está soportada en este navegador.');
@@ -248,9 +237,6 @@ export const HomeExplorerPage: React.FC = () => {
     if (valor !== null && !userLocation && !loadingLoc) solicitarUbicacion();
   };
 
-  // En los filtros solo se muestran los rubros que tienen al menos un comercio
-  // publicado: con el catálogo completo (más de 150 rubros) la mayoría
-  // estarían vacíos.
   const rubrosEnUso = rubros.filter(
     (r) => r.id === selectedRubro || comercios.some((c) => c.rubro_id === r.id),
   );
@@ -258,25 +244,69 @@ export const HomeExplorerPage: React.FC = () => {
   const momentoAhora = momentoArgentina(ahora);
   const momentoDelivery = momentoElegido ?? momentoAhora;
 
-  const filteredComercios = filtrarComercios(
-    comercios.map((c) => {
+  // LÓGICA COMPLETA DE FILTRADO DINÁMICO
+  const filteredComercios = comercios
+    .map((c) => {
       const posicion = posicionDeComercio(c);
       const distancia =
         userLocation && posicion ? calcularDistanciaKm(userLocation.lat, userLocation.lng, posicion.lat, posicion.lng) : null;
       const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || [], ahora);
-      // Solo cuenta si el comercio activó "Tengo delivery"
       const estadoDelivery = estadoDeliveryEn(c.tiene_delivery ? delivery[c.id] ?? [] : [], momentoDelivery);
       return { ...c, distancia, estadoAtencion, estadoDelivery };
-    }),
-    {
-      busqueda: search,
-      rubroId: selectedRubro,
-      soloAbiertos,
-      soloDelivery,
-      radioKm: filtrarPorRadio ? radioKm : null,
-      ordenamiento,
-    },
-  );
+    })
+    .filter((c) => {
+      // 1. Filtro Búsqueda por texto (nombre, descripción, dirección, rubro)
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const coincideNombre = c.nombre.toLowerCase().includes(q);
+        const coincideDesc = c.descripcion_corta?.toLowerCase().includes(q);
+        const coincideDir = c.direccion?.toLowerCase().includes(q);
+        const coincideRubro = c.rubro?.nombre?.toLowerCase().includes(q);
+        if (!coincideNombre && !coincideDesc && !coincideDir && !coincideRubro) {
+          return false;
+        }
+      }
+
+      // 2. Filtro por Rubro Seleccionado
+      if (selectedRubro && c.rubro_id !== selectedRubro) {
+        return false;
+      }
+
+      // 3. FILTRO "ABIERTOS AHORA" (Muestra solo abiertos o cierra pronto)
+      if (soloAbiertos) {
+        const est = c.estadoAtencion.estado;
+        if (est !== 'abierto' && est !== 'cierra_pronto') {
+          return false;
+        }
+      }
+
+      // 4. Filtro por Delivery Activo
+      if (soloDelivery) {
+        if (c.estadoDelivery.estado !== 'activo') {
+          return false;
+        }
+      }
+
+      // 5. Filtro por Radio de Distancia (Cercanía)
+      if (filtrarPorRadio && radioKm !== null) {
+        if (c.distancia === null || c.distancia > radioKm) {
+          return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // Ordenamiento por cercanía o por nombre
+      if (ordenamiento === 'cercania') {
+        if (a.distancia !== null && b.distancia !== null) {
+          return a.distancia - b.distancia;
+        }
+        if (a.distancia !== null) return -1;
+        if (b.distancia !== null) return 1;
+      }
+      return a.nombre.localeCompare(b.nombre);
+    });
 
   const etiquetaMomento = momentoElegido
     ? `${DIAS_SEMANA[momentoElegido.dia].slice(0, 3)} ${aHora(momentoElegido.minutos)}`
@@ -298,7 +328,6 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
-          {/* BOTÓN DE TOGGLE DE NOTIFICACIONES PUSH */}
           <button
             onClick={handleToggleNotificaciones}
             disabled={activandoPush}
@@ -322,7 +351,6 @@ export const HomeExplorerPage: React.FC = () => {
             )}
           </button>
 
-          {/* BOTÓN DE UBICACIÓN */}
           <button
             onClick={solicitarUbicacion}
             disabled={loadingLoc}
@@ -334,7 +362,7 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PANEL PRINCIPAL DE CONTROLES */}
+      {/* PANEL PRINCIPAL DE CONTROLES Y FILTROS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 pt-4 pb-3 space-y-3">
         
         {/* BUSCADOR */}
@@ -351,8 +379,6 @@ export const HomeExplorerPage: React.FC = () => {
 
         {/* FILA DE RADIO Y ORDENAR */}
         <div className="px-4 flex flex-wrap items-center justify-between gap-2 text-xs">
-          
-          {/* BOTONES DE RADIO */}
           <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <span className="text-gray-500 font-bold px-1.5 flex items-center gap-1 text-[11px] shrink-0">
               <SlidersHorizontal className="w-3.5 h-3.5" /> Radio:
@@ -378,7 +404,6 @@ export const HomeExplorerPage: React.FC = () => {
             ))}
           </div>
 
-          {/* DESPLEGABLE ORDENAR */}
           <select
             value={ordenamiento}
             onChange={(e) => {
@@ -393,7 +418,6 @@ export const HomeExplorerPage: React.FC = () => {
           </select>
         </div>
 
-        {/* AVISO: la cercanía necesita la ubicación del usuario */}
         {!userLocation && (radioKm !== null || ordenamiento === 'cercania') && (
           <p className="px-4 text-[11px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-1" role="status">
             <LocateFixed className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -410,20 +434,20 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         )}
 
-        {/* SECCIÓN DE RUBROS (ENVOLVENTE EN DESKTOP) */}
+        {/* SECCIÓN DE BOTONES DE FILTRO Y RUBROS */}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full">
           
-          {/* VISTA MOBILE (DESPLEGABLE SELECT) */}
+          {/* VISTA MOBILE */}
           <div className="px-4 sm:hidden flex flex-col gap-2">
             <button
               onClick={() => setSoloAbiertos(!soloAbiertos)}
               className={`w-full py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
                 soloAbiertos
-                  ? 'bg-green-600 text-white shadow-sm'
+                  ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-400'
                   : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300'
               }`}
             >
-              <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
+              <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Mostrando solo Abiertos' : 'Abiertos Ahora'}
             </button>
 
             <FiltroDelivery
@@ -448,17 +472,17 @@ export const HomeExplorerPage: React.FC = () => {
             </div>
           </div>
 
-          {/* VISTA DESKTOP / TABLET (ENVUELVE TODOS LOS BOTONES) */}
+          {/* VISTA DESKTOP / TABLET */}
           <div className="hidden sm:flex flex-wrap items-center gap-2 px-4 py-1 w-full">
             <button
               onClick={() => setSoloAbiertos(!soloAbiertos)}
               className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
                 soloAbiertos
-                  ? 'bg-green-600 text-white shadow-sm'
+                  ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-400'
                   : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Solo Abiertos' : 'Abiertos Ahora'}
+              <Clock className="w-3.5 h-3.5" /> {soloAbiertos ? '✓ Mostrando solo Abiertos' : 'Abiertos Ahora'}
             </button>
 
             <FiltroDelivery
@@ -502,7 +526,7 @@ export const HomeExplorerPage: React.FC = () => {
 
       </div>
 
-      {/* MAPA Y LISTADO */}
+      {/* MAPA INTERACTIVO Y LISTA FILTRADA DE COMERCIOS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
         <div className="lg:col-span-2 h-[350px] lg:h-full rounded-2xl overflow-hidden border dark:border-gray-700">
           <InteractiveMap
@@ -520,7 +544,9 @@ export const HomeExplorerPage: React.FC = () => {
             <div className="text-center py-12 text-gray-500 space-y-2">
               <Store className="w-10 h-10 mx-auto opacity-40" />
               <p className="text-sm font-semibold">
-                {soloDelivery
+                {soloAbiertos
+                  ? 'No hay negocios abiertos en este momento'
+                  : soloDelivery
                   ? `Ningún comercio tiene delivery ${etiquetaMomento ? `el ${etiquetaMomento}` : 'activo en este momento'}`
                   : 'No se encontraron negocios con esos filtros'}
               </p>
@@ -544,7 +570,11 @@ export const HomeExplorerPage: React.FC = () => {
 
                   <div className="flex flex-col items-end gap-1">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      comercio.estadoAtencion.estado === 'abierto' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                      comercio.estadoAtencion.estado === 'abierto'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300'
+                        : comercio.estadoAtencion.estado === 'cierra_pronto'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                        : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
                     }`}>
                       {comercio.estadoAtencion.mensaje}
                     </span>
