@@ -368,14 +368,19 @@ export const HomeExplorerPage: React.FC = () => {
       {/* TARJETA DE BIENVENIDA, CLIMA Y EMERGENCIAS */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+          {/* 1. BADGE DE CATEGORÍA */}
+          <div>
             <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Directorio Comercial Inteligente
             </div>
-            {/* WIDGET DEL CLIMA LOCAL EN TIEMPO REAL */}
+          </div>
+
+          {/* 2. WIDGET DEL CLIMA LOCAL EN TIEMPO REAL (ENTRE MEDIO) */}
+          <div className="py-0.5">
             <WidgetClima />
           </div>
 
+          {/* 3. TÍTULO PRINCIPAL Y UBICACIÓN */}
           <h1 className="text-2xl font-black">Explorá Comercios en Nogoyá</h1>
           <p className="text-xs text-brand-100 flex items-center gap-1">
             <LocateFixed className="w-3.5 h-3.5" /> Ubicación: <strong className="text-white">{userAddress}</strong>
