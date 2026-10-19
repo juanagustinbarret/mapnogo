@@ -10,7 +10,6 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import { estrellasValidas } from '@/lib/resenas';
-import { generarReportePDF } from '@/lib/generatePdfReport';
 import {
   Store,
   CreditCard,
@@ -456,9 +455,15 @@ export const MerchantDashboardPage: React.FC = () => {
     };
   };
 
-  const handleExportarReporte = () => {
+  const handleExportarReporte = async () => {
     if (!comercio) return;
-    generarReportePDF(comercio, metricasReales, suscripcion, promociones);
+    try {
+      // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
+      const { generarReportePDF } = await import('@/lib/generatePdfReport');
+      generarReportePDF(comercio, metricasReales, suscripcion, promociones);
+    } catch (err: any) {
+      alert('No se pudo generar el reporte PDF: ' + (err?.message ?? err));
+    }
   };
 
   const handleAddHorario = async (diaIndex: number) => {

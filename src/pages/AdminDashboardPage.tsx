@@ -7,7 +7,6 @@ import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { obtenerMetricasComercio } from '@/lib/metrics';
-import { generarReportePDF } from '@/lib/generatePdfReport';
 import {
   Store,
   DollarSign,
@@ -285,6 +284,8 @@ export const AdminDashboardPage: React.FC = () => {
         .select('*')
         .eq('comercio_id', comercio.id);
 
+      // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
+      const { generarReportePDF } = await import('@/lib/generatePdfReport');
       generarReportePDF(comercio, metricas, suscripcion, promociones || []);
     } catch (err: any) {
       alert('Error al generar el reporte PDF: ' + err.message);
