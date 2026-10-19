@@ -32,6 +32,8 @@ import {
   HeartPulse,
   Calendar,
   FileText,
+  KeyRound,
+  Mail,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -150,6 +152,10 @@ export const AdminDashboardPage: React.FC = () => {
   const [rubrosEdicion, setRubrosEdicion] = useState<Rubro[]>([]);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState('');
+
+  // Estados para cambiar contraseña directa mediante Edge Function
+  const [nuevaPasswordDirecta, setNuevaPasswordDirecta] = useState('');
+  const [guardandoClave, setGuardandoClave] = useState(false);
 
   const fetchComerciosYStats = async () => {
     setLoading(true);
@@ -285,6 +291,38 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const handleCambiarPasswordDirecta = async () => {
+  if (!modalEditar?.email_comercial) {
+    alert('El comercio no tiene un email comercial asignado.');
+    return;
+  }
+
+  if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 6) {
+    alert('Ingresá una contraseña de al menos 6 caracteres.');
+    return;
+  }
+
+  if (!confirm(`¿Querés cambiar la contraseña para ${modalEditar.email_comercial}?`)) return;
+
+  setGuardandoClave(true);
+
+  try {
+    const { error } = await supabase.rpc('admin_cambiar_password_comercio', {
+      email_target: modalEditar.email_comercial.trim(),
+      nueva_password: nuevaPasswordDirecta.trim(),
+    });
+
+    if (error) throw error;
+
+    alert(`✅ Contraseña de ${modalEditar.email_comercial} actualizada correctamente.`);
+    setNuevaPasswordDirecta('');
+  } catch (err: any) {
+    alert('Error al cambiar la contraseña: ' + (err.message || 'Ocurrió un error inesperado'));
+  } finally {
+    setGuardandoClave(false);
+  }
+};
+
   const handleGuardarFarmaciaTurno = async () => {
     if (!farmaciaSeleccionadaId) {
       alert('Seleccioná una farmacia.');
@@ -372,6 +410,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   const abrirEdicion = (comercio: Comercio) => {
     setErrorEdicion('');
+    setNuevaPasswordDirecta('');
 
     setModalEditar({
       ...comercio,
@@ -491,7 +530,8 @@ export const AdminDashboardPage: React.FC = () => {
     (c) =>
       c.nombre.toLowerCase().includes(search.toLowerCase()) ||
       c.direccion?.toLowerCase().includes(search.toLowerCase()) ||
-      c.whatsapp?.includes(search)
+      c.whatsapp?.includes(search) ||
+      c.email_comercial?.toLowerCase().includes(search.toLowerCase())
   );
 
   const farmaciasDisponibles = comercios.filter((c) =>
@@ -750,7 +790,7 @@ export const AdminDashboardPage: React.FC = () => {
               Todos los comercios
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Editá los datos, descargá sus métricas en PDF o cambiá la visibilidad del local.
+              Editá los datos, cuentas asignadas, descargá métricas en PDF o cambiá la visibilidad del local.
             </p>
           </div>
 
@@ -759,7 +799,7 @@ export const AdminDashboardPage: React.FC = () => {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, dirección o WhatsApp..."
+              placeholder="Buscar por nombre, email o WhatsApp..."
               className={`${campoClase} pl-9`}
             />
           </div>
@@ -787,8 +827,8 @@ export const AdminDashboardPage: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1">
                     {comercio.direccion || 'Sin dirección'}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Rubro: {comercio.rubro?.nombre || 'General'}
+                  <p className="text-xs text-brand-600 font-semibold mt-1 flex items-center gap-1">
+                    <Mail className="w-3.5 h-3.5" /> Email asignado: {comercio.email_comercial || 'Sin mail cargado'}
                   </p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className={`px-2 py-1 rounded-lg text-xs font-bold ${comercio.aprobado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
@@ -913,6 +953,45 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </Seccion>
 
+              {/* BLOQUE DE CREDENCIALES Y CUENTA */}
+              <Seccion titulo="Credenciales y Cuenta del Comercio">
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                    <div>
+                      <label className={etiquetaClase}>Email Comercial / Usuario de Acceso</label>
+                      <input
+                        type="email"
+                        value={modalEditar.email_comercial ?? ''}
+                        onChange={(e) => actualizarCampo('email_comercial', e.target.value)}
+                        className={campoClase}
+                        placeholder="email@comercio.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={etiquetaClase}>Establecer Nueva Contraseña</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={nuevaPasswordDirecta}
+                          onChange={(e) => setNuevaPasswordDirecta(e.target.value)}
+                          className={campoClase}
+                          placeholder="Mínimo 6 caracteres"
+                        />
+                        <button
+                          type="button"
+                          disabled={guardandoClave || !nuevaPasswordDirecta}
+                          onClick={handleCambiarPasswordDirecta}
+                          className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs whitespace-nowrap disabled:opacity-50 transition shadow-sm"
+                        >
+                          {guardandoClave ? 'Guardando...' : 'Cambiar Clave'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Seccion>
+
               <Seccion titulo="Dirección y ubicación">
                 <div>
                   <label className={etiquetaClase}>Dirección</label>
@@ -965,10 +1044,6 @@ export const AdminDashboardPage: React.FC = () => {
                   <div>
                     <label className={etiquetaClase}>WhatsApp</label>
                     <input value={modalEditar.whatsapp ?? ''} onChange={(e) => actualizarCampo('whatsapp', e.target.value)} className={campoClase} />
-                  </div>
-                  <div>
-                    <label className={etiquetaClase}>Email comercial</label>
-                    <input type="email" value={modalEditar.email_comercial ?? ''} onChange={(e) => actualizarCampo('email_comercial', e.target.value)} className={campoClase} />
                   </div>
                   <div>
                     <label className={etiquetaClase}>Sitio web</label>
