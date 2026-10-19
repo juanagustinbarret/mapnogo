@@ -4,19 +4,16 @@ import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
 import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck, ShieldAlert } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
-import { OpcionesRubros } from '@/components/OpcionesRubros';
-import { FiltroDelivery } from '@/components/FiltroDelivery';
 import {
-  DIAS_SEMANA,
-  aHora,
+  aplicarPausa,
   estadoDeliveryEn,
   momentoArgentina,
+  rangosDeDelivery,
   textoEstadoDelivery,
-  type MomentoArgentina,
   type RangoDelivery,
 } from '@/lib/delivery';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
@@ -70,9 +67,8 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloDelivery, setSoloDelivery] = useState(false);
   const [soloFarmaciasTurno, setSoloFarmaciasTurno] = useState(false);
 
-  // Delivery: rangos por comercio y momento a evaluar
+  // Delivery: rangos por comercio
   const [delivery, setDelivery] = useState<Record<string, RangoDelivery[]>>({});
-  const [momentoElegido, setMomentoElegido] = useState<MomentoArgentina | null>(null);
 
   // Re-evaluación automática de horarios cada 60 segundos
   const [ahora, setAhora] = useState(() => new Date());
@@ -265,7 +261,6 @@ export const HomeExplorerPage: React.FC = () => {
   );
 
   const momentoAhora = momentoArgentina(ahora);
-  const momentoDelivery = momentoElegido ?? momentoAhora;
 
   // OBJETO CONSOLIDADOR DE FILTROS AVANZADOS
   const filtrosActuales: FiltrosMapa = {
@@ -286,7 +281,11 @@ export const HomeExplorerPage: React.FC = () => {
         ? calcularDistanciaKm(userLocation.lat, userLocation.lng, posicion.lat, posicion.lng)
         : null;
     const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || [], ahora);
-    const estadoDelivery = estadoDeliveryEn(c.tiene_delivery ? delivery[c.id] ?? [] : [], momentoDelivery);
+    // Sin rangos propios se usan los de atención (como muestra la ficha), y
+    // una pausa vigente se muestra como "Delivery pausado hasta las …"
+    const estadoDelivery = c.tiene_delivery
+      ? aplicarPausa(estadoDeliveryEn(rangosDeDelivery(delivery[c.id], horarios[c.id]), momentoAhora), c.delivery_pausado_hasta, ahora)
+      : estadoDeliveryEn([], momentoAhora);
     return { ...c, distancia, estadoAtencion, estadoDelivery, horarios: horarios[c.id] || [] };
   });
 
@@ -309,10 +308,6 @@ export const HomeExplorerPage: React.FC = () => {
       }
       return a.nombre.localeCompare(b.nombre);
     });
-
-  const etiquetaMomento = momentoElegido
-    ? `${DIAS_SEMANA[momentoElegido.dia].slice(0, 3)} ${aHora(momentoElegido.minutos)}`
-    : null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
@@ -588,7 +583,7 @@ export const HomeExplorerPage: React.FC = () => {
                 {soloAbiertos
                   ? 'No hay negocios abiertos en este momento'
                   : soloDelivery
-                  ? `Ningún comercio tiene delivery ${etiquetaMomento ? `el ${etiquetaMomento}` : 'activo en este momento'}`
+                  ? 'No hay comercios con delivery disponible (o lo pausaron por ahora)'
                   : soloFarmaciasTurno
                   ? 'No hay farmacias de turno registradas para hoy'
                   : 'No se encontraron negocios con esos filtros'}
@@ -626,6 +621,8 @@ export const HomeExplorerPage: React.FC = () => {
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
                           comercio.estadoDelivery.estado === 'activo'
                             ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300'
+                            : comercio.estadoDelivery.estado === 'pausado'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
                             : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                         }`}
                       >

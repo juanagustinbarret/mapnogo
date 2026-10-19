@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
+import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -191,13 +192,8 @@ export const MerchantDashboardPage: React.FC = () => {
   const handlePausarDelivery = async (horas: number | 'hoy') => {
     if (!comercio) return;
     setPausandoDelivery(true);
-    let fechaHasta = new Date();
-
-    if (horas === 'hoy') {
-      fechaHasta.setHours(23, 59, 59, 999);
-    } else {
-      fechaHasta.setHours(fechaHasta.getHours() + horas);
-    }
+    // Siempre en hora argentina (antes "por hoy" usaba la medianoche del celular)
+    const fechaHasta = finDePausa(horas);
 
     const isoFecha = fechaHasta.toISOString();
 
@@ -208,7 +204,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
     if (!error) {
       setDeliveryPausadoHasta(isoFecha);
-      alert(`Delivery pausado hasta las ${fechaHasta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      alert(`Delivery pausado hasta las ${horaArgentina(fechaHasta)}`);
     } else {
       alert('Error al actualizar la pausa de delivery.');
     }
@@ -225,6 +221,8 @@ export const MerchantDashboardPage: React.FC = () => {
 
     if (!error) {
       setDeliveryPausadoHasta(null);
+    } else {
+      alert('No se pudo reanudar el delivery: ' + error.message);
     }
     setPausandoDelivery(false);
   };
@@ -995,7 +993,7 @@ export const MerchantDashboardPage: React.FC = () => {
             {deliveryPausadoHasta && new Date(deliveryPausadoHasta) > new Date() ? (
               <span className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">
                 <PauseCircle className="w-4 h-4" />
-                Pausado hasta las {new Date(deliveryPausadoHasta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                Pausado hasta las {horaArgentina(deliveryPausadoHasta)}
               </span>
             ) : (
               <span className="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">

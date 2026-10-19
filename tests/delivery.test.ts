@@ -117,3 +117,48 @@ test('aviso si el delivery cae fuera del horario del local', () => {
   assert.equal(fueraDelHorarioDelLocal(r(MARTES, '12:00', '13:00'), turnos), true);
   assert.equal(fueraDelHorarioDelLocal(r(LUNES, '12:00', '13:00'), [{ ...turnos[0], activo: false }]), true);
 });
+
+// ─── Pausa y rangos por defecto (19/10/2026) ────────────────────────────
+import { aplicarPausa, finDePausa, horaArgentina, rangosDeDelivery } from '../src/lib/delivery.ts';
+
+test('pausa vigente: la etiqueta dice "Delivery pausado hasta las …" en hora argentina', () => {
+  const ahora = new Date('2026-10-19T21:00:00-03:00');
+  const activo = { estado: 'activo' as const, hasta: '23:30' };
+  const pausado = aplicarPausa(activo, '2026-10-20T01:30:00Z', ahora); // 22:30 en Argentina
+  assert.deepEqual(pausado, { estado: 'pausado', hasta: '22:30' });
+  assert.equal(textoEstadoDelivery(pausado), 'Delivery pausado hasta las 22:30');
+  // Pausa vencida o inválida: no cambia nada
+  assert.deepEqual(aplicarPausa(activo, '2026-10-19T20:00:00-03:00', ahora), activo);
+  assert.deepEqual(aplicarPausa(activo, 'cualquier cosa', ahora), activo);
+  assert.deepEqual(aplicarPausa(activo, null, ahora), activo);
+  // Sin delivery, la pausa no inventa una etiqueta
+  assert.deepEqual(aplicarPausa({ estado: 'sin_delivery' }, '2026-10-20T01:30:00Z', ahora), { estado: 'sin_delivery' });
+});
+
+test('"Pausar por hoy" termina a las 23:59 de Argentina aunque el celular esté en otra zona', () => {
+  const original = process.env.TZ;
+  try {
+    for (const tz of ['Asia/Tokyo', 'UTC', 'America/Los_Angeles']) {
+      process.env.TZ = tz;
+      // Lunes 22:30 en Argentina = martes 01:30 UTC
+      const fin = finDePausa('hoy', new Date('2026-10-20T01:30:00Z'));
+      assert.equal(fin.toISOString(), '2026-10-20T02:59:59.000Z', tz);
+      assert.equal(horaArgentina(fin), '23:59', tz);
+    }
+  } finally {
+    process.env.TZ = original;
+  }
+  assert.equal(finDePausa(2, new Date('2026-10-19T20:00:00Z')).toISOString(), '2026-10-19T22:00:00.000Z');
+});
+
+test('sin rangos de delivery propios se usan los horarios de atención', () => {
+  const propios = [r(LUNES, '20:00', '23:00')];
+  const local = [
+    { dia_semana: LUNES, hora_apertura: '09:00:00', hora_cierre: '13:00:00', activo: true },
+    { dia_semana: MARTES, hora_apertura: '09:00:00', hora_cierre: '13:00:00', activo: false },
+  ];
+  assert.deepEqual(rangosDeDelivery(propios, local), propios);
+  assert.deepEqual(rangosDeDelivery([], local), [{ dia_semana: LUNES, hora_inicio: '09:00:00', hora_fin: '13:00:00' }]);
+  assert.deepEqual(rangosDeDelivery(undefined, undefined), []);
+  assert.deepEqual(estadoDeliveryEn(rangosDeDelivery([], local), en(LUNES, '10:00')), { estado: 'activo', hasta: '13:00' });
+});

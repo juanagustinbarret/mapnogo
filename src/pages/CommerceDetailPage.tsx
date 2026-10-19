@@ -23,6 +23,7 @@ import {
   Send
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
+import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
 import { registrarInteraccion } from '@/lib/metrics';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
@@ -214,6 +215,13 @@ export const CommerceDetailPage: React.FC = () => {
   if (!comercio) return <div className="p-8 text-center text-gray-500 font-semibold">Cargando ficha del comercio...</div>;
 
   const estadoHorario = evaluarEstadoHorario(horarios);
+  // Antes la ficha decía siempre "Delivery Activo", aunque fuera de madrugada
+  // o el comercio lo hubiera pausado.
+  const estadoDeliveryAhora = aplicarPausa(
+    estadoDelivery(rangosDeDelivery(horariosDelivery, horarios)),
+    comercio?.delivery_pausado_hasta,
+  );
+  const textoDeliveryAhora = textoEstadoDelivery(estadoDeliveryAhora) ?? 'Sin delivery en este momento';
   const promedioEstrellas = resenas.length
     ? (resenas.reduce((acc, r) => acc + r.estrellas, 0) / resenas.length).toFixed(1)
     : null;
@@ -327,12 +335,20 @@ export const CommerceDetailPage: React.FC = () => {
         {/* HORARIOS DE DELIVERY */}
         {comercio.tiene_delivery && (
           <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-2xl space-y-3 border border-emerald-500/20">
-            <div className="flex items-center justify-between border-b dark:border-emerald-800/40 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b dark:border-emerald-800/40 pb-2">
               <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
                 <Truck className="w-4 h-4 text-emerald-500" /> Horarios de Envíos a Domicilio (Delivery)
               </h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                Delivery Activo
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                  estadoDeliveryAhora.estado === 'activo'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                    : estadoDeliveryAhora.estado === 'pausado'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-300 dark:border-gray-700'
+                }`}
+              >
+                {textoDeliveryAhora}
               </span>
             </div>
 

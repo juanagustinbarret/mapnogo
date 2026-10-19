@@ -67,6 +67,7 @@ export interface Comercio {
   estado_horario?: 'abierto' | 'cierra_pronto' | 'cerrado' | 'no_informado';
   /** Columna nueva (supabase/propuestas/20261018_delivery.sql); falta en bases sin migrar */
   tiene_delivery?: boolean;
+  delivery_pausado_hasta?: string | null;
 }
 
 export interface HorarioAtencion {
