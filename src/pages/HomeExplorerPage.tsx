@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck } from 'lucide-react';
+import { ModalEmergencias } from '@/components/ModalEmergencias';
+import { WidgetClima } from '@/components/WidgetClima';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Filter, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -59,6 +61,9 @@ export const HomeExplorerPage: React.FC = () => {
   
   // Farmacia de Turno Hoy
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
+
+  // Modal de Teléfonos de Emergencia
+  const [modalEmergenciasOpen, setModalEmergenciasOpen] = useState(false);
 
   // FILTROS AVANZADOS DINÁMICOS
   const [soloAbiertos, setSoloAbiertos] = useState(false);
@@ -312,6 +317,12 @@ export const HomeExplorerPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
       
+      {/* MODAL DE EMERGENCIAS */}
+      <ModalEmergencias
+        isOpen={modalEmergenciasOpen}
+        onClose={() => setModalEmergenciasOpen(false)}
+      />
+
       {/* BANNER DESTACADO: FARMACIA DE TURNO HOY */}
       {farmaciaDeTurno && (
         <div className="bg-gradient-to-r from-red-600 via-rose-600 to-blue-700 rounded-3xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-rose-400/30">
@@ -354,12 +365,17 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       )}
 
-      {/* TARJETA DE BIENVENIDA Y UBICACIÓN */}
+      {/* TARJETA DE BIENVENIDA, CLIMA Y EMERGENCIAS */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Directorio Comercial Inteligente
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Directorio Comercial Inteligente
+            </div>
+            {/* WIDGET DEL CLIMA LOCAL EN TIEMPO REAL */}
+            <WidgetClima />
           </div>
+
           <h1 className="text-2xl font-black">Explorá Comercios en Nogoyá</h1>
           <p className="text-xs text-brand-100 flex items-center gap-1">
             <LocateFixed className="w-3.5 h-3.5" /> Ubicación: <strong className="text-white">{userAddress}</strong>
@@ -367,6 +383,14 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
+          {/* BOTÓN DE EMERGENCIAS RÁPIDAS */}
+          <button
+            onClick={() => setModalEmergenciasOpen(true)}
+            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 active:scale-95 border border-red-400/30"
+          >
+            <ShieldAlert className="w-4 h-4 animate-pulse" /> Emergencias
+          </button>
+
           <button
             onClick={handleToggleNotificaciones}
             disabled={activandoPush}
@@ -380,7 +404,7 @@ export const HomeExplorerPage: React.FC = () => {
             {pushActivado ? (
               <>
                 <BellOff className="w-4 h-4 text-white" />
-                {activandoPush ? 'Procesando...' : 'Ofertas Activas (Desactivar)'}
+                {activandoPush ? 'Procesando...' : 'Ofertas Activas'}
               </>
             ) : (
               <>
