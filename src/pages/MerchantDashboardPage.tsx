@@ -8,7 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
-import { estaVigente, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
+import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
+import { estrellasValidas } from '@/lib/resenas';
 import { generarReportePDF } from '@/lib/generatePdfReport';
 import {
   Store,
@@ -122,19 +123,30 @@ export const MerchantDashboardPage: React.FC = () => {
         if (s) {
           setSuscripcion(s);
           if (s.proximo_vencimiento) {
-            const hoy = new Date();
-            const vencimiento = new Date(s.proximo_vencimiento);
-            const diferenciaTiempo = vencimiento.getTime() - hoy.getTime();
-            const dias = Math.ceil(diferenciaTiempo / (1000 * 3600 * 24));
-            setDiasParaVencer(dias);
+            // Días de calendario en Argentina: con horas y Math.ceil, el
+            // mismo día del vencimiento a la noche ya decía "vencida"
+            setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
           }
         }
 
-        const { data: p } = await supabase
+        // Los clics salen de interacciones_ofertas. Si esa tabla o su
+        // relación no existen, PostgREST da error y antes la lista de
+        // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
+        const consultaConClics = await supabase
           .from('promociones')
           .select('*, metricas_clics:interacciones_ofertas(count)')
           .eq('comercio_id', c.id)
           .order('created_at', { ascending: false });
+        let p = consultaConClics.data;
+        if (consultaConClics.error) {
+          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
+          const simple = await supabase
+            .from('promociones')
+            .select('*')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false });
+          p = simple.data;
+        }
         if (p) setPromociones(p);
 
         const { data: h } = await supabase
@@ -830,7 +842,7 @@ export const MerchantDashboardPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
                   <div className="flex items-center gap-0.5">
-                    {[...Array(r.estrellas)].map((_, i) => (
+                    {[...Array(estrellasValidas(r.estrellas))].map((_, i) => (
                       <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
@@ -1104,6 +1116,7 @@ export const MerchantDashboardPage: React.FC = () => {
                   )}
                 </div>
 
+                {Array.isArray(p.metricas_clics) && (
                 <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800 text-xs">
                   <span className="text-gray-500 flex items-center gap-1 font-medium">
                     <Eye className="w-3.5 h-3.5 text-blue-500" /> Interacciones:
@@ -1112,6 +1125,7 @@ export const MerchantDashboardPage: React.FC = () => {
                     {p.metricas_clics?.[0]?.count || 0} clics
                   </span>
                 </div>
+                )}
 
               </div>
             ))}

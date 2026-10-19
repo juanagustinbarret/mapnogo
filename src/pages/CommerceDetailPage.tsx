@@ -28,6 +28,7 @@ import { registrarInteraccion } from '@/lib/metrics';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
+import { estrellasValidas, LARGO_COMENTARIO, LARGO_NOMBRE } from '@/lib/resenas';
 
 interface HorarioDelivery {
   id: string;
@@ -223,7 +224,7 @@ export const CommerceDetailPage: React.FC = () => {
   );
   const textoDeliveryAhora = textoEstadoDelivery(estadoDeliveryAhora) ?? 'Sin delivery en este momento';
   const promedioEstrellas = resenas.length
-    ? (resenas.reduce((acc, r) => acc + r.estrellas, 0) / resenas.length).toFixed(1)
+    ? (resenas.reduce((acc, r) => acc + estrellasValidas(r.estrellas), 0) / resenas.length).toFixed(1)
     : null;
 
   return (
@@ -462,6 +463,7 @@ export const CommerceDetailPage: React.FC = () => {
             <input
               type="text"
               required
+              maxLength={LARGO_NOMBRE}
               placeholder="Tu nombre (ej. Carlos G.)"
               value={nombreResena}
               onChange={(e) => setNombreResena(e.target.value)}
@@ -486,6 +488,7 @@ export const CommerceDetailPage: React.FC = () => {
           <textarea
             required
             rows={2}
+            maxLength={LARGO_COMENTARIO}
             placeholder="Escribí tu reseña sobre la atención, los productos..."
             value={comentarioResena}
             onChange={(e) => setComentarioResena(e.target.value)}
@@ -512,7 +515,7 @@ export const CommerceDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
                   <div className="flex items-center gap-0.5">
-                    {[...Array(r.estrellas)].map((_, i) => (
+                    {[...Array(estrellasValidas(r.estrellas))].map((_, i) => (
                       <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
