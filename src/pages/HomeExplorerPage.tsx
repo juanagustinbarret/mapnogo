@@ -25,6 +25,7 @@ import {
   verificarEstadoSuscripcionPush 
 } from '@/lib/pushNotifications';
 import { hoyArgentina } from '@/lib/fechasArgentina';
+import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
 import { filtrarComerciosMapa, type FiltrosMapa } from '@/lib/filtrosAvanzados';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -272,6 +273,9 @@ export const HomeExplorerPage: React.FC = () => {
   };
 
   const farmaciasTurnoIds = farmaciaDeTurno ? [farmaciaDeTurno.id] : [];
+  // El número se normaliza (549…) como en la ficha: antes iba crudo y un
+  // "343 4…" abría un chat con otro país
+  const whatsappFarmacia = normalizeWhatsAppNumber(farmaciaDeTurno?.whatsapp ?? '');
 
   // LÓGICA COMPLETA DE FILTRADO Y PROCESAMIENTO DINÁMICO
   const comerciosProcesados = comercios.map((c) => {
@@ -339,9 +343,9 @@ export const HomeExplorerPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/20">
-            {farmaciaDeTurno.whatsapp && (
+            {whatsappFarmacia.isValid && (
               <a
-                href={`https://wa.me/${farmaciaDeTurno.whatsapp}`}
+                href={buildWhatsAppUrl(whatsappFarmacia.normalized, '')}
                 target="_blank"
                 rel="noreferrer"
                 className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-md transition"

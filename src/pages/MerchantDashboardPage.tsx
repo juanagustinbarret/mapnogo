@@ -53,7 +53,9 @@ export const MerchantDashboardPage: React.FC = () => {
   const [promociones, setPromociones] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [resenas, setResenas] = useState<any[]>([]);
-  const [esFarmaciaDeTurno, setEsFarmaciaDeTurno] = useState<boolean>(false);
+  // Próximo turno asignado (hoy o más adelante), o null
+  const [proximoTurno, setProximoTurno] = useState<string | null>(null);
+  const esFarmaciaDeTurno = proximoTurno !== null;
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
 
@@ -150,13 +152,17 @@ export const MerchantDashboardPage: React.FC = () => {
           .order('created_at', { ascending: false });
         if (r) setResenas(r);
 
-        // Verificar si está en la lista de farmacias de turno
+        // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
+        // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
+        // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
         const { data: ft } = await supabase
           .from('farmacias_turno')
-          .select('id')
+          .select('fecha')
           .eq('comercio_id', c.id)
-          .maybeSingle();
-        setEsFarmaciaDeTurno(Boolean(ft));
+          .gte('fecha', hoyArgentina())
+          .order('fecha', { ascending: true })
+          .limit(1);
+        setProximoTurno(ft?.[0]?.fecha ?? null);
       }
     } catch (error) {
       console.error('Error al cargar datos del comercio:', error);
@@ -167,13 +173,15 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const handleQuitarDeTurno = async () => {
     if (!comercio) return;
-    if (!confirm('¿Seguro que querés quitar este comercio de las farmacias de turno?')) return;
+    if (!confirm('¿Seguro que querés quitar tus próximos turnos de farmacia (desde hoy)?')) return;
 
     try {
+      // Solo hoy y lo que viene: el historial de turnos pasados se conserva
       const { error } = await supabase
         .from('farmacias_turno')
         .delete()
-        .eq('comercio_id', comercio.id);
+        .eq('comercio_id', comercio.id)
+        .gte('fecha', hoyArgentina());
 
       if (error) {
         console.error('[farmacias_turno] Error al eliminar:', error);
@@ -181,7 +189,7 @@ export const MerchantDashboardPage: React.FC = () => {
         return;
       }
 
-      setEsFarmaciaDeTurno(false);
+      setProximoTurno(null);
       alert('✅ El comercio ya no figura como farmacia de turno.');
       await fetchMerchantData();
     } catch (err: any) {
@@ -650,10 +658,10 @@ export const MerchantDashboardPage: React.FC = () => {
             </div>
             <div>
               <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                Farmacia de Turno Activa
+                {proximoTurno === hoyArgentina() ? 'Farmacia de turno hoy' : `Próximo turno: ${formatDate(proximoTurno ?? '')}`}
               </h4>
               <p className="text-xs text-gray-500 mt-0.5">
-                Tu farmacia figura actualmente en el banner destacado de farmacias de turno del mapa público.
+                Ese día tu farmacia aparece en el banner de farmacia de turno del mapa público.
               </p>
             </div>
           </div>
