@@ -1,10 +1,8 @@
-
-import { OpcionesRubros } from '@/components/OpcionesRubros';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { supabase } from '@/lib/supabase';
 import { Rubro } from '@/types/database.types';
-import { ArrowLeft, Save, Building, User } from 'lucide-react';
+import { ArrowLeft, Save, Building, User, Search, ChevronDown, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   MapContainer,
@@ -90,6 +88,11 @@ export const AdminNewCommercePage: React.FC = () => {
   const [loadingRubros, setLoadingRubros] = useState(true);
   const [error, setError] = useState('');
 
+  // Estados para el buscador desplegable de rubros
+  const [busquedaRubro, setBusquedaRubro] = useState('');
+  const [mostrarDropdownRubros, setMostrarDropdownRubros] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -120,13 +123,15 @@ export const AdminNewCommercePage: React.FC = () => {
 
         if (!mounted) return;
 
-        setRubros(data ?? []);
+        const listaRubros = data ?? [];
+        setRubros(listaRubros);
 
-        if (data && data.length > 0) {
+        if (listaRubros.length > 0) {
           setFormData((prev) => ({
             ...prev,
-            rubro_id: prev.rubro_id || data[0].id,
+            rubro_id: prev.rubro_id || listaRubros[0].id,
           }));
+          setBusquedaRubro(listaRubros[0].nombre);
         }
       } catch (err) {
         if (mounted) {
@@ -149,6 +154,21 @@ export const AdminNewCommercePage: React.FC = () => {
       mounted = false;
     };
   }, []);
+
+  // Cerrar el desplegable de rubros si se hace clic fuera del componente
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setMostrarDropdownRubros(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const rubrosFiltrados = rubros.filter((r) =>
+    r.nombre.toLowerCase().includes(busquedaRubro.toLowerCase())
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -173,7 +193,7 @@ export const AdminNewCommercePage: React.FC = () => {
       }
 
       if (!formData.rubro_id) {
-        throw new Error('Seleccioná un rubro para el comercio.');
+        throw new Error('Seleccioná un rubro válido para el comercio.');
       }
 
       const email = formData.email.trim().toLowerCase();
@@ -188,8 +208,6 @@ export const AdminNewCommercePage: React.FC = () => {
         throw new Error('La contraseña debe tener al menos 6 caracteres.');
       }
 
-      // El vencimiento se calcula para el día 10 del mes siguiente.
-      // Mes calculado en hora de Argentina (no la del dispositivo)
       const [anio, mes] = hoyArgentina().split('-').map(Number);
       const fechaVencimiento =
         mes === 12 ? `${anio + 1}-01-10` : `${anio}-${String(mes + 1).padStart(2, '0')}-10`;
@@ -356,29 +374,56 @@ export const AdminNewCommercePage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              {/* BUSCADOR DESPLEGABLE DE RUBROS */}
+              <div className="relative" ref={dropdownRef}>
                 <label className="block text-xs font-semibold mb-1">
-                  Rubro
+                  Rubro (Buscador)
                 </label>
-                <select
-                  required
-                  disabled={loadingRubros || rubros.length === 0}
-                  value={formData.rubro_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, rubro_id: e.target.value })
-                  }
-                  className="w-full px-3.5 py-2.5 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
-                >
-                  {rubros.length === 0 && (
-                    <option value="">
-                      {loadingRubros
-                        ? 'Cargando rubros...'
-                        : 'No hay rubros disponibles'}
-                    </option>
-                  )}
 
-                  <OpcionesRubros rubros={rubros} />
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder={loadingRubros ? "Cargando rubros..." : "Escribí para buscar rubro..."}
+                    value={busquedaRubro}
+                    onChange={(e) => {
+                      setBusquedaRubro(e.target.value);
+                      setMostrarDropdownRubros(true);
+                    }}
+                    onFocus={() => setMostrarDropdownRubros(true)}
+                    className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                  />
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                  <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
+                </div>
+
+                {mostrarDropdownRubros && (
+                  <div className="absolute z-30 w-full mt-1.5 max-h-56 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl divide-y divide-gray-100 dark:divide-gray-800">
+                    {rubrosFiltrados.length === 0 ? (
+                      <div className="p-3 text-xs text-gray-500 text-center font-medium">
+                        No se encontraron rubros coincidentes
+                      </div>
+                    ) : (
+                      rubrosFiltrados.map((rubro) => (
+                        <button
+                          key={rubro.id}
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, rubro_id: rubro.id });
+                            setBusquedaRubro(rubro.nombre);
+                            setMostrarDropdownRubros(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between hover:bg-brand-50 dark:hover:bg-gray-800 transition ${
+                            formData.rubro_id === rubro.id ? 'font-bold text-brand-600 bg-brand-50/50 dark:bg-gray-800/80' : 'text-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          <span>{rubro.nombre}</span>
+                          {formData.rubro_id === rubro.id && <Check className="w-4 h-4 text-brand-600 shrink-0" />}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="md:col-span-2">

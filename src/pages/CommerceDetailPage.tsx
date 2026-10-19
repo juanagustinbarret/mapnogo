@@ -14,7 +14,8 @@ import {
   CreditCard, 
   Share2, 
   Copy,
-  CalendarDays
+  CalendarDays,
+  Truck
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { registrarInteraccion } from '@/lib/metrics';
@@ -22,13 +23,22 @@ import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
 
+interface HorarioDelivery {
+  id: string;
+  dia_semana: number;
+  hora_inicio: string;
+  hora_fin: string;
+}
+
 export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
+  const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
 
   const { user, profile, loading: cargandoSesion } = useAuth();
+  
   // El dueño mirando su propia ficha y los admins no suman métricas
   const esPropioOAdmin = (c: Comercio | null) =>
     Boolean(c && ((user && c.propietario_id === user.id) || profile?.rol === 'admin'));
@@ -59,6 +69,16 @@ export const CommerceDetailPage: React.FC = () => {
         .order('dia_semana', { ascending: true });
       if (h) setHorarios(h);
 
+      // Cargar horarios específicos de delivery si el comercio los tiene configurados
+      if (c.tiene_delivery) {
+        const { data: hd } = await supabase
+          .from('horarios_delivery')
+          .select('*')
+          .eq('comercio_id', c.id)
+          .order('dia_semana', { ascending: true });
+        if (hd) setHorariosDelivery(hd);
+      }
+
       const hoyStr = hoyArgentina();
       const { data: p } = await supabase
         .from('promociones')
@@ -82,8 +102,6 @@ export const CommerceDetailPage: React.FC = () => {
   const handleComoLlegarClick = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'como_llegar', { excluir: esPropioOAdmin(comercio) });
-    // Si el comercio no tiene coordenadas propias (quedó con el centro de
-    // Nogoyá por defecto) se busca por dirección; antes se mandaba a la plaza.
     const query = tieneCoordenadasPropias(comercio)
       ? `${comercio.latitud},${comercio.longitud}`
       : encodeURIComponent(`${comercio.nombre}, ${comercio.direccion}, Nogoyá, Entre Ríos`);
@@ -183,6 +201,7 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         ) : null}
 
+        {/* HORARIOS DE ATENCIÓN COMERCIAL */}
         <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl space-y-3 border dark:border-gray-700/60">
           <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
             <Clock className="w-4 h-4 text-brand-600" /> Horarios de Atención Semanal
@@ -195,7 +214,7 @@ export const CommerceDetailPage: React.FC = () => {
                   <span className="font-semibold text-gray-600 dark:text-gray-400">{dia}:</span>
                   <span className="font-mono text-gray-900 dark:text-white">
                     {turnosDia.length > 0
-                      ? turnosDia.map((t) => `${t.hora_apertura} - ${t.hora_cierre}`).join(' / ')
+                      ? turnosDia.map((t) => `${t.hora_apertura.slice(0, 5)} - ${t.hora_cierre.slice(0, 5)}`).join(' / ')
                       : 'Cerrado'}
                   </span>
                 </div>
@@ -203,6 +222,40 @@ export const CommerceDetailPage: React.FC = () => {
             })}
           </div>
         </div>
+
+        {/* HORARIOS DE DELIVERY (SOLO MUESTRA SI EL COMERCIO TIENE DELIVERY ACTIVO) */}
+        {comercio.tiene_delivery && (
+          <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-2xl space-y-3 border border-emerald-500/20">
+            <div className="flex items-center justify-between border-b dark:border-emerald-800/40 pb-2">
+              <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                <Truck className="w-4 h-4 text-emerald-500" /> Horarios de Envíos a Domicilio (Delivery)
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                Delivery Activo
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {diasSemana.map((dia, idx) => {
+                const turnosDeliveryDia = horariosDelivery.filter((h) => Number(h.dia_semana) === idx);
+                return (
+                  <div key={dia} className="flex justify-between py-1 border-b dark:border-gray-800/50 last:border-none">
+                    <span className="font-semibold text-gray-600 dark:text-gray-400">{dia}:</span>
+                    <span className="font-mono text-gray-900 dark:text-white">
+                      {horariosDelivery.length === 0 ? (
+                        <span className="text-gray-500 font-sans">Mismo horario que atención al público</span>
+                      ) : turnosDeliveryDia.length > 0 ? (
+                        turnosDeliveryDia.map((t) => `${t.hora_inicio.slice(0, 5)} - ${t.hora_fin.slice(0, 5)}`).join(' / ')
+                      ) : (
+                        <span className="text-gray-400 font-sans">Sin envíos</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">

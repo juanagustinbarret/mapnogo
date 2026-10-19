@@ -29,7 +29,11 @@ import {
   Download,
   Image as ImageIcon,
   Copy,
-  Save
+  Save,
+  AlertTriangle,
+  Send,
+  PauseCircle,
+  PlayCircle
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -40,10 +44,15 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(null);
-  const [promociones, setPromociones] = useState<Promocion[]>([]);
+  const [promociones, setPromociones] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
+
+  // Estados para Pausa Rápida de Delivery y Alertas
+  const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(null);
+  const [pausandoDelivery, setPausandoDelivery] = useState(false);
+  const [diasParaVencer, setDiasParaVencer] = useState<number | null>(null);
 
   const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
   const [loading, setLoading] = useState(true);
@@ -96,16 +105,27 @@ export const MerchantDashboardPage: React.FC = () => {
 
       if (c) {
         setComercio(c);
+        setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
 
         const met = await obtenerMetricasComercio(c.id);
         setMetricasReales(met);
 
         const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
-        if (s) setSuscripcion(s);
+        if (s) {
+          setSuscripcion(s);
+          if (s.proximo_vencimiento) {
+            const hoy = new Date();
+            const vencimiento = new Date(s.proximo_vencimiento);
+            const diferenciaTiempo = vencimiento.getTime() - hoy.getTime();
+            const dias = Math.ceil(diferenciaTiempo / (1000 * 3600 * 24));
+            setDiasParaVencer(dias);
+          }
+        }
 
+        // Cargar promociones con recuento de clics / interacciones
         const { data: p } = await supabase
           .from('promociones')
-          .select('*')
+          .select('*, metricas_clics:interacciones_ofertas(count)')
           .eq('comercio_id', c.id)
           .order('created_at', { ascending: false });
         if (p) setPromociones(p);
@@ -124,6 +144,47 @@ export const MerchantDashboardPage: React.FC = () => {
     }
   };
 
+  const handlePausarDelivery = async (horas: number | 'hoy') => {
+    if (!comercio) return;
+    setPausandoDelivery(true);
+    let fechaHasta = new Date();
+
+    if (horas === 'hoy') {
+      fechaHasta.setHours(23, 59, 59, 999);
+    } else {
+      fechaHasta.setHours(fechaHasta.getHours() + horas);
+    }
+
+    const isoFecha = fechaHasta.toISOString();
+
+    const { error } = await supabase
+      .from('comercios')
+      .update({ delivery_pausado_hasta: isoFecha })
+      .eq('id', comercio.id);
+
+    if (!error) {
+      setDeliveryPausadoHasta(isoFecha);
+      alert(`Delivery pausado hasta las ${fechaHasta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    } else {
+      alert('Error al actualizar la pausa de delivery.');
+    }
+    setPausandoDelivery(false);
+  };
+
+  const handleReanudarDelivery = async () => {
+    if (!comercio) return;
+    setPausandoDelivery(true);
+    const { error } = await supabase
+      .from('comercios')
+      .update({ delivery_pausado_hasta: null })
+      .eq('id', comercio.id);
+
+    if (!error) {
+      setDeliveryPausadoHasta(null);
+    }
+    setPausandoDelivery(false);
+  };
+
   const handleCopiarHorarioLunesAViernes = async () => {
     if (!comercio) return;
     const turnosLunes = horarios.filter((h) => Number(h.dia_semana) === 0);
@@ -135,10 +196,6 @@ export const MerchantDashboardPage: React.FC = () => {
 
     if (!confirm('¿Querés copiar los horarios del Lunes a los días Martes, Miércoles, Jueves y Viernes?')) return;
 
-    // Copia de seguridad de Martes a Viernes por si algo falla a mitad de camino.
-    // Antes los errores de Supabase no se revisaban (no lanzan excepción): si
-    // el alta fallaba después del borrado, se perdían los horarios de esos
-    // días y aun así se mostraba "copiados exitosamente".
     const respaldo = horarios.filter((h) => [1, 2, 3, 4].includes(Number(h.dia_semana)));
 
     const nuevosTurnos = [1, 2, 3, 4].flatMap((dia) =>
@@ -188,7 +245,6 @@ export const MerchantDashboardPage: React.FC = () => {
     setSavingHorarios(true);
 
     try {
-      // Antes se informaba "actualizados" aunque alguno fallara.
       const resultados = await Promise.all(
         horarios.map((h) =>
           supabase
@@ -221,9 +277,6 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!comercio) return;
     setSavingPromo(true);
 
-    // Fechas en hora de Argentina (en UTC, de 21 a 24 h ya era "mañana").
-    // Se guardan como fecha sola (YYYY-MM-DD): la oferta vale hasta el final
-    // de ese día en Argentina (ver estaVigente en fechasArgentina.ts).
     const hoy = hoyArgentina();
     const fechaFinCalculada = promoForm.fecha_fin || sumarDias(hoy, 30);
     if (fechaFinCalculada < hoy) {
@@ -259,7 +312,6 @@ export const MerchantDashboardPage: React.FC = () => {
   const handleDeletePromo = async (id: string) => {
     if (!confirm('¿Deseás eliminar esta publicación?')) return;
     const { error } = await supabase.from('promociones').delete().eq('id', id);
-    // Antes un error (por ejemplo de permisos) no mostraba nada
     if (error) {
       console.error('[promociones] No se pudo eliminar', error);
       alert('No se pudo eliminar la publicación: ' + error.message);
@@ -268,17 +320,15 @@ export const MerchantDashboardPage: React.FC = () => {
     fetchMerchantData();
   };
 
-  // GENERADOR DE FLYER FORMATO HISTORIA DE INSTAGRAM (1080x1920) CON QR DE RESEÑAS
   const handleGenerarFlyerInstagram = () => {
     if (!comercio) return;
 
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
-    canvas.height = 1920; // Tamaño estándar de Instagram Story
+    canvas.height = 1920;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 1. Fondo Degradado Oscuro Elegante
     const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
     gradient.addColorStop(0, '#022c22');
     gradient.addColorStop(0.5, '#0f172a');
@@ -286,33 +336,28 @@ export const MerchantDashboardPage: React.FC = () => {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1080, 1920);
 
-    // 2. Marcos Decorativos Superiores e Inferiores
     ctx.fillStyle = '#059669';
     ctx.fillRect(0, 0, 1080, 28);
     ctx.fillRect(0, 1892, 1080, 28);
 
-    // 3. Marca Superior / App
     ctx.fillStyle = '#34d399';
     ctx.font = 'bold 36px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('NOGOMAP', 540, 220);
 
-    // 4. Nombre del Comercio
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 76px sans-serif';
     ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
 
-    // Dirección
     ctx.fillStyle = '#94a3b8';
     ctx.font = '32px sans-serif';
     ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
 
-    // 5. Contenedor / Tarjeta del QR
     ctx.fillStyle = '#1e293b';
     ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
     ctx.fill();
 
-    ctx.fillStyle = '#f59e0b'; // Color Ámbar para estrellas
+    ctx.fillStyle = '#f59e0b';
     ctx.font = 'bold 48px sans-serif';
     ctx.fillText('★ ★ ★ ★ ★', 540, 610);
 
@@ -324,29 +369,24 @@ export const MerchantDashboardPage: React.FC = () => {
     ctx.font = '28px sans-serif';
     ctx.fillText('Escaneá el código con tu celular', 540, 730);
 
-    // 6. Cargar Imagen del QR de Google Maps Reseñas
     const googleReviewUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${comercio.nombre},${comercio.direccion}, Nogoyá, Entre Ríos`)}`;
     const qrImg = new Image();
     qrImg.crossOrigin = 'anonymous';
     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(googleReviewUrl)}`;
 
     qrImg.onload = () => {
-      // Marco Blanco del QR
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(290, 780, 500, 500);
       ctx.drawImage(qrImg, 310, 800, 460, 460);
 
-      // Texto Inferior
       ctx.fillStyle = '#34d399';
       ctx.font = 'bold 36px sans-serif';
       ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
 
-      // Footer
       ctx.fillStyle = '#64748b';
       ctx.font = '28px sans-serif';
       ctx.fillText('www.nogomap.com.ar', 540, 1750);
 
-      // Descarga Automática
       const link = document.createElement('a');
       link.download = `Story_Resenas_${comercio.slug}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -419,6 +459,11 @@ export const MerchantDashboardPage: React.FC = () => {
     ? `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(googleReviewUrl)}`
     : '';
 
+  const mensajeWhatsAppAdmin = encodeURIComponent(
+    `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre}`
+  );
+  const linkWhatsAppAdmin = `https://wa.me/5493435451818?text=${mensajeWhatsAppAdmin}`;
+
   if (loading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-8 text-center text-gray-500 font-bold animate-pulse">
@@ -447,6 +492,36 @@ export const MerchantDashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       
+      {/* 1. ALERTA DE VENCIMIENTO PRÓXIMO (< 5 DÍAS) */}
+      {diasParaVencer !== null && diasParaVencer <= 5 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500 text-black rounded-xl font-extrabold shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                {diasParaVencer <= 0 
+                  ? '¡Tu suscripción ha vencido!' 
+                  : `Tu suscripción vence en ${diasParaVencer} día${diasParaVencer > 1 ? 's' : ''}`}
+              </h4>
+              <p className="text-xs text-gray-600 dark:text-amber-200/80 mt-0.5">
+                Vencimiento programado: {formatDate(suscripcion?.proximo_vencimiento || '')}. Enviá tu comprobante para mantener la visibilidad en el mapa.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href={linkWhatsAppAdmin}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs inline-flex items-center justify-center gap-2 transition shrink-0 shadow-lg"
+          >
+            <Send className="w-4 h-4" /> Enviar Comprobante por WhatsApp
+          </a>
+        </div>
+      )}
+
       {/* CABECERA */}
       <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -635,7 +710,6 @@ export const MerchantDashboardPage: React.FC = () => {
                 <Download className="w-3.5 h-3.5" /> Descargar QR solo
               </a>
 
-              {/* BOTÓN GENERADOR DE FLYER FORMATO HISTORIA DE INSTAGRAM */}
               <button
                 type="button"
                 onClick={handleGenerarFlyerInstagram}
@@ -783,19 +857,85 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* DELIVERY */}
-      <EditorDelivery
-        comercioId={comercio.id}
-        tieneDelivery={Boolean(comercio.tiene_delivery)}
-        turnosLocal={horarios}
-        onGuardado={(tiene) => setComercio((prev) => (prev ? { ...prev, tiene_delivery: tiene } : prev))}
-      />
+      {/* 2. MÓDULO DE DELIVERY CON EDITOR Y PAUSA RÁPIDA */}
+      <div className="space-y-4">
+        <EditorDelivery
+          comercioId={comercio.id}
+          tieneDelivery={Boolean(comercio.tiene_delivery)}
+          turnosLocal={horarios}
+          onGuardado={(tiene) => setComercio((prev) => (prev ? { ...prev, tiene_delivery: tiene } : prev))}
+        />
 
-      {/* PROMOCIONES Y NOVEDADES */}
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Control Temporal de Delivery
+              </h4>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Si la cocina o los repartidores se saturan, podés pausar temporalmente los pedidos.
+              </p>
+            </div>
+
+            {deliveryPausadoHasta && new Date(deliveryPausadoHasta) > new Date() ? (
+              <span className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">
+                <PauseCircle className="w-4 h-4" />
+                Pausado hasta las {new Date(deliveryPausadoHasta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            ) : (
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">
+                <PlayCircle className="w-4 h-4" /> Delivery Activo
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-2 border-t dark:border-gray-700">
+            {deliveryPausadoHasta && new Date(deliveryPausadoHasta) > new Date() ? (
+              <button
+                type="button"
+                onClick={handleReanudarDelivery}
+                disabled={pausandoDelivery}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <PlayCircle className="w-4 h-4" /> Reanudar Delivery Ahora
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handlePausarDelivery(1)}
+                  disabled={pausandoDelivery}
+                  className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-800 dark:text-gray-200 text-xs font-bold rounded-xl transition"
+                >
+                  Pausar 1 hora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePausarDelivery(2)}
+                  disabled={pausandoDelivery}
+                  className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-800 dark:text-gray-200 text-xs font-bold rounded-xl transition"
+                >
+                  Pausar 2 horas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePausarDelivery('hoy')}
+                  disabled={pausandoDelivery}
+                  className="px-3 py-2 bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 text-xs font-bold rounded-xl transition"
+                >
+                  Pausar por hoy
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. PROMOCIONES, NOVEDADES Y ESTADÍSTICAS RÁPIDAS DE OFERTAS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-4">
           <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white flex items-center gap-2">
-            <Tag className="w-6 h-6 text-amber-500" /> Mis Publicaciones
+            <Tag className="w-6 h-6 text-amber-500" /> Mis Publicaciones & Rendimiento
           </h3>
           <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition">
             <PlusCircle className="w-4 h-4" /> Publicar Oferta / Novedad
@@ -809,38 +949,50 @@ export const MerchantDashboardPage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {promociones.map((p) => (
-              <div key={p.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-2 relative">
+              <div key={p.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3 relative flex flex-col justify-between">
                 <button onClick={() => handleDeletePromo(p.id)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition">
                   <Trash2 className="w-4 h-4" />
                 </button>
 
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${
-                    p.tipo === 'novedad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {p.tipo === 'novedad' ? 'Novedad' : 'Oferta'}
-                  </span>
-                  {p.fecha_fin && (
-                    // Antes mostraba la fecha cruda: "Hasta: 2026-11-17T00:00:00+00:00"
-                    <span
-                      className={`text-[10px] font-semibold ${
-                        !estaVigente(p.fecha_fin)
-                          ? 'text-red-500'
-                          : textoVencimiento(p.fecha_fin).estaPorVencer
-                            ? 'text-amber-600'
-                            : 'text-gray-400'
-                      }`}
-                    >
-                      {estaVigente(p.fecha_fin) ? textoVencimiento(p.fecha_fin).texto : `Vencida (${formatDate(p.fecha_fin)})`}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 pr-6">
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${
+                      p.tipo === 'novedad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {p.tipo === 'novedad' ? 'Novedad' : 'Oferta'}
                     </span>
+                    {p.fecha_fin && (
+                      <span
+                        className={`text-[10px] font-semibold ${
+                          !estaVigente(p.fecha_fin)
+                            ? 'text-red-500'
+                            : textoVencimiento(p.fecha_fin).estaPorVencer
+                              ? 'text-amber-600'
+                              : 'text-gray-400'
+                        }`}
+                      >
+                        {estaVigente(p.fecha_fin) ? textoVencimiento(p.fecha_fin).texto : `Vencida (${formatDate(p.fecha_fin)})`}
+                      </span>
+                    )}
+                  </div>
+
+                  <h4 className="font-bold text-sm text-gray-900 dark:text-white">{p.titulo}</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{p.descripcion}</p>
+                  {p.precio_promocional && (
+                    <div className="text-lg font-extrabold text-green-600">{formatCurrency(p.precio_promocional)}</div>
                   )}
                 </div>
 
-                <h4 className="font-bold text-sm text-gray-900 dark:text-white">{p.titulo}</h4>
-                <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{p.descripcion}</p>
-                {p.precio_promocional && (
-                  <div className="text-lg font-extrabold text-green-600">{formatCurrency(p.precio_promocional)}</div>
-                )}
+                {/* CONTADOR DE CLICS E INTERACCIONES DE LA OFERTA */}
+                <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800 text-xs">
+                  <span className="text-gray-500 flex items-center gap-1 font-medium">
+                    <Eye className="w-3.5 h-3.5 text-blue-500" /> Interacciones:
+                  </span>
+                  <span className="font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 px-2.5 py-0.5 rounded-lg border border-blue-200 dark:border-blue-800">
+                    {p.metricas_clics?.[0]?.count || 0} clics
+                  </span>
+                </div>
+
               </div>
             ))}
           </div>
