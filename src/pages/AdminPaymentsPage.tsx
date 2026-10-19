@@ -55,10 +55,29 @@ export const AdminPaymentsPage: React.FC = () => {
     setSavingPayment(true);
 
     try {
+      // 1. Obtener el UUID del administrador logueado
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert('Error: No se encontró una sesión activa de administrador.');
+        return;
+      }
+
+      // 2. Mapear el método de pago al enum en minúsculas de Postgres
+      let metodoEnum = 'transferencia';
+      const metodoLower = metodoPago.toLowerCase();
+      if (metodoLower.includes('efectivo')) {
+        metodoEnum = 'efectivo';
+      } else if (metodoLower.includes('mercadopago')) {
+        metodoEnum = 'mercadopago';
+      }
+
+      // 3. Ejecutar función RPC con los nombres de parámetros exactos
       const { error } = await supabase.rpc('registrar_pago_comercio', {
         p_comercio_id: comercioModalPago.id,
-        p_monto: parseFloat(montoPago),
-        p_medio_pago: metodoPago
+        p_importe: parseFloat(montoPago),
+        p_metodo_pago: metodoEnum,
+        p_registrado_por: user.id
       });
 
       if (error) {
