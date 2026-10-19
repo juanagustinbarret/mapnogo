@@ -15,7 +15,12 @@ import {
   Share2, 
   Copy,
   CalendarDays,
-  Truck
+  Truck,
+  Star,
+  AlertTriangle,
+  MessageSquare,
+  X,
+  Send
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { registrarInteraccion } from '@/lib/metrics';
@@ -30,21 +35,40 @@ interface HorarioDelivery {
   hora_fin: string;
 }
 
+interface Resena {
+  id: string;
+  nombre_usuario: string;
+  estrellas: number;
+  comentario: string;
+  created_at: string;
+}
+
 export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
+  
+  // Reseñas y Reportes
+  const [resenas, setResenas] = useState<Resena[]>([]);
+  const [modalReporteOpen, setModalReporteOpen] = useState(false);
+  const [motivoReporte, setMotivoReporte] = useState('Horarios incorrectos');
+  const [descReporte, setDescReporte] = useState('');
+  const [enviandoReporte, setEnviandoReporte] = useState(false);
+
+  // Formulario de Nueva Reseña
+  const [nombreResena, setNombreResena] = useState('');
+  const [estrellasResena, setEstrellasResena] = useState(5);
+  const [comentarioResena, setComentarioResena] = useState('');
+  const [guardandoResena, setGuardandoResena] = useState(false);
 
   const { user, profile, loading: cargandoSesion } = useAuth();
   
-  // El dueño mirando su propia ficha y los admins no suman métricas
   const esPropioOAdmin = (c: Comercio | null) =>
     Boolean(c && ((user && c.propietario_id === user.id) || profile?.rol === 'admin'));
   const visitaRegistrada = useRef<string | null>(null);
 
-  // La visita se registra una vez por ficha, cuando ya se sabe quién mira
   useEffect(() => {
     if (!comercio || cargandoSesion || visitaRegistrada.current === comercio.id) return;
     visitaRegistrada.current = comercio.id;
@@ -69,7 +93,6 @@ export const CommerceDetailPage: React.FC = () => {
         .order('dia_semana', { ascending: true });
       if (h) setHorarios(h);
 
-      // Cargar horarios específicos de delivery si el comercio los tiene configurados
       if (c.tiene_delivery) {
         const { data: hd } = await supabase
           .from('horarios_delivery')
@@ -87,6 +110,65 @@ export const CommerceDetailPage: React.FC = () => {
         .eq('aprobada', true)
         .gte('fecha_fin', hoyStr);
       if (p) setPromociones(p);
+
+      // Cargar Reseñas del Comercio
+      fetchResenas(c.id);
+    }
+  };
+
+  const fetchResenas = async (comercioId: string) => {
+    const { data: r } = await supabase
+      .from('resenas')
+      .select('*')
+      .eq('comercio_id', comercioId)
+      .order('created_at', { ascending: false });
+    if (r) setResenas(r);
+  };
+
+  const handleCrearResena = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comercio || !nombreResena.trim() || !comentarioResena.trim()) return;
+
+    setGuardandoResena(true);
+    const { error } = await supabase.from('resenas').insert({
+      comercio_id: comercio.id,
+      nombre_usuario: nombreResena.trim(),
+      estrellas: estrellasResena,
+      comentario: comentarioResena.trim(),
+    });
+
+    setGuardandoResena(false);
+
+    if (error) {
+      alert('Error al publicar reseña: ' + error.message);
+    } else {
+      setNombreResena('');
+      setComentarioResena('');
+      setEstrellasResena(5);
+      alert('¡Gracias por tu opinión!');
+      fetchResenas(comercio.id);
+    }
+  };
+
+  const handleEnviarReporte = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comercio) return;
+
+    setEnviandoReporte(true);
+    const { error } = await supabase.from('reportes_comercio').insert({
+      comercio_id: comercio.id,
+      motivo: motivoReporte,
+      descripcion: descReporte.trim() || null,
+    });
+
+    setEnviandoReporte(false);
+
+    if (error) {
+      alert('Error al enviar el reporte: ' + error.message);
+    } else {
+      setModalReporteOpen(false);
+      setDescReporte('');
+      alert('¡Gracias! El administrador revisará el reporte a la brevedad.');
     }
   };
 
@@ -132,6 +214,9 @@ export const CommerceDetailPage: React.FC = () => {
   if (!comercio) return <div className="p-8 text-center text-gray-500 font-semibold">Cargando ficha del comercio...</div>;
 
   const estadoHorario = evaluarEstadoHorario(horarios);
+  const promedioEstrellas = resenas.length
+    ? (resenas.reduce((acc, r) => acc + r.estrellas, 0) / resenas.length).toFixed(1)
+    : null;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
@@ -139,19 +224,35 @@ export const CommerceDetailPage: React.FC = () => {
         <Link to="/" className="inline-flex items-center gap-1 text-sm font-bold text-brand-600 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Volver al mapa público
         </Link>
-        <button
-          onClick={handleCompartir}
-          className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-xl transition text-gray-700 dark:text-gray-200"
-          title="Compartir Ficha"
-        >
-          <Share2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setModalReporteOpen(true)}
+            className="p-2 bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
+            title="Reportar información incorrecta"
+          >
+            <AlertTriangle className="w-4 h-4" /> Reportar
+          </button>
+          <button
+            onClick={handleCompartir}
+            className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-xl transition text-gray-700 dark:text-gray-200"
+            title="Compartir Ficha"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex justify-between items-start flex-wrap gap-2">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">{comercio.nombre}</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+              {comercio.nombre}
+              {promedioEstrellas && (
+                <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {promedioEstrellas} ({resenas.length})
+                </span>
+              )}
+            </h1>
             <p className="text-sm text-brand-600 font-bold">{comercio.rubro?.nombre || 'General'}</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -223,7 +324,7 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* HORARIOS DE DELIVERY (SOLO MUESTRA SI EL COMERCIO TIENE DELIVERY ACTIVO) */}
+        {/* HORARIOS DE DELIVERY */}
         {comercio.tiene_delivery && (
           <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-2xl space-y-3 border border-emerald-500/20">
             <div className="flex items-center justify-between border-b dark:border-emerald-800/40 pb-2">
@@ -289,6 +390,7 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* PROMOCIONES */}
       {promociones.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
@@ -327,6 +429,142 @@ export const CommerceDetailPage: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* SECCIÓN DE RESEÑAS Y OPINIONES */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+        <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+          <MessageSquare className="w-5 h-5 text-brand-600" /> Opiniones y Valoraciones
+        </h3>
+
+        {/* Formulario de envío de reseña */}
+        <form onSubmit={handleCrearResena} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-3 border dark:border-gray-700">
+          <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Dejá tu opinión sobre {comercio.nombre}</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              type="text"
+              required
+              placeholder="Tu nombre (ej. Carlos G.)"
+              value={nombreResena}
+              onChange={(e) => setNombreResena(e.target.value)}
+              className="p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
+            />
+
+            <div className="flex items-center gap-1 bg-white dark:bg-gray-800 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl">
+              <span className="text-xs text-gray-500 mr-2 font-semibold">Calificación:</span>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setEstrellasResena(star)}
+                  className="p-0.5 focus:outline-none"
+                >
+                  <Star className={`w-4 h-4 ${star <= estrellasResena ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <textarea
+            required
+            rows={2}
+            placeholder="Escribí tu reseña sobre la atención, los productos..."
+            value={comentarioResena}
+            onChange={(e) => setComentarioResena(e.target.value)}
+            className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
+          />
+
+          <button
+            type="submit"
+            disabled={guardandoResena}
+            className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Send className="w-3.5 h-3.5" />
+            {guardandoResena ? 'Publicando...' : 'Publicar Reseña'}
+          </button>
+        </form>
+
+        {/* Lista de Reseñas cargadas */}
+        <div className="space-y-3">
+          {resenas.length === 0 ? (
+            <p className="text-xs text-gray-500 text-center py-4">Aún no hay reseñas para este comercio. ¡Sé el primero en calificar!</p>
+          ) : (
+            resenas.map((r) => (
+              <div key={r.id} className="p-3.5 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-1.5 border dark:border-gray-800">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(r.estrellas)].map((_, i) => (
+                      <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* MODAL PARA REPORTAR INFORMACIÓN INCORRECTA */}
+      {modalReporteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
+              <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" /> Reportar Información Incorrecta
+              </h3>
+              <button onClick={() => setModalReporteOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEnviarReporte} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Motivo del reporte</label>
+                <select
+                  value={motivoReporte}
+                  onChange={(e) => setMotivoReporte(e.target.value)}
+                  className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700"
+                >
+                  <option value="Horarios incorrectos">Horarios incorrectos o desactualizados</option>
+                  <option value="Teléfono/WhatsApp equivocado">Teléfono o WhatsApp equivocado</option>
+                  <option value="Ubicación en el mapa errónea">Ubicación errónea en el mapa</option>
+                  <option value="Comercio cerrado definitivamente">El local cerró definitivamente</option>
+                  <option value="Otro motivo">Otro motivo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Detalles del problema</label>
+                <textarea
+                  rows={3}
+                  placeholder="Escribí aquí la corrección para ayudar al equipo..."
+                  value={descReporte}
+                  onChange={(e) => setDescReporte(e.target.value)}
+                  className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalReporteOpen(false)}
+                  className="px-4 py-2 border rounded-xl font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={enviandoReporte}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-sm"
+                >
+                  {enviandoReporte ? 'Enviando...' : 'Enviar Reporte'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

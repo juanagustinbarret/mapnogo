@@ -140,6 +140,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [fechaTurno, setFechaTurno] = useState(hoyArgentina());
   const [farmaciaSeleccionadaId, setFarmaciaSeleccionadaId] = useState('');
   const [guardandoTurno, setGuardandoTurno] = useState(false);
+  const [eliminandoTurno, setEliminandoTurno] = useState(false);
   const [farmaciaTurnoActual, setFarmaciaTurnoActual] = useState<any | null>(null);
 
   const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
@@ -282,6 +283,28 @@ export const AdminDashboardPage: React.FC = () => {
     } else {
       alert('✅ Farmacia de turno asignada correctamente para el ' + fechaTurno);
       fetchFarmaciaDeTurno(fechaTurno);
+    }
+  };
+
+  const handleQuitarFarmaciaTurno = async () => {
+    if (!farmaciaTurnoActual) return;
+    if (!confirm(`¿Querés quitar la farmacia de turno asignada para el ${fechaTurno}?`)) return;
+
+    setEliminandoTurno(true);
+
+    const { error } = await supabase
+      .from('farmacias_turno')
+      .delete()
+      .eq('fecha', fechaTurno);
+
+    setEliminandoTurno(false);
+
+    if (error) {
+      alert('Error al quitar la farmacia de turno: ' + error.message);
+    } else {
+      alert('✅ Se quitó la farmacia de turno para la fecha ' + fechaTurno);
+      setFarmaciaTurnoActual(null);
+      setFarmaciaSeleccionadaId('');
     }
   };
 
@@ -447,7 +470,6 @@ export const AdminDashboardPage: React.FC = () => {
       c.whatsapp?.includes(search)
   );
 
-  // Lista de farmacias para el asignador de turno
   const farmaciasDisponibles = comercios.filter((c) =>
     c.nombre.toLowerCase().includes('farmacia') ||
     c.rubro?.nombre?.toLowerCase().includes('farmacia')
@@ -581,7 +603,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MODULO DE GESTIÓN DE FARMACIAS DE TURNO */}
+      {/* MÓDULO DE GESTIÓN DE FARMACIAS DE TURNO */}
       <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border dark:border-gray-700 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-3">
           <div>
@@ -590,7 +612,7 @@ export const AdminDashboardPage: React.FC = () => {
               Gestión de Farmacia de Turno
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Asigná qué farmacia estará de turno en Nogoyá para cada fecha.
+              Asigná o remové qué farmacia estará de turno en Nogoyá para cada fecha.
             </p>
           </div>
 
@@ -638,15 +660,30 @@ export const AdminDashboardPage: React.FC = () => {
             </select>
           </div>
 
-          <button
-            type="button"
-            disabled={guardandoTurno}
-            onClick={handleGuardarFarmaciaTurno}
-            className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
-          >
-            <Save className="w-4 h-4" />
-            {guardandoTurno ? 'Guardando...' : 'Asignar Farmacia de Turno'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={guardandoTurno || eliminandoTurno}
+              onClick={handleGuardarFarmaciaTurno}
+              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+            >
+              <Save className="w-4 h-4" />
+              {guardandoTurno ? 'Guardando...' : 'Asignar Turno'}
+            </button>
+
+            {farmaciaTurnoActual && (
+              <button
+                type="button"
+                disabled={guardandoTurno || eliminandoTurno}
+                onClick={handleQuitarFarmaciaTurno}
+                className="px-3.5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shrink-0"
+                title="Quitar turno activo"
+              >
+                <Trash2 className="w-4 h-4" />
+                {eliminandoTurno ? 'Quitando...' : 'Quitar'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

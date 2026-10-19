@@ -33,7 +33,10 @@ import {
   AlertTriangle,
   Send,
   PauseCircle,
-  PlayCircle
+  PlayCircle,
+  Star,
+  MessageSquare,
+  Cross
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -46,10 +49,11 @@ export const MerchantDashboardPage: React.FC = () => {
   const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(null);
   const [promociones, setPromociones] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
+  const [resenas, setResenas] = useState<any[]>([]);
+  const [esFarmaciaDeTurno, setEsFarmaciaDeTurno] = useState<boolean>(false);
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
 
-  // Estados para Pausa Rápida de Delivery y Alertas
   const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(null);
   const [pausandoDelivery, setPausandoDelivery] = useState(false);
   const [diasParaVencer, setDiasParaVencer] = useState<number | null>(null);
@@ -57,7 +61,6 @@ export const MerchantDashboardPage: React.FC = () => {
   const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
   const [loading, setLoading] = useState(true);
 
-  // Modal para publicar nueva oferta/novedad
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [savingPromo, setSavingPromo] = useState(false);
   const [promoForm, setPromoForm] = useState({
@@ -122,7 +125,6 @@ export const MerchantDashboardPage: React.FC = () => {
           }
         }
 
-        // Cargar promociones con recuento de clics / interacciones
         const { data: p } = await supabase
           .from('promociones')
           .select('*, metricas_clics:interacciones_ofertas(count)')
@@ -136,6 +138,22 @@ export const MerchantDashboardPage: React.FC = () => {
           .eq('comercio_id', c.id)
           .order('dia_semana', { ascending: true });
         if (h) setHorarios(h);
+
+        // Cargar las reseñas recibidas
+        const { data: r } = await supabase
+          .from('resenas')
+          .select('*')
+          .eq('comercio_id', c.id)
+          .order('created_at', { ascending: false });
+        if (r) setResenas(r);
+
+        // Verificar si está en la lista de farmacias de turno
+        const { data: ft } = await supabase
+          .from('farmacias_turno')
+          .select('id')
+          .eq('comercio_id', c.id)
+          .maybeSingle();
+        setEsFarmaciaDeTurno(Boolean(ft));
       }
     } catch (error) {
       console.error('Error al cargar datos del comercio:', error);
@@ -143,6 +161,34 @@ export const MerchantDashboardPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleQuitarDeTurno = async () => {
+  if (!comercio) return;
+  if (!confirm('¿Seguro que querés quitar este comercio de las farmacias de turno?')) return;
+
+  try {
+    // Intentar borrar el registro en la tabla farmacias_turno
+    const { error } = await supabase
+      .from('farmacias_turno')
+      .delete()
+      .eq('comercio_id', comercio.id);
+
+    if (error) {
+      console.error('[farmacias_turno] Error al eliminar:', error);
+      alert('Error al quitar la farmacia de turno: ' + error.message);
+      return;
+    }
+
+    // Actualizar estados locales de inmediato
+    setEsFarmaciaDeTurno(false);
+    alert('✅ El comercio ya no figura como farmacia de turno.');
+    
+    // Recargar los datos del panel
+    await fetchMerchantData();
+  } catch (err: any) {
+    alert('Ocurrió un error inesperado: ' + err.message);
+  }
+};
 
   const handlePausarDelivery = async (horas: number | 'hoy') => {
     if (!comercio) return;
@@ -492,7 +538,7 @@ export const MerchantDashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       
-      {/* 1. ALERTA DE VENCIMIENTO PRÓXIMO (< 5 DÍAS) */}
+      {/* ALERTA DE VENCIMIENTO PRÓXIMO */}
       {diasParaVencer !== null && diasParaVencer <= 5 && (
         <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
           <div className="flex items-center gap-3">
@@ -593,6 +639,33 @@ export const MerchantDashboardPage: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* BLOQUE GESTIÓN FARMACIA DE TURNO (MÓDULO DE EDICIÓN / BORRADO) */}
+      {esFarmaciaDeTurno && (
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-red-200 dark:border-red-900/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-300 rounded-xl font-extrabold shrink-0">
+              <Cross className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                Farmacia de Turno Activa
+              </h4>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Tu farmacia figura actualmente en el banner destacado de farmacias de turno del mapa público.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleQuitarDeTurno}
+            className="w-full sm:w-auto px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0"
+          >
+            <Trash2 className="w-4 h-4" /> Quitar de Turno
+          </button>
+        </div>
+      )}
 
       {/* MÉTRICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -720,6 +793,34 @@ export const MerchantDashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* MÓDULO DE RESEÑAS RECIBIDAS */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-4">
+        <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
+          <MessageSquare className="w-5 h-5 text-brand-600" /> Opiniones y Calificaciones de Clientes
+        </h3>
+
+        {resenas.length === 0 ? (
+          <p className="text-xs text-gray-500 text-center py-6">Aún no recibiste opiniones para tu comercio.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {resenas.map((r) => (
+              <div key={r.id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-2 border dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(r.estrellas)].map((_, i) => (
+                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
+                <span className="text-[10px] text-gray-400 block pt-1">{new Date(r.created_at).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* HORARIOS */}
@@ -857,7 +958,7 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. MÓDULO DE DELIVERY CON EDITOR Y PAUSA RÁPIDA */}
+      {/* DELIVERY */}
       <div className="space-y-4">
         <EditorDelivery
           comercioId={comercio.id}
@@ -931,7 +1032,7 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. PROMOCIONES, NOVEDADES Y ESTADÍSTICAS RÁPIDAS DE OFERTAS */}
+      {/* PROMOCIONES */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-4">
           <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white flex items-center gap-2">
@@ -983,7 +1084,6 @@ export const MerchantDashboardPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* CONTADOR DE CLICS E INTERACCIONES DE LA OFERTA */}
                 <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800 text-xs">
                   <span className="text-gray-500 flex items-center gap-1 font-medium">
                     <Eye className="w-3.5 h-3.5 text-blue-500" /> Interacciones:
