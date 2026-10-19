@@ -290,7 +290,7 @@ export const HomeExplorerPage: React.FC = () => {
     return { ...c, distancia, estadoAtencion, estadoDelivery, horarios: horarios[c.id] || [] };
   });
 
-  const filteredComercios = filtrarComerciosMapa(comerciosProcesados, filtrosActuales, farmaciasTurnoIds)
+  const filteredComercios = filtrarComerciosMapa(comerciosProcesados, filtrosActuales, farmaciasTurnoIds, ahora)
     .filter((c) => {
       if (filtrarPorRadio && radioKm !== null) {
         if (c.distancia === null || c.distancia > radioKm) {

@@ -94,23 +94,35 @@ export type EstadoDelivery =
   | { estado: 'mas_tarde'; desde: string } // empieza más tarde ese mismo día
   | { estado: 'inactivo' };
 
+/**
+ * Minutos que faltan para que termine el rango activo en ese momento
+ * (encadenando rangos pegados o superpuestos, ej. 20:00–24:00 + 00:00–02:00).
+ * null si no hay ninguno activo; Infinity si está activo toda la semana.
+ */
+export function minutosHastaElFin(rangos: RangoDelivery[], momento: MomentoArgentina): number | null {
+  const ahora = momento.dia * DIA + momento.minutos;
+  const lista = intervalosSemana(rangos);
+  const activos = lista.filter(([i, f]) => i <= ahora && ahora < f);
+  if (!activos.length) return null;
+  let fin = Math.max(...activos.map(([, f]) => f));
+  for (let vuelta = 0; vuelta < 30; vuelta++) {
+    const siguiente = lista.filter(([i, f]) => i <= fin && f > fin);
+    if (!siguiente.length) break;
+    fin = Math.max(...siguiente.map(([, f]) => f));
+    if (fin - ahora >= 7 * DIA) return Infinity;
+  }
+  return fin - ahora;
+}
+
 /** Estado del delivery en un momento (día y minuto en Argentina). */
 export function estadoDeliveryEn(rangos: RangoDelivery[], momento: MomentoArgentina): EstadoDelivery {
   if (!rangos.length) return { estado: 'sin_delivery' };
   const ahora = momento.dia * DIA + momento.minutos;
   const lista = intervalosSemana(rangos);
 
-  const activos = lista.filter(([i, f]) => i <= ahora && ahora < f);
-  if (activos.length) {
-    // Encadenar rangos pegados o superpuestos (ej. 20:00–24:00 + 00:00–02:00)
-    let fin = Math.max(...activos.map(([, f]) => f));
-    for (let vuelta = 0; vuelta < 30; vuelta++) {
-      const siguiente = lista.filter(([i, f]) => i <= fin && f > fin);
-      if (!siguiente.length) break;
-      fin = Math.max(...siguiente.map(([, f]) => f));
-      if (fin - ahora >= 7 * DIA) return { estado: 'activo', hasta: null };
-    }
-    return { estado: 'activo', hasta: aHora(fin) };
+  const faltan = minutosHastaElFin(rangos, momento);
+  if (faltan !== null) {
+    return { estado: 'activo', hasta: faltan === Infinity ? null : aHora(ahora + faltan) };
   }
 
   const finDelDia = (momento.dia + 1) * DIA;
