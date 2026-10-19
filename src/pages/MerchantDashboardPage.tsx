@@ -573,8 +573,10 @@ export const MerchantDashboardPage: React.FC = () => {
             </div>
             <div>
               <h4 className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                {diasParaVencer <= 0 
-                  ? '¡Tu suscripción ha vencido!' 
+                {diasParaVencer < 0
+                  ? '¡Tu suscripción venció!'
+                  : diasParaVencer === 0
+                  ? 'Tu suscripción vence hoy'
                   : `Tu suscripción vence en ${diasParaVencer} día${diasParaVencer > 1 ? 's' : ''}`}
               </h4>
               <p className="text-xs text-gray-600 dark:text-amber-200/80 mt-0.5">
