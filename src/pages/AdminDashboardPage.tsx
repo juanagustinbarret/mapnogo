@@ -6,6 +6,8 @@ import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
+import { obtenerMetricasComercio } from '@/lib/metrics';
+import { generarReportePDF } from '@/lib/generatePdfReport';
 import {
   Store,
   DollarSign,
@@ -29,6 +31,7 @@ import {
   X,
   HeartPulse,
   Calendar,
+  FileText,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -260,6 +263,27 @@ export const AdminDashboardPage: React.FC = () => {
       cancelado = true;
     };
   }, [modalEditar?.id]);
+
+  const handleExportarPDFComercio = async (comercio: Comercio) => {
+    try {
+      const metricas = await obtenerMetricasComercio(comercio.id);
+      
+      const { data: suscripcion } = await supabase
+        .from('suscripciones')
+        .select('*')
+        .eq('comercio_id', comercio.id)
+        .maybeSingle();
+
+      const { data: promociones } = await supabase
+        .from('promociones')
+        .select('*')
+        .eq('comercio_id', comercio.id);
+
+      generarReportePDF(comercio, metricas, suscripcion, promociones || []);
+    } catch (err: any) {
+      alert('Error al generar el reporte PDF: ' + err.message);
+    }
+  };
 
   const handleGuardarFarmaciaTurno = async () => {
     if (!farmaciaSeleccionadaId) {
@@ -726,7 +750,7 @@ export const AdminDashboardPage: React.FC = () => {
               Todos los comercios
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Editá los datos o cambiá la visibilidad del local.
+              Editá los datos, descargá sus métricas en PDF o cambiá la visibilidad del local.
             </p>
           </div>
 
@@ -787,6 +811,15 @@ export const AdminDashboardPage: React.FC = () => {
                     ) : (
                       <><XCircle className="w-4 h-4" /> Oculto</>
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportarPDFComercio(comercio)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-1 transition shadow-sm"
+                    title="Exportar métricas e información a PDF"
+                  >
+                    <FileText className="w-4 h-4" /> PDF
                   </button>
 
                   <button

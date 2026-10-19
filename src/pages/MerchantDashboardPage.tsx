@@ -8,6 +8,7 @@ import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { estaVigente, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
+import { generarReportePDF } from '@/lib/generatePdfReport';
 import {
   Store,
   CreditCard,
@@ -36,7 +37,8 @@ import {
   PlayCircle,
   Star,
   MessageSquare,
-  Cross
+  Cross,
+  FileText
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -163,32 +165,28 @@ export const MerchantDashboardPage: React.FC = () => {
   };
 
   const handleQuitarDeTurno = async () => {
-  if (!comercio) return;
-  if (!confirm('¿Seguro que querés quitar este comercio de las farmacias de turno?')) return;
+    if (!comercio) return;
+    if (!confirm('¿Seguro que querés quitar este comercio de las farmacias de turno?')) return;
 
-  try {
-    // Intentar borrar el registro en la tabla farmacias_turno
-    const { error } = await supabase
-      .from('farmacias_turno')
-      .delete()
-      .eq('comercio_id', comercio.id);
+    try {
+      const { error } = await supabase
+        .from('farmacias_turno')
+        .delete()
+        .eq('comercio_id', comercio.id);
 
-    if (error) {
-      console.error('[farmacias_turno] Error al eliminar:', error);
-      alert('Error al quitar la farmacia de turno: ' + error.message);
-      return;
+      if (error) {
+        console.error('[farmacias_turno] Error al eliminar:', error);
+        alert('Error al quitar la farmacia de turno: ' + error.message);
+        return;
+      }
+
+      setEsFarmaciaDeTurno(false);
+      alert('✅ El comercio ya no figura como farmacia de turno.');
+      await fetchMerchantData();
+    } catch (err: any) {
+      alert('Ocurrió un error inesperado: ' + err.message);
     }
-
-    // Actualizar estados locales de inmediato
-    setEsFarmaciaDeTurno(false);
-    alert('✅ El comercio ya no figura como farmacia de turno.');
-    
-    // Recargar los datos del panel
-    await fetchMerchantData();
-  } catch (err: any) {
-    alert('Ocurrió un error inesperado: ' + err.message);
-  }
-};
+  };
 
   const handlePausarDelivery = async (horas: number | 'hoy') => {
     if (!comercio) return;
@@ -438,6 +436,11 @@ export const MerchantDashboardPage: React.FC = () => {
       link.href = canvas.toDataURL('image/png');
       link.click();
     };
+  };
+
+  const handleExportarReporte = () => {
+    if (!comercio) return;
+    generarReportePDF(comercio, metricasReales, suscripcion, promociones);
   };
 
   const handleAddHorario = async (diaIndex: number) => {
@@ -700,12 +703,23 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MÉTRICAS POR PERÍODO */}
+      {/* MÉTRICAS POR PERÍODO Y EXPORTACIÓN PDF */}
       {comercio && (
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
-          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Eye className="w-5 h-5 text-brand-600" /> Tus métricas
-          </h3>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b dark:border-gray-700 pb-3">
+            <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 text-base sm:text-lg">
+              <Eye className="w-5 h-5 text-brand-600" /> Tus métricas
+            </h3>
+
+            <button
+              type="button"
+              onClick={handleExportarReporte}
+              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm"
+            >
+              <FileText className="w-4 h-4" /> Descargar Reporte PDF
+            </button>
+          </div>
+
           <PanelMetricas comercioId={comercio.id} rangoInicial={rangoDesdeUrl(location.search)} />
         </div>
       )}
