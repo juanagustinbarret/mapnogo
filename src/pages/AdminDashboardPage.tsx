@@ -22,9 +22,6 @@ import {
   LogOut,
   Save,
   BarChart2,
-  Eye,
-  MessageCircle,
-  Navigation,
   CreditCard,
   Clock,
   LayoutDashboard,
@@ -128,6 +125,11 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
     ingresosMes: 0,
   });
+
+  // Estados para override manual de la recaudación activa (pruebas)
+  const [overrideRecaudacion, setOverrideRecaudacion] = useState<number | null>(null);
+  const [editandoRecaudacion, setEditandoRecaudacion] = useState(false);
+  const [tempMontoRecaudacion, setTempMontoRecaudacion] = useState('');
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
@@ -447,12 +449,57 @@ export const AdminDashboardPage: React.FC = () => {
           <Store className="w-7 h-7 text-brand-600" />
         </div>
 
+        {/* TARJETA RECAUDACIÓN ACTIVA EDITABLE */}
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase">Recaudación activa</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats.ingresosMes)}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación activa</p>
+            
+            {editandoRecaudacion ? (
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="number"
+                  value={tempMontoRecaudacion}
+                  onChange={(e) => setTempMontoRecaudacion(e.target.value)}
+                  className="w-28 px-2.5 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Monto $"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOverrideRecaudacion(Number(tempMontoRecaudacion));
+                    setEditandoRecaudacion(false);
+                  }}
+                  className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg font-bold transition shadow-sm"
+                >
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditandoRecaudacion(false)}
+                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(overrideRecaudacion ?? stats.ingresosMes)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempMontoRecaudacion(String(overrideRecaudacion ?? stats.ingresosMes));
+                    setEditandoRecaudacion(true);
+                  }}
+                  className="text-[11px] text-brand-600 hover:underline font-semibold"
+                >
+                  Modificar
+                </button>
+              </div>
+            )}
           </div>
-          <DollarSign className="w-7 h-7 text-green-600" />
+          <DollarSign className="w-7 h-7 text-green-600 shrink-0" />
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 flex items-center justify-between">
