@@ -4,6 +4,7 @@ import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
 import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
+import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
 import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -321,7 +322,9 @@ export const HomeExplorerPage: React.FC = () => {
         isOpen={modalEmergenciasOpen}
         onClose={() => setModalEmergenciasOpen(false)}
       />
-
+      {/* MARQUESINA DE AVISOS Y EVENTOS */}
+      <MarquesinaAvisos />
+      
       {/* BANNER DESTACADO: FARMACIA DE TURNO HOY */}
       {farmaciaDeTurno && (
         <div className="bg-gradient-to-r from-red-600 via-rose-600 to-blue-700 rounded-3xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-rose-400/30">

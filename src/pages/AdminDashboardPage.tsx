@@ -582,6 +582,9 @@ export const AdminDashboardPage: React.FC = () => {
           <Link to="/admin/vencimientos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/vencimientos')}`}>
             <Clock className="w-4 h-4" /> Vencimientos
           </Link>
+          <Link to="/admin/solicitudes-password" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/solicitudes-password')}`}>
+          <KeyRound className="w-4 h-4" /> Solicitudes
+          </Link>
           <Link to="/admin/comercios/nuevo" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/comercios/nuevo')}`}>
             <PlusCircle className="w-4 h-4" /> Alta comercio
           </Link>

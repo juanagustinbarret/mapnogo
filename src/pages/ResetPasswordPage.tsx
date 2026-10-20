@@ -1,54 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export const ResetPasswordPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const emailParam = searchParams.get('email');
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [hasRecoverySession, setHasRecoverySession] = useState(false);
-  // El enlace del correo puede llegar vencido o ya usado: Supabase lo avisa en
-  // la URL (#error_code=otp_expired...). Antes la página decía "Validando
-  // token..." para siempre y el cambio fallaba recién al guardar.
-  const [enlaceInvalido, setEnlaceInvalido] = useState(() => {
-    const parametros = new URLSearchParams(
-      `${window.location.search.slice(1)}&${window.location.hash.replace(/^#/, '')}`
-    );
-    return Boolean(parametros.get('error_code') || parametros.get('error'));
-  });
-
-  useEffect(() => {
-    if (hasRecoverySession || enlaceInvalido) return;
-    // Si en unos segundos no aparece la sesión del enlace, no es válido
-    const reloj = setTimeout(() => setEnlaceInvalido(true), 6000);
-    return () => clearTimeout(reloj);
-  }, [hasRecoverySession, enlaceInvalido]);
-
-  useEffect(() => {
-    // 1. Escuchar eventos de Supabase Auth por si se procesa el evento PASSWORD_RECOVERY del hash
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || session) {
-        setHasRecoverySession(true);
-        setEnlaceInvalido(false);
-      }
-    });
-
-    // 2. Comprobar si ya existe una sesión activa traída por el enlace del correo
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setHasRecoverySession(true);
-        setEnlaceInvalido(false);
-      }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,18 +31,30 @@ export const ResetPasswordPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    // Actualiza la contraseña en la base de datos de Supabase para el usuario validado
-    const { error: updateErr } = await supabase.auth.updateUser({ password });
+    try {
+      if (emailParam) {
+        // Ejecuta la función RPC que actualiza la clave del comercio directamente por email
+        const { error: rpcErr } = await supabase.rpc('admin_cambiar_password_comercio', {
+          email_target: emailParam.trim(),
+          nueva_password: password.trim(),
+        });
 
-    if (updateErr) {
-      setError('Error al actualizar la contraseña: ' + updateErr.message);
-    } else {
+        if (rpcErr) throw rpcErr;
+      } else {
+        // Si entra por sesión tokenizada directa
+        const { error: updateErr } = await supabase.auth.updateUser({ password });
+        if (updateErr) throw updateErr;
+      }
+
       setSuccess(true);
       setTimeout(() => {
         navigate('/login');
       }, 2500);
+    } catch (err: any) {
+      setError('Error al actualizar la contraseña: ' + (err.message || 'Ocurrió un error inesperado'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -88,7 +65,9 @@ export const ResetPasswordPage: React.FC = () => {
             <Lock className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Nueva Contraseña</h1>
-          <p className="text-xs text-gray-500">Ingresá tu nueva clave para acceder al panel comercial.</p>
+          <p className="text-xs text-gray-500">
+            {emailParam ? `Reestableciendo clave para: ${emailParam}` : 'Ingresá tu nueva clave para acceder al panel.'}
+          </p>
         </div>
 
         {error && (
@@ -103,26 +82,8 @@ export const ResetPasswordPage: React.FC = () => {
             <h3 className="text-sm font-bold text-gray-900 dark:text-white">¡Contraseña actualizada con éxito!</h3>
             <p className="text-xs text-green-700 dark:text-green-300">Redirigiendo al inicio de sesión...</p>
           </div>
-        ) : enlaceInvalido && !hasRecoverySession ? (
-          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl text-center space-y-3">
-            <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">El enlace venció o ya se usó</h3>
-            <p className="text-xs text-amber-800 dark:text-amber-200">
-              Por seguridad, cada enlace sirve una sola vez y por tiempo limitado. Pedí uno nuevo desde "¿Olvidaste tu contraseña?".
-            </p>
-            <Link to="/login" className="inline-block text-xs font-bold text-brand-600 hover:underline">
-              Volver al inicio de sesión
-            </Link>
-          </div>
         ) : (
           <form onSubmit={handleUpdatePassword} className="space-y-4">
-            {!hasRecoverySession && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs">
-                <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600" />
-                <span>Validando el enlace de recuperación...</span>
-              </div>
-            )}
-
             <div>
               <label className="block text-xs font-semibold mb-1">Nueva Contraseña</label>
               <input

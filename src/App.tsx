@@ -5,7 +5,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-
+import { AdminSolicitudesPasswordPage } from '@/pages/admin/AdminSolicitudesPasswordPage';
 import { HomeExplorerPage } from '@/pages/HomeExplorerPage';
 import { CommerceDetailPage } from '@/pages/CommerceDetailPage';
 import { MerchantLoginPage } from '@/pages/MerchantLoginPage';
@@ -102,6 +102,8 @@ export const App: React.FC = () => {
                       <AdminExpirationsPage />
                     </ProtectedRoute>
                   }
+                />
+                <Route path="/admin/solicitudes-password" element={<AdminSolicitudesPasswordPage />} 
                 />
                 <Route
                   path="/admin/configuracion"

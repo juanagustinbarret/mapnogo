@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { solicitarRecuperacionPassword } from '@/services/solicitarRecuperacion';
 import { useNavigate } from 'react-router-dom';
 import { Store, Lock, Mail, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 
@@ -44,31 +45,16 @@ export const MerchantLoginPage: React.FC = () => {
     setError('');
     setSuccess('');
 
-    // Obtener dinámicamente la URL base actual sin forzar dominios duros
-    const redirectTo = `${window.location.origin}/reset-password`;
-
-    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo,
-    });
-
-    if (resetErr) {
-      console.error('[MapNogo reset password details]', {
-        message: resetErr.message,
-        status: resetErr.status,
-        name: resetErr.name
-      });
-
-      if (resetErr.status === 429) {
-        setError('Ya se pidieron varios correos hace poco. Esperá unos minutos y volvé a intentar.');
-      } else if (resetErr.message.includes('redirect')) {
-        setError('La URL de redirección no está autorizada en Supabase Auth.');
-      } else {
-        setError(`No se pudo enviar el correo: ${resetErr.message}`);
-      }
-    } else {
-      setSuccess('Enviamos un correo con el enlace para restablecer tu contraseña. Revisá tu bandeja de entrada o SPAM.');
+    try {
+      // Registrar la solicitud en solicitudes_recuperacion para el Administrador
+      await solicitarRecuperacionPassword(email.trim());
+      setSuccess('✅ Solicitud enviada correctamente a los administradores. En breve te habilitarán el acceso.');
+    } catch (resetErr: any) {
+      console.error('[MapNogo reset password error]', resetErr);
+      setError(resetErr.message || 'No se pudo registrar la solicitud de recuperación.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -85,7 +71,7 @@ export const MerchantLoginPage: React.FC = () => {
           </h1>
           <p className="text-xs text-gray-500">
             {isResetMode
-              ? 'Ingresá tu correo comercial para recibir un enlace de recuperación.'
+              ? 'Ingresá tu correo comercial para enviar la solicitud de cambio de clave al administrador.'
               : 'Accedé a la gestión de tu negocio, horarios y ofertas.'}
           </p>
         </div>
@@ -182,7 +168,7 @@ export const MerchantLoginPage: React.FC = () => {
               className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Send className="w-4 h-4" />
-              {loading ? 'Enviando enlace...' : 'Enviar Enlace de Recuperación'}
+              {loading ? 'Enviando solicitud...' : 'Enviar Solicitud al Administrador'}
             </button>
 
             <button
