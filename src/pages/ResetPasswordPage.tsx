@@ -22,6 +22,7 @@ export const ResetPasswordPage: React.FC = () => {
     setLoading(true);
     setMensaje(null);
 
+    // Invocación a la función RPC (retorna void o lanza excepción en error)
     const { error } = await supabase.rpc('admin_cambiar_password_comercio', {
       p_nueva_password: password,
       p_token: token,
