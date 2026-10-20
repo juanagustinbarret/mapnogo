@@ -212,3 +212,29 @@ CREATE POLICY "solicitudes: admin gestiona" ON public.solicitudes_recuperacion
 CREATE UNIQUE INDEX IF NOT EXISTS solicitudes_recuperacion_un_pendiente
   ON public.solicitudes_recuperacion (lower(email))
   WHERE estado = 'pendiente';
+
+-- 2.f Un link nuevo anula los anteriores del mismo comercio. Hoy, si el
+--     admin genera dos links (por ejemplo uno por mail y otro por
+--     WhatsApp), los dos sirven hasta que vencen. CORRER SOLO si 1.b muestra
+--     una columna "usado" (boolean); si se llama distinto, cambiar el nombre.
+--     Probado: con dos links, el primero da "Token inválido o vencido" y el
+--     segundo funciona una vez.
+CREATE OR REPLACE FUNCTION public.tokens_recuperacion_anular_previos()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.tokens_recuperacion_password
+  SET usado = true
+  WHERE comercio_id = NEW.comercio_id AND NOT usado;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.tokens_recuperacion_anular_previos() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS tokens_recuperacion_anular_previos ON public.tokens_recuperacion_password;
+CREATE TRIGGER tokens_recuperacion_anular_previos
+  BEFORE INSERT ON public.tokens_recuperacion_password
+  FOR EACH ROW EXECUTE FUNCTION public.tokens_recuperacion_anular_previos();
