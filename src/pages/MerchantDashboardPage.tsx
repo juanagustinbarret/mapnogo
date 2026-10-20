@@ -5,6 +5,9 @@ import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { CONTACTO } from '@/lib/contacto';
+import { estadoSuscripcion } from '@/lib/renovacion';
+import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
 import { Comercio, Suscripcion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
@@ -87,10 +90,14 @@ export const MerchantDashboardPage: React.FC = () => {
     setLoading(true);
 
     try {
+      // Si el dueño tiene más de un comercio, maybeSingle() daba error y el
+      // panel mostraba "Sin comercio asignado": ahora abre el primero.
       let { data: c } = await supabase
         .from('comercios')
         .select('*')
         .eq('propietario_id', user?.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (!c && user?.email) {
@@ -115,8 +122,13 @@ export const MerchantDashboardPage: React.FC = () => {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
 
-        const met = await obtenerMetricasComercio(c.id);
-        setMetricasReales(met);
+        // Si las métricas fallan, igual se carga la suscripción y lo demás
+        // (antes el error cortaba la carga y la suscripción quedaba vacía)
+        try {
+          setMetricasReales(await obtenerMetricasComercio(c.id));
+        } catch (errorMetricas) {
+          console.warn('[panel] No se pudieron leer las métricas:', errorMetricas);
+        }
 
         const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
         if (s) {
@@ -534,7 +546,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const mensajeWhatsAppAdmin = encodeURIComponent(
     `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre}`
   );
-  const linkWhatsAppAdmin = `https://wa.me/5493435451818?text=${mensajeWhatsAppAdmin}`;
+  const linkWhatsAppAdmin = `https://wa.me/${CONTACTO.whatsappSoporte}?text=${mensajeWhatsAppAdmin}`;
 
   if (loading) {
     return (
@@ -779,22 +791,37 @@ export const MerchantDashboardPage: React.FC = () => {
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-brand-600" /> Suscripción
             </h3>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
-              {suscripcion?.estado || 'Activa'}
+            {/* Antes siempre verde y "Activa", aunque estuviera vencida */}
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${estadoSuscripcion(suscripcion?.estado).clase}`}>
+              {estadoSuscripcion(suscripcion?.estado).texto}
             </span>
           </div>
 
           <div className="space-y-3 text-xs">
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <span className="text-gray-500">Monto del Plan:</span>
-              <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(suscripcion?.precio_acordado || 10000)}</span>
+              <span className="font-bold text-gray-900 dark:text-white">
+                {suscripcion ? formatCurrency(suscripcion.precio_acordado) : 'Sin datos'}
+              </span>
             </div>
 
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <span className="text-gray-500 flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Próximo Vencimiento:</span>
-              <span className="font-bold text-brand-600">{formatDate(suscripcion?.proximo_vencimiento || '')}</span>
+              <span className="font-bold text-brand-600">{suscripcion ? formatDate(suscripcion.proximo_vencimiento) : 'Sin datos'}</span>
             </div>
           </div>
+
+          <RenovarSuscripcion
+            propietarioId={user?.id}
+            actual={{
+              id: comercio.id,
+              nombre: comercio.nombre,
+              direccion: comercio.direccion,
+              precio: suscripcion?.precio_acordado ?? null,
+              vencimiento: suscripcion?.proximo_vencimiento ?? null,
+              estado: suscripcion?.estado ?? null,
+            }}
+          />
         </div>
 
         {/* BLOQUE QR REVIEWS Y BOTÓN GENERAR FLYER DE INSTAGRAM */}

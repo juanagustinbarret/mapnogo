@@ -130,3 +130,29 @@ input[type='month'] {
     font-size: 16px !important;
   }
 }
+
+/* ─── Impresión del comprobante de alta ──────────────────────────────────
+   Al imprimir (o guardar como PDF) solo se ve el ticket. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .ticket-imprimible,
+  .ticket-imprimible * {
+    visibility: visible;
+  }
+  .ticket-imprimible {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    max-width: none;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+  }
+  .no-imprimir {
+    display: none !important;
+  }
+}
