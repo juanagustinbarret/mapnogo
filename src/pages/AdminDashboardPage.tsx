@@ -342,13 +342,15 @@ export const AdminDashboardPage: React.FC = () => {
       if (errorToken) throw errorToken;
 
       const linkReset = `${window.location.origin}/reset-password?token=${token}`;
-      const mensaje = `Hola! Enlace seguro para restablecer la contraseña de tu comercio en NOGOMAP (válido por 15 minutos):\n${linkReset}`;
+      const mensaje = `Hola!\n\nEnlace seguro para restablecer la contraseña de tu comercio en NOGOMAP (válido por 15 minutos):\n${linkReset}`;
 
       await navigator.clipboard.writeText(linkReset);
 
       if (canal === 'mail') {
         const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
-        window.location.href = `mailto:${modalEditar.email_comercial}?subject=${asunto}&body=${encodeURIComponent(mensaje)}`;
+        const cuerpo = encodeURIComponent(mensaje);
+        const urlGmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(modalEditar.email_comercial)}&su=${asunto}&body=${cuerpo}`;
+        window.open(urlGmail, '_blank');
       } else {
         const numWsp = modalEditar.whatsapp ? modalEditar.whatsapp.replace(/\D/g, '') : '';
         const urlWsp = numWsp
