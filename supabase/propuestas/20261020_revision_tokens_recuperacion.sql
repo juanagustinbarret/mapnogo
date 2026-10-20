@@ -26,8 +26,9 @@
 -- nombre y los mismos tipos. Se comprobó en una base de prueba.)
 --
 -- PARTE 1: solo lee y muestra (no cambia nada). Correrla primero.
--- PARTE 2: arreglos, cada uno se corre SOLO si la parte 1 muestra el
---          problema. No tocan la función de cambio con token.
+-- PARTE 2: arreglos, desactivados entre /* */. Cada uno se corre SOLO si
+--          la parte 1 muestra el problema. No tocan la función de cambio con
+--          token (2.d explica qué línea cambiar, si hiciera falta).
 -- =====================================================================
 
 
@@ -107,13 +108,20 @@ FROM public.tokens_recuperacion_password;
 
 
 -- ─── PARTE 2: ARREGLOS (solo si la parte 1 muestra el problema) ──────
+--
+-- Cada arreglo está entre /* y */ a propósito: si se corre el archivo
+-- entero, solo se ejecuta la parte 1 (lectura). Para aplicar uno, copiar
+-- ese bloque al SQL Editor, borrar la línea "/* ←" y la línea "*/" y
+-- correrlo solo.
 
 -- 2.a admin_cambiar_password_directo solo para admins, por permisos. Esto
 --     NO reemplaza el control de "rol = 'admin'" adentro de la función (si
 --     no lo tiene, cualquiera con sesión puede cambiar contraseñas ajenas:
 --     avisar y corregir la función); solo saca a los que no tienen sesión.
--- REVOKE ALL ON FUNCTION public.admin_cambiar_password_directo(text, text) FROM PUBLIC, anon;
--- GRANT EXECUTE ON FUNCTION public.admin_cambiar_password_directo(text, text) TO authenticated;
+/* ← para aplicar: borrar esta línea y la de cierre
+REVOKE ALL ON FUNCTION public.admin_cambiar_password_directo(text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_cambiar_password_directo(text, text) TO authenticated;
+*/
 
 -- 2.b Tabla de tokens: solo un admin puede crear tokens y nadie puede
 --     leerlos, cambiarlos ni borrarlos desde la app. La función de cambio
@@ -121,6 +129,7 @@ FROM public.tokens_recuperacion_password;
 --     marcar como usados (si no es SECURITY DEFINER, NO correr esto y avisar).
 --     Revisar 1.d antes: si hay políticas viejas, borrarlas con
 --       DROP POLICY "<nombre>" ON public.tokens_recuperacion_password;
+/* ← para aplicar: borrar esta línea y la de cierre
 ALTER TABLE public.tokens_recuperacion_password ENABLE ROW LEVEL SECURITY;
 REVOKE SELECT, UPDATE, DELETE ON public.tokens_recuperacion_password FROM anon, authenticated;
 REVOKE INSERT ON public.tokens_recuperacion_password FROM anon;
@@ -129,6 +138,7 @@ DROP POLICY IF EXISTS "tokens: solo admin crea" ON public.tokens_recuperacion_pa
 CREATE POLICY "tokens: solo admin crea" ON public.tokens_recuperacion_password
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND rol = 'admin'));
+*/
 
 -- 2.c Vencimiento decidido por la base, no por el reloj del celular del
 --     admin: hoy el navegador calcula "ahora + 15 minutos" con su propio
@@ -136,6 +146,7 @@ CREATE POLICY "tokens: solo admin crea" ON public.tokens_recuperacion_password
 --     o de menos (o vence antes de llegar). Este trigger fuerza 15 minutos
 --     desde la hora del servidor, pida lo que pida el navegador. No cambia
 --     el token ni cómo se valida.
+/* ← para aplicar: borrar esta línea y la de cierre
 CREATE OR REPLACE FUNCTION public.tokens_recuperacion_vencimiento()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -150,6 +161,7 @@ DROP TRIGGER IF EXISTS tokens_recuperacion_vencimiento ON public.tokens_recupera
 CREATE TRIGGER tokens_recuperacion_vencimiento
   BEFORE INSERT ON public.tokens_recuperacion_password
   FOR EACH ROW EXECUTE FUNCTION public.tokens_recuperacion_vencimiento();
+*/
 
 -- 2.d SOLO si 1.e/1.f muestran que el token se guarda en TEXTO PLANO.
 --     Son DOS cambios que van JUNTOS, en la misma corrida: si se agrega solo
@@ -195,6 +207,7 @@ CREATE TRIGGER tokens_recuperacion_vencimiento
 --     Antes de crear el índice, si hay duplicados pendientes, resolverlos:
 --       SELECT email, count(*) FROM solicitudes_recuperacion
 --       WHERE estado = 'pendiente' GROUP BY 1 HAVING count(*) > 1;
+/* ← para aplicar: borrar esta línea y la de cierre
 ALTER TABLE public.solicitudes_recuperacion ENABLE ROW LEVEL SECURITY;
 REVOKE SELECT, UPDATE, DELETE ON public.solicitudes_recuperacion FROM anon;
 
@@ -212,6 +225,7 @@ CREATE POLICY "solicitudes: admin gestiona" ON public.solicitudes_recuperacion
 CREATE UNIQUE INDEX IF NOT EXISTS solicitudes_recuperacion_un_pendiente
   ON public.solicitudes_recuperacion (lower(email))
   WHERE estado = 'pendiente';
+*/
 
 -- 2.f Un link nuevo anula los anteriores del mismo comercio. Hoy, si el
 --     admin genera dos links (por ejemplo uno por mail y otro por
@@ -219,6 +233,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS solicitudes_recuperacion_un_pendiente
 --     una columna "usado" (boolean); si se llama distinto, cambiar el nombre.
 --     Probado: con dos links, el primero da "Token inválido o vencido" y el
 --     segundo funciona una vez.
+/* ← para aplicar: borrar esta línea y la de cierre
 CREATE OR REPLACE FUNCTION public.tokens_recuperacion_anular_previos()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -238,3 +253,4 @@ DROP TRIGGER IF EXISTS tokens_recuperacion_anular_previos ON public.tokens_recup
 CREATE TRIGGER tokens_recuperacion_anular_previos
   BEFORE INSERT ON public.tokens_recuperacion_password
   FOR EACH ROW EXECUTE FUNCTION public.tokens_recuperacion_anular_previos();
+*/
