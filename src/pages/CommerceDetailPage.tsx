@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Comercio, HorarioAtencion, Promocion } from '@/types/database.types';
 import { 
@@ -30,6 +30,10 @@ import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
 import { estrellasValidas, LARGO_COMENTARIO, LARGO_NOMBRE } from '@/lib/resenas';
+import { calcularPuntaje } from '@/lib/puntajePropio';
+import { etiquetaPuntaje, fechaResena, textoPuntaje } from '@/lib/resenasGoogle';
+import { Estrellas } from '@/components/Estrellas';
+import { ResenasGoogle } from '@/components/ResenasGoogle';
 
 interface HorarioDelivery {
   id: string;
@@ -48,6 +52,7 @@ interface Resena {
 
 export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { hash } = useLocation();
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
@@ -83,6 +88,13 @@ export const CommerceDetailPage: React.FC = () => {
   useEffect(() => {
     if (slug) fetchComercio();
   }, [slug]);
+
+  // Links con #resenas (QR, popup del mapa): bajar a la sección cuando cargó la ficha
+  useEffect(() => {
+    if (!comercio || hash !== '#resenas') return;
+    const t = setTimeout(() => document.getElementById('resenas')?.scrollIntoView({ block: 'start' }), 80);
+    return () => clearTimeout(t);
+  }, [comercio, hash]);
 
   const fetchComercio = async () => {
     // Sin el email del comercio (ver src/lib/columnasPublicas.ts)
@@ -235,9 +247,9 @@ export const CommerceDetailPage: React.FC = () => {
     comercio?.delivery_pausado_hasta,
   );
   const textoDeliveryAhora = textoEstadoDelivery(estadoDeliveryAhora) ?? 'Sin delivery en este momento';
-  const promedioEstrellas = resenas.length
-    ? (resenas.reduce((acc, r) => acc + estrellasValidas(r.estrellas), 0) / resenas.length).toFixed(1)
-    : null;
+  // Puntaje de las reseñas de NOGOMAP con coma decimal ("4,6 (12)")
+  const puntajePropio = calcularPuntaje(resenas.map((r) => r.estrellas));
+  const promedioEstrellas = textoPuntaje(puntajePropio.puntaje, puntajePropio.total);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
@@ -269,9 +281,13 @@ export const CommerceDetailPage: React.FC = () => {
             <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
               {comercio.nombre}
               {promedioEstrellas && (
-                <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {promedioEstrellas} ({resenas.length})
-                </span>
+                <a
+                  href="#resenas"
+                  aria-label={`${etiquetaPuntaje(puntajePropio.puntaje, puntajePropio.total)} en NOGOMAP. Ver reseñas`}
+                  className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 hover:underline"
+                >
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" aria-hidden="true" /> {promedioEstrellas}
+                </a>
               )}
             </h1>
             <p className="text-sm text-brand-600 font-bold">{comercio.rubro?.nombre || 'General'}</p>
@@ -465,11 +481,24 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* SECCIÓN DE RESEÑAS Y OPINIONES */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
-        <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-brand-600" /> Opiniones y Valoraciones
-        </h3>
+      {/* SECCIÓN DE RESEÑAS (#resenas: el QR y el popup del mapa llevan acá) */}
+      <section id="resenas" aria-labelledby="titulo-resenas" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+        <h2 id="titulo-resenas" className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+          <MessageSquare className="w-5 h-5 text-brand-600" aria-hidden="true" /> Reseñas
+        </h2>
+
+        {/* Google primero (con su atribución); se carga solo si la persona lo pide */}
+        <ResenasGoogle slug={comercio.slug} nombre={comercio.nombre} />
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold text-sm text-gray-900 dark:text-white">Reseñas de vecinos en NOGOMAP</h3>
+          {promedioEstrellas ? (
+            <p className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white" aria-label={etiquetaPuntaje(puntajePropio.puntaje, puntajePropio.total)}>
+              <Estrellas puntaje={puntajePropio.puntaje} total={puntajePropio.total} />
+              <span aria-hidden="true">{promedioEstrellas}</span>
+            </p>
+          ) : null}
+        </div>
 
         {/* Formulario de envío de reseña */}
         <form onSubmit={handleCrearResena} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-3 border dark:border-gray-700">
@@ -532,20 +561,19 @@ export const CommerceDetailPage: React.FC = () => {
           ) : (
             resenas.map((r) => (
               <div key={r.id} className="p-3.5 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-1.5 border dark:border-gray-800">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
-                  <div className="flex items-center gap-0.5">
-                    {[...Array(estrellasValidas(r.estrellas))].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-xs text-gray-900 dark:text-white break-words min-w-0">{r.nombre_usuario}</span>
+                  <span className="flex items-center gap-2 text-[11px] text-gray-500 shrink-0">
+                    <Estrellas puntaje={estrellasValidas(r.estrellas)} etiqueta={`${estrellasValidas(r.estrellas)} de 5 estrellas`} tamano="w-3 h-3" />
+                    {fechaResena(r.created_at) && <time dateTime={r.created_at}>{fechaResena(r.created_at)}</time>}
+                  </span>
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-line break-words">{r.comentario}</p>
               </div>
             ))
           )}
         </div>
-      </div>
+      </section>
 
       {/* MODAL PARA REPORTAR INFORMACIÓN INCORRECTA */}
       {modalReporteOpen && (

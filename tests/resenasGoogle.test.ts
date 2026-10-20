@@ -220,3 +220,15 @@ test('lugar sin reseñas', () => {
     links: { escribir: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4', verTodas: null },
   });
 });
+
+import { calcularPuntaje } from '../src/lib/puntajePropio.ts';
+
+test('puntaje propio de NOGOMAP para el popup: cero, pocas, muchas e inválidas', () => {
+  assert.deepEqual(calcularPuntaje([]), { puntaje: null, total: 0 });
+  assert.deepEqual(calcularPuntaje([5, 4]), { puntaje: 4.5, total: 2 });
+  const muchas = calcularPuntaje(Array.from({ length: 1000 }, (_, i) => (i % 5) + 1));
+  assert.equal(muchas.total, 1000);
+  assert.equal(formatearPuntaje(muchas.puntaje), '3,0');
+  assert.deepEqual(calcularPuntaje([0, -3, 'x', null, 5]), { puntaje: 5, total: 1 });
+  assert.equal(textoPuntaje(calcularPuntaje([5, 4, 4]).puntaje, 3), '4,3 (3)');
+});

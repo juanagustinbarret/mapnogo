@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { registrarInteraccion } from '@/lib/metrics';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { PuntajePopup } from '@/components/PuntajePopup';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Comercio } from '@/types/database.types';
@@ -229,6 +230,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   <div className="text-[11px] text-gray-500 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0" /> {comercio.direccion}
                   </div>
+
+                  {/* Puntaje de las reseñas de NOGOMAP (el de Google no se puede
+                      mostrar sobre un mapa que no es de Google) */}
+                  <PuntajePopup comercioId={comercio.id} slug={comercio.slug} />
 
                   <div className="flex items-center justify-between pt-2 border-t text-xs">
                     <Link
