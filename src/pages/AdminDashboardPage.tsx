@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { OpcionesRubros } from '@/components/OpcionesRubros';
-import { AdminEventosModal } from '@/components/AdminEventosModal';
+import { AdminNav } from '@/components/AdminNav';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
@@ -11,7 +11,6 @@ import { obtenerMetricasComercio } from '@/lib/metrics';
 import {
   Store,
   DollarSign,
-  PlusCircle,
   ExternalLink,
   Trash2,
   Search,
@@ -25,17 +24,13 @@ import {
   LogOut,
   Save,
   BarChart2,
-  CreditCard,
-  Clock,
-  LayoutDashboard,
   X,
   HeartPulse,
   Calendar,
   FileText,
-  KeyRound,
-  Mail,
+  Mail
 } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   MapContainer,
   TileLayer,
@@ -124,7 +119,6 @@ const Seccion: React.FC<{
 export const AdminDashboardPage: React.FC = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,9 +127,6 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
     ingresosMes: 0,
   });
-
-  // Estado para el modal de eventos / anuncios
-  const [modalEventosOpen, setModalEventosOpen] = useState(false);
 
   // Estados para override manual de la recaudación activa
   const [overrideRecaudacion, setOverrideRecaudacion] = useState<number | null>(null);
@@ -543,10 +534,6 @@ export const AdminDashboardPage: React.FC = () => {
     c.rubro?.nombre?.toLowerCase().includes('farmacia')
   );
 
-  const rutaActiva = (ruta: string) =>
-    location.pathname === ruta
-      ? 'bg-brand-600 text-white shadow-sm'
-      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
@@ -575,33 +562,7 @@ export const AdminDashboardPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 border-t dark:border-gray-700 pt-4">
-          <Link to="/admin" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin')}`}>
-            <LayoutDashboard className="w-4 h-4" /> Dashboard
-          </Link>
-          <Link to="/admin/pagos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/pagos')}`}>
-            <CreditCard className="w-4 h-4" /> Pagos
-          </Link>
-          <Link to="/admin/vencimientos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/vencimientos')}`}>
-            <Clock className="w-4 h-4" /> Vencimientos
-          </Link>
-
-          {/* BOTÓN DE CREAR / GESTIONAR EVENTOS */}
-          <button
-            type="button"
-            onClick={() => setModalEventosOpen(true)}
-            className="px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white transition shadow-sm"
-          >
-            <Calendar className="w-4 h-4" /> Eventos
-          </button>
-
-          <Link to="/admin/solicitudes-password" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/solicitudes-password')}`}>
-            <KeyRound className="w-4 h-4" /> Solicitudes
-          </Link>
-          <Link to="/admin/comercios/nuevo" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/comercios/nuevo')}`}>
-            <PlusCircle className="w-4 h-4" /> Alta comercio
-          </Link>
-        </div>
+        <AdminNav />
       </div>
 
       {/* INDICADORES */}
@@ -1134,12 +1095,6 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* MODAL DE GESTIÓN DE EVENTOS Y ANUNCIOS */}
-      <AdminEventosModal
-        isOpen={modalEventosOpen}
-        onClose={() => setModalEventosOpen(false)}
-      />
     </div>
   );
 };
