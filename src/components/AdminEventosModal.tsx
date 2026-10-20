@@ -131,8 +131,8 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
           </div>
 
           {/* DATOS DEL EVENTO (FECHA Y HORARIOS) */}
-          <div className="grid grid-cols-3 gap-2">
-            <div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="col-span-2 sm:col-span-1">
               <label className="block text-[11px] font-semibold mb-1">Fecha Evento *</label>
               <input
                 type="date"
@@ -180,7 +180,7 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
             <label className="block text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" /> Rango de Publicación (Visibilidad en Banner)
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-gray-500 font-semibold mb-1">Mostrar Desde (Día y Hora)</label>
                 <input

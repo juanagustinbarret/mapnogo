@@ -97,3 +97,36 @@ body {
     transition: none;
   }
 }
+
+/* ─── Campos de fecha y hora en iPhone/iPad ───────────────────────────────
+   Safari de iOS les da a los campos de fecha y hora un ancho mínimo propio
+   y centra el texto: se salían de la tarjeta y se pisaban entre sí. Además,
+   si la letra del campo es menor a 16px, el iPhone hace zoom al tocarlo y la
+   página queda corrida. Estas reglas solo aplican en iOS (-webkit-touch-callout
+   existe únicamente ahí); en Android y en la computadora no cambia nada. */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'],
+input[type='month'] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@supports (-webkit-touch-callout: none) {
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'],
+  input[type='month'] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.5em; /* sin esto, vacíos quedan aplastados */
+  }
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
