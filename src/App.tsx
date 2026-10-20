@@ -23,6 +23,8 @@ const AdminNewCommercePage = diferida(() => import('@/pages/AdminNewCommercePage
 const AdminPaymentsPage = diferida(() => import('@/pages/AdminPaymentsPage'), 'AdminPaymentsPage');
 const AdminExpirationsPage = diferida(() => import('@/pages/AdminExpirationsPage'), 'AdminExpirationsPage');
 const AdminSettingsPage = diferida(() => import('@/pages/AdminSettingsPage'), 'AdminSettingsPage');
+const TerminosPage = diferida(() => import('@/pages/TerminosPage'), 'TerminosPage');
+const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'PrivacidadPage');
 
 export const App: React.FC = () => {
   // Registrar el Service Worker al montar la aplicación
@@ -51,6 +53,8 @@ export const App: React.FC = () => {
                 <Route path="/" element={<HomeExplorerPage />} />
                 <Route path="/comercio/:slug" element={<CommerceDetailPage />} />
                 <Route path="/promociones" element={<PromotionsPage />} />
+                <Route path="/terminos" element={<TerminosPage />} />
+                <Route path="/privacidad" element={<PrivacidadPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 {/* Logins Separados */}
                 <Route path="/login" element={<MerchantLoginPage />} />

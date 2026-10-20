@@ -503,6 +503,11 @@ export const CommerceDetailPage: React.FC = () => {
             <Send className="w-3.5 h-3.5" />
             {guardandoResena ? 'Publicando...' : 'Publicar Reseña'}
           </button>
+          <p className="text-[11px] text-gray-500">
+            Tu reseña se publica con el nombre que pongas. Al publicar aceptás los{' '}
+            <Link to="/terminos" className="text-brand-600 hover:underline">Términos</Link> y la{' '}
+            <Link to="/privacidad" className="text-brand-600 hover:underline">Política de privacidad</Link>.
+          </p>
         </form>
 
         {/* Lista de Reseñas cargadas */}
@@ -583,6 +588,10 @@ export const CommerceDetailPage: React.FC = () => {
                   {enviandoReporte ? 'Enviando...' : 'Enviar Reporte'}
                 </button>
               </div>
+              <p className="text-[11px] text-gray-500">
+                No incluyas datos personales de otras personas. Ver{' '}
+                <Link to="/privacidad" className="text-brand-600 hover:underline">Política de privacidad</Link>.
+              </p>
             </form>
           </div>
         </div>
