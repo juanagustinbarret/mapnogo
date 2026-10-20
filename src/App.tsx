@@ -10,15 +10,19 @@ import { HomeExplorerPage } from '@/pages/HomeExplorerPage';
 import { CommerceDetailPage } from '@/pages/CommerceDetailPage';
 import { MerchantLoginPage } from '@/pages/MerchantLoginPage';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
-import { MerchantDashboardPage } from '@/pages/MerchantDashboardPage';
-import { MerchantProfilePage } from '@/pages/MerchantProfilePage';
-import { AdminDashboardPage } from '@/pages/AdminDashboardPage';
-import { AdminNewCommercePage } from '@/pages/AdminNewCommercePage';
-import { AdminPaymentsPage } from '@/pages/AdminPaymentsPage';
-import { AdminExpirationsPage } from '@/pages/AdminExpirationsPage';
-import { AdminSettingsPage } from '@/pages/AdminSettingsPage';
+import { diferida } from '@/components/CargaDiferida';
 import { PromotionsPage } from '@/pages/PromotionsPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+
+// Paneles del comercio y del admin: se cargan recién al entrar (no van en el
+// paquete inicial que descarga cada visitante del mapa)
+const MerchantDashboardPage = diferida(() => import('@/pages/MerchantDashboardPage'), 'MerchantDashboardPage');
+const MerchantProfilePage = diferida(() => import('@/pages/MerchantProfilePage'), 'MerchantProfilePage');
+const AdminDashboardPage = diferida(() => import('@/pages/AdminDashboardPage'), 'AdminDashboardPage');
+const AdminNewCommercePage = diferida(() => import('@/pages/AdminNewCommercePage'), 'AdminNewCommercePage');
+const AdminPaymentsPage = diferida(() => import('@/pages/AdminPaymentsPage'), 'AdminPaymentsPage');
+const AdminExpirationsPage = diferida(() => import('@/pages/AdminExpirationsPage'), 'AdminExpirationsPage');
+const AdminSettingsPage = diferida(() => import('@/pages/AdminSettingsPage'), 'AdminSettingsPage');
 
 export const App: React.FC = () => {
   // Registrar el Service Worker al montar la aplicación
