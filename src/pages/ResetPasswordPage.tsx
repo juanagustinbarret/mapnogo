@@ -5,7 +5,7 @@ import { KeyRound, CheckCircle, AlertCircle } from 'lucide-react';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token'); // Se lee únicamente el token
+  const token = searchParams.get('token');
   const navigate = useNavigate();
 
   const [password, setPassword] = useState('');
@@ -22,23 +22,22 @@ export const ResetPasswordPage: React.FC = () => {
     setLoading(true);
     setMensaje(null);
 
-    // Llamada a la RPC pasándole el token seguro
-    const { data, error } = await supabase.rpc('admin_cambiar_password_comercio', {
+    const { error } = await supabase.rpc('admin_cambiar_password_comercio', {
+      p_nueva_password: password,
       p_token: token,
-      p_nueva_password: password
     });
 
     setLoading(false);
 
-    if (error || !data?.success) {
+    if (error) {
       setMensaje({
         tipo: 'error',
-        texto: data?.message || error?.message || 'Error al restablecer la contraseña.'
+        texto: error.message || 'Error al restablecer la contraseña.',
       });
     } else {
       setMensaje({
         tipo: 'exito',
-        texto: '¡Contraseña restablecida con éxito! Redirigiendo al inicio de sesión...'
+        texto: '¡Contraseña restablecida con éxito! Redirigiendo al inicio de sesión...',
       });
       setTimeout(() => navigate('/login'), 2500);
     }
@@ -67,9 +66,11 @@ export const ResetPasswordPage: React.FC = () => {
         </div>
 
         {mensaje && (
-          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-            mensaje.tipo === 'exito' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
+          <div
+            className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+              mensaje.tipo === 'exito' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}
+          >
             {mensaje.tipo === 'exito' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
             {mensaje.texto}
           </div>
