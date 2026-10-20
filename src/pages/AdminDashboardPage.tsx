@@ -28,7 +28,10 @@ import {
   HeartPulse,
   Calendar,
   FileText,
-  Mail
+  Mail,
+  Send,
+  MessageCircle,
+  KeyRound
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -128,14 +131,12 @@ export const AdminDashboardPage: React.FC = () => {
     ingresosMes: 0,
   });
 
-  // Estados para override manual de la recaudación activa
   const [overrideRecaudacion, setOverrideRecaudacion] = useState<number | null>(null);
   const [editandoRecaudacion, setEditandoRecaudacion] = useState(false);
   const [tempMontoRecaudacion, setTempMontoRecaudacion] = useState('');
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
-  // Estados para la Gestión de Farmacias de Turno
   const [fechaTurno, setFechaTurno] = useState(hoyArgentina());
   const [farmaciaSeleccionadaId, setFarmaciaSeleccionadaId] = useState('');
   const [guardandoTurno, setGuardandoTurno] = useState(false);
@@ -147,9 +148,9 @@ export const AdminDashboardPage: React.FC = () => {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState('');
 
-  // Estados para cambiar contraseña directa mediante Edge Function
   const [nuevaPasswordDirecta, setNuevaPasswordDirecta] = useState('');
   const [guardandoClave, setGuardandoClave] = useState(false);
+  const [enviandoToken, setEnviandoToken] = useState(false);
 
   const fetchComerciosYStats = async () => {
     setLoading(true);
@@ -302,7 +303,7 @@ export const AdminDashboardPage: React.FC = () => {
     setGuardandoClave(true);
 
     try {
-      const { error } = await supabase.rpc('admin_cambiar_password_comercio', {
+      const { error } = await supabase.rpc('admin_cambiar_password_directo', {
         email_target: modalEditar.email_comercial.trim(),
         nueva_password: nuevaPasswordDirecta.trim(),
       });
@@ -315,6 +316,52 @@ export const AdminDashboardPage: React.FC = () => {
       alert('Error al cambiar la contraseña: ' + (err.message || 'Ocurrió un error inesperado'));
     } finally {
       setGuardandoClave(false);
+    }
+  };
+
+  const handleEnviarLinkRecuperacion = async (canal: 'mail' | 'whatsapp') => {
+    if (!modalEditar?.id || !modalEditar.email_comercial) {
+      alert('El comercio debe tener un correo electrónico válido.');
+      return;
+    }
+
+    setEnviandoToken(true);
+    try {
+      const array = new Uint8Array(24);
+      crypto.getRandomValues(array);
+      const token = Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
+
+      const { error: errorToken } = await supabase
+        .from('tokens_recuperacion_password')
+        .insert({
+          comercio_id: modalEditar.id,
+          token: token,
+          expira_en: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        });
+
+      if (errorToken) throw errorToken;
+
+      const linkReset = `${window.location.origin}/reset-password?token=${token}`;
+      const mensaje = `Hola! Enlace seguro para restablecer la contraseña de tu comercio en NOGOMAP (válido por 15 minutos):\n${linkReset}`;
+
+      await navigator.clipboard.writeText(linkReset);
+
+      if (canal === 'mail') {
+        const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
+        window.location.href = `mailto:${modalEditar.email_comercial}?subject=${asunto}&body=${encodeURIComponent(mensaje)}`;
+      } else {
+        const numWsp = modalEditar.whatsapp ? modalEditar.whatsapp.replace(/\D/g, '') : '';
+        const urlWsp = numWsp
+          ? `https://wa.me/${numWsp}?text=${encodeURIComponent(mensaje)}`
+          : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+        window.open(urlWsp, '_blank');
+      }
+
+      alert('✅ Enlace de recuperación generado y copiado al portapapeles.');
+    } catch (err: any) {
+      alert('Error al generar el enlace: ' + err.message);
+    } finally {
+      setEnviandoToken(false);
     }
   };
 
@@ -534,7 +581,6 @@ export const AdminDashboardPage: React.FC = () => {
     c.rubro?.nombre?.toLowerCase().includes('farmacia')
   );
 
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       {/* ENCABEZADO Y BARRA DE NAVEGACIÓN */}
@@ -644,7 +690,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MÓDULO DE GESTIÓN DE FARMACIAS DE TURNO */}
+      {/* GESTIÓN DE FARMACIAS DE TURNO */}
       <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border dark:border-gray-700 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-3">
           <div>
@@ -932,7 +978,7 @@ export const AdminDashboardPage: React.FC = () => {
 
               {/* BLOQUE DE CREDENCIALES Y CUENTA */}
               <Seccion titulo="Credenciales y Cuenta del Comercio">
-                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3">
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                     <div>
                       <label className={etiquetaClase}>Email Comercial / Usuario de Acceso</label>
@@ -946,7 +992,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className={etiquetaClase}>Establecer Nueva Contraseña</label>
+                      <label className={etiquetaClase}>Cambio Directo de Contraseña</label>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -964,6 +1010,35 @@ export const AdminDashboardPage: React.FC = () => {
                           {guardandoClave ? 'Guardando...' : 'Cambiar Clave'}
                         </button>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* ENVIAR LINK DE RECUPERACIÓN (TOKEN POR 15 MINUTOS) */}
+                  <div className="border-t dark:border-gray-800 pt-3">
+                    <label className={etiquetaClase}>
+                      <KeyRound className="w-3.5 h-3.5 inline mr-1 text-amber-500" />
+                      Enviar Enlace Temporal de Recuperación (Válido 15 min)
+                    </label>
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      <button
+                        type="button"
+                        disabled={enviandoToken || !modalEditar.email_comercial}
+                        onClick={() => handleEnviarLinkRecuperacion('mail')}
+                        className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 disabled:opacity-50 transition shadow-sm"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Enviar por Mail
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={enviandoToken || !modalEditar.email_comercial}
+                        onClick={() => handleEnviarLinkRecuperacion('whatsapp')}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 disabled:opacity-50 transition shadow-sm"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Enviar por WhatsApp
+                      </button>
                     </div>
                   </div>
                 </div>
