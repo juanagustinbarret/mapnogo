@@ -5,6 +5,7 @@ import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveM
 import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
+import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
 import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -119,21 +120,29 @@ export const HomeExplorerPage: React.FC = () => {
 
   const fetchData = async () => {
     const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
-    const { data: comerciosData } = await supabase
-      .from('comercios')
-      .select('*, rubro:rubros(*)')
-      .eq('aprobado', true)
-      .eq('habilitado_admin', true);
+    // Sin el email de los comercios (ver src/lib/columnasPublicas.ts)
+    // ("as '*'" es solo para TypeScript: el cliente no tiene los tipos de la base)
+    const pedirComercios = (columnas: string) =>
+      supabase
+        .from('comercios')
+        .select(`${columnas}, rubro:rubros(*)` as '*')
+        .eq('aprobado', true)
+        .eq('habilitado_admin', true);
+    let { data: comerciosData, error: errorComercios } = await pedirComercios(COLUMNAS_PUBLICAS_COMERCIO);
+    if (errorComercios) ({ data: comerciosData } = await pedirComercios('*'));
 
     const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
 
     // Cargar Farmacia de Turno para la fecha de hoy en Argentina
     const fechaHoy = hoyArgentina();
-    const { data: turnoData } = await supabase
-      .from('farmacias_turno')
-      .select('comercio_id, comercio:comercios(*, rubro:rubros(*))')
-      .eq('fecha', fechaHoy)
-      .maybeSingle();
+    const pedirTurno = (columnas: string) =>
+      supabase
+        .from('farmacias_turno')
+        .select(`comercio_id, comercio:comercios(${columnas}, rubro:rubros(*))` as '*')
+        .eq('fecha', fechaHoy)
+        .maybeSingle();
+    let { data: turnoData, error: errorTurno } = await pedirTurno(COLUMNAS_PUBLICAS_COMERCIO);
+    if (errorTurno) ({ data: turnoData } = await pedirTurno('*'));
 
     if (turnoData?.comercio) {
       setFarmaciaDeTurno(turnoData.comercio as unknown as Comercio);

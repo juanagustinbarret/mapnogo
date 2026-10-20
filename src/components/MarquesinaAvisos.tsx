@@ -16,6 +16,8 @@ interface Evento {
   imagen_url?: string | null;
   mostrar_desde?: string | null;
   mostrar_hasta?: string | null;
+  latitud?: number | string | null;
+  longitud?: number | string | null;
 }
 
 export const MarquesinaAvisos: React.FC = () => {

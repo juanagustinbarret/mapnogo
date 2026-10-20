@@ -1,9 +1,12 @@
 import React from 'react';
 import { LegalLayout, Lista, P, type SeccionLegal } from '@/components/LegalLayout';
-import { CONTACTO, nombreResponsable, whatsappLegible } from '@/lib/contacto';
+import { CONTACTO, nombreResponsable, textoContacto } from '@/lib/contacto';
 
-const contacto = () =>
-  CONTACTO.emailSoporte ? `${CONTACTO.emailSoporte} o por WhatsApp al ${whatsappLegible()}` : `WhatsApp al ${whatsappLegible()}`;
+// Revisado el 20/10/2026: Ley 25.326 y su decreto 1558/2001 siguen vigentes
+// (los proyectos de reforma 1751-D-2026 y 3397-D-2026 están en trámite en
+// Diputados, no son ley). Leyenda obligatoria: Res. AAIP 14/2018.
+
+const contacto = textoContacto;
 
 const SECCIONES: SeccionLegal[] = [
   {
@@ -14,7 +17,8 @@ const SECCIONES: SeccionLegal[] = [
         Responsables de la base de datos: {nombreResponsable()}
         {CONTACTO.cuit && ` (CUIT ${CONTACTO.cuit})`}
         {CONTACTO.domicilio && `, con domicilio en ${CONTACTO.domicilio}`}, {CONTACTO.ciudad}. Podés contactarnos por {contacto()}.
-        Tratamos los datos según la Ley 25.326 de Protección de los Datos Personales.
+        Tratamos los datos según la Ley 25.326 de Protección de los Datos Personales, su decreto reglamentario 1558/2001
+        y el Convenio 108+ (Ley 27.699).
       </P>
     ),
   },
@@ -36,14 +40,15 @@ const SECCIONES: SeccionLegal[] = [
         <P><b>Si tenés un comercio con cuenta:</b></P>
         <Lista
           items={[
-            'datos del comercio y de contacto (nombre, dirección, WhatsApp, email comercial, horarios, fotos, ofertas), que en su mayoría se publican en el mapa, excepto el email y los datos de cuenta;',
+            'datos del comercio y de contacto (nombre, dirección, WhatsApp, email comercial, horarios, fotos, ofertas), que en su mayoría se publican en el mapa. El email y los datos de la cuenta no se publican;',
             'email y contraseña para entrar al panel (la contraseña se guarda cifrada por nuestro proveedor de autenticación; nadie de NOGOMAP puede verla);',
             'datos de la suscripción y de los pagos registrados, para administrar el servicio;',
             'las estadísticas de tu ficha.',
           ]}
         />
         <P>
-          <b>Si pedís recuperar tu contraseña:</b> el email que ingreses, para que un administrador gestione el pedido.
+          <b>Si pedís recuperar tu contraseña:</b> el email que ingreses, para que un administrador gestione el pedido. Para
+          cambiarla te mandamos un enlace temporal que vence a los 15 minutos.
         </P>
       </>
     ),
@@ -65,10 +70,24 @@ const SECCIONES: SeccionLegal[] = [
         />
         <P>
           Algunos de estos proveedores tienen servidores fuera de Argentina, por lo que los datos pueden alojarse en otros
-          países, con medidas de seguridad acordes. Si tocás "WhatsApp" o "Cómo llegar", salís a WhatsApp o Google Maps y
+          países. Lo hacemos con las garantías del art. 12 de la Ley 25.326: los proveedores se comprometen por contrato a
+          proteger los datos con un nivel adecuado. Si tocás "WhatsApp" o "Cómo llegar", salís a WhatsApp o Google Maps y
           se aplican sus propias políticas.
         </P>
       </>
+    ),
+  },
+  {
+    id: 'comunicaciones',
+    titulo: 'Mensajes que te podemos mandar',
+    contenido: (
+      <Lista
+        items={[
+          'Notificaciones de ofertas: solo si las activás, y las podés desactivar cuando quieras desde el sitio o desde tu navegador.',
+          'A los comercios: avisos de vencimiento, pagos y cambios del servicio por WhatsApp o email. Son parte del servicio contratado.',
+          'Nunca te mandamos publicidad de terceros. Si algún día mandamos novedades de NOGOMAP, cada mensaje va a decir cómo dejar de recibirlas.',
+        ]}
+      />
     ),
   },
   {
@@ -94,8 +113,9 @@ const SECCIONES: SeccionLegal[] = [
         <P>
           Podés pedir <b>acceso</b> a tus datos, su <b>rectificación</b>, <b>actualización</b> o <b>supresión</b>, y retirar tu
           consentimiento, escribiendo a {contacto()}. Respondemos los pedidos de acceso dentro de los 10 días corridos y los de
-          rectificación o supresión dentro de los 5 días hábiles, como indica la ley. Para proteger tus datos podemos
-          pedirte que acredites que sos el titular.
+          rectificación o supresión dentro de los 5 días hábiles, como indica la ley (arts. 14 y 16 de la Ley 25.326). Para
+          proteger tus datos podemos pedirte que acredites que sos el titular. Si no te respondemos o no estás conforme,
+          podés reclamar ante la Agencia de Acceso a la Información Pública (AAIP).
         </P>
         <p className="text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
           El titular de los datos personales tiene la facultad de ejercer el derecho de acceso a los mismos en forma

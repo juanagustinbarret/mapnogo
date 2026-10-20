@@ -29,8 +29,6 @@ import {
   Calendar,
   FileText,
   Mail,
-  Send,
-  MessageCircle,
   KeyRound
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -42,6 +40,9 @@ import {
   useMap,
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { PanelLinkRecuperacion } from '@/components/PanelLinkRecuperacion';
+import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
+import { horaDeVencimiento } from '@/lib/linksRecuperacion';
 
 interface SelectorMapaProps {
   latitud: number;
@@ -151,6 +152,9 @@ export const AdminDashboardPage: React.FC = () => {
   const [nuevaPasswordDirecta, setNuevaPasswordDirecta] = useState('');
   const [guardandoClave, setGuardandoClave] = useState(false);
   const [enviandoToken, setEnviandoToken] = useState(false);
+  const [linkRecuperacion, setLinkRecuperacion] = useState<{ link: string; vence: string } | null>(null);
+  const [errorLink, setErrorLink] = useState('');
+  const [verClave, setVerClave] = useState(false);
 
   const fetchComerciosYStats = async () => {
     setLoading(true);
@@ -297,6 +301,12 @@ export const AdminDashboardPage: React.FC = () => {
       alert('Ingresá una contraseña de al menos 6 caracteres.');
       return;
     }
+    // Antes se le sacaban los espacios sin avisar: la clave guardada quedaba
+    // distinta de la que el admin le dictaba al comercio.
+    if (nuevaPasswordDirecta !== nuevaPasswordDirecta.trim()) {
+      alert('La contraseña no puede empezar ni terminar con espacios.');
+      return;
+    }
 
     if (!confirm(`¿Querés cambiar la contraseña para ${modalEditar.email_comercial}?`)) return;
 
@@ -305,7 +315,7 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       const { error } = await supabase.rpc('admin_cambiar_password_directo', {
         email_target: modalEditar.email_comercial.trim(),
-        nueva_password: nuevaPasswordDirecta.trim(),
+        nueva_password: nuevaPasswordDirecta,
       });
 
       if (error) throw error;
@@ -319,49 +329,17 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  const handleEnviarLinkRecuperacion = async (canal: 'mail' | 'whatsapp') => {
-    if (!modalEditar?.id || !modalEditar.email_comercial) {
-      alert('El comercio debe tener un correo electrónico válido.');
-      return;
-    }
-
+  // Link de recuperación: primero se crea y después el admin elige por dónde
+  // mandarlo (ver PanelLinkRecuperacion; así funciona también en el iPhone).
+  const handleGenerarLinkRecuperacion = async () => {
+    if (!modalEditar?.id) return;
     setEnviandoToken(true);
+    setErrorLink('');
     try {
-      const array = new Uint8Array(24);
-      crypto.getRandomValues(array);
-      const token = Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
-
-      const { error: errorToken } = await supabase
-        .from('tokens_recuperacion_password')
-        .insert({
-          comercio_id: modalEditar.id,
-          token: token,
-          expira_en: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        });
-
-      if (errorToken) throw errorToken;
-
-      const linkReset = `${window.location.origin}/reset-password?token=${token}`;
-      const mensaje = `Hola!\n\nEnlace seguro para restablecer la contraseña de tu comercio en NOGOMAP (válido por 15 minutos):\n${linkReset}`;
-
-      await navigator.clipboard.writeText(linkReset);
-
-      if (canal === 'mail') {
-        const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
-        const cuerpo = encodeURIComponent(mensaje);
-        const urlGmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(modalEditar.email_comercial)}&su=${asunto}&body=${cuerpo}`;
-        window.open(urlGmail, '_blank');
-      } else {
-        const numWsp = modalEditar.whatsapp ? modalEditar.whatsapp.replace(/\D/g, '') : '';
-        const urlWsp = numWsp
-          ? `https://wa.me/${numWsp}?text=${encodeURIComponent(mensaje)}`
-          : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
-        window.open(urlWsp, '_blank');
-      }
-
-      alert('✅ Enlace de recuperación generado y copiado al portapapeles.');
+      const link = await crearLinkRecuperacion(modalEditar.id);
+      setLinkRecuperacion({ link, vence: horaDeVencimiento() });
     } catch (err: any) {
-      alert('Error al generar el enlace: ' + err.message);
+      setErrorLink(err?.message || 'No se pudo generar el link.');
     } finally {
       setEnviandoToken(false);
     }
@@ -455,7 +433,9 @@ export const AdminDashboardPage: React.FC = () => {
   const abrirEdicion = (comercio: Comercio) => {
     setErrorEdicion('');
     setNuevaPasswordDirecta('');
-
+    setLinkRecuperacion(null);
+    setErrorLink('');
+    setVerClave(false);
     setModalEditar({
       ...comercio,
       descripcion_corta: comercio.descripcion_corta ?? '',
@@ -532,7 +512,7 @@ export const AdminDashboardPage: React.FC = () => {
           longitud,
           telefono: modalEditar.telefono?.trim() || null,
           whatsapp: modalEditar.whatsapp?.trim() ?? '',
-          email_comercial: modalEditar.email_comercial?.trim() || null,
+          email_comercial: modalEditar.email_comercial?.trim().toLowerCase() || null,
           sitio_web: modalEditar.sitio_web?.trim() || null,
           instagram: modalEditar.instagram?.trim() || null,
           facebook: modalEditar.facebook?.trim() || null,
@@ -983,7 +963,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                     <div>
-                      <label className={etiquetaClase}>Email Comercial / Usuario de Acceso</label>
+                      <label className={etiquetaClase}>Email Comercial</label>
                       <input
                         type="email"
                         value={modalEditar.email_comercial ?? ''}
@@ -991,18 +971,31 @@ export const AdminDashboardPage: React.FC = () => {
                         className={campoClase}
                         placeholder="email@comercio.com"
                       />
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Cambiarlo acá no cambia el email con el que el comercio inicia sesión.
+                      </p>
                     </div>
 
                     <div>
                       <label className={etiquetaClase}>Cambio Directo de Contraseña</label>
                       <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={nuevaPasswordDirecta}
-                          onChange={(e) => setNuevaPasswordDirecta(e.target.value)}
-                          className={campoClase}
-                          placeholder="Mínimo 6 caracteres"
-                        />
+                        <div className="relative flex-1">
+                          <input
+                            type={verClave ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            value={nuevaPasswordDirecta}
+                            onChange={(e) => setNuevaPasswordDirecta(e.target.value)}
+                            className={`${campoClase} pr-16`}
+                            placeholder="Mínimo 6 caracteres"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setVerClave((v) => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-brand-600 px-1.5 py-1"
+                          >
+                            {verClave ? 'Ocultar' : 'Ver'}
+                          </button>
+                        </div>
                         <button
                           type="button"
                           disabled={guardandoClave || !nuevaPasswordDirecta}
@@ -1024,24 +1017,28 @@ export const AdminDashboardPage: React.FC = () => {
                     <div className="flex flex-wrap gap-2 mt-1.5">
                       <button
                         type="button"
-                        disabled={enviandoToken || !modalEditar.email_comercial}
-                        onClick={() => handleEnviarLinkRecuperacion('mail')}
+                        disabled={enviandoToken}
+                        onClick={handleGenerarLinkRecuperacion}
                         className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 disabled:opacity-50 transition shadow-sm"
                       >
-                        <Mail className="w-3.5 h-3.5" />
-                        Enviar por Mail
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={enviandoToken || !modalEditar.email_comercial}
-                        onClick={() => handleEnviarLinkRecuperacion('whatsapp')}
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 disabled:opacity-50 transition shadow-sm"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        Enviar por WhatsApp
+                        <KeyRound className="w-3.5 h-3.5" />
+                        {enviandoToken ? 'Generando…' : 'Generar link'}
                       </button>
                     </div>
+                    {errorLink && (
+                      <p role="alert" className="text-xs font-semibold text-red-600 dark:text-red-400 mt-1.5">
+                        {errorLink}
+                      </p>
+                    )}
+                    {linkRecuperacion && (
+                      <PanelLinkRecuperacion
+                        link={linkRecuperacion.link}
+                        email={modalEditar.email_comercial}
+                        whatsapp={modalEditar.whatsapp}
+                        vence={linkRecuperacion.vence}
+                        onCerrar={() => setLinkRecuperacion(null)}
+                      />
+                    )}
                   </div>
                 </div>
               </Seccion>

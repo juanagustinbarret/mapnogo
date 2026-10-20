@@ -7,6 +7,7 @@ import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
 import { CalendarDays, Tag, MessageCircle, Store } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
 
 export const PromotionsPage: React.FC = () => {
   const [promociones, setPromociones] = useState<Promocion[]>([]);
@@ -17,20 +18,25 @@ export const PromotionsPage: React.FC = () => {
     // y las de comercios dados de baja. Ahora solo las vigentes hoy (en hora
     // de Argentina) de comercios aprobados y habilitados.
     const hoy = hoyArgentina();
-    supabase
-      .from('promociones')
-      .select('*, comercio:comercios!inner(*)')
-      .eq('aprobada', true)
-      .gte('fecha_fin', hoy)
-      .lte('fecha_inicio', hoy)
-      .eq('comercio.aprobado', true)
-      .eq('comercio.habilitado_admin', true)
-      .order('fecha_fin', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) console.error('[promociones] No se pudieron cargar', error);
-        if (data) setPromociones(data);
-        setLoading(false);
-      });
+    // Sin el email de los comercios (ver src/lib/columnasPublicas.ts).
+    // ("as '*'" es solo para TypeScript: el cliente no tiene los tipos de la base)
+    const pedir = (columnas: string) =>
+      supabase
+        .from('promociones')
+        .select(`*, comercio:comercios!inner(${columnas})` as '*')
+        .eq('aprobada', true)
+        .gte('fecha_fin', hoy)
+        .lte('fecha_inicio', hoy)
+        .eq('comercio.aprobado', true)
+        .eq('comercio.habilitado_admin', true)
+        .order('fecha_fin', { ascending: true });
+    (async () => {
+      let { data, error } = await pedir(COLUMNAS_PUBLICAS_COMERCIO);
+      if (error) ({ data, error } = await pedir('*'));
+      if (error) console.error('[promociones] No se pudieron cargar', error);
+      if (data) setPromociones(data);
+      setLoading(false);
+    })();
   }, []);
 
   return (

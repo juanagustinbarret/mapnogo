@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Plus, Trash2, Clock, X, Eye, Edit2, Save } from 'lucide-react';
-import { hoyArgentina } from '@/lib/fechasArgentina';
-import { textoFechaEvento, textoHorarioEvento } from '@/lib/eventos';
+import { Calendar, Plus, Trash2, Clock, X, Eye, Edit2, Save, MapPin } from 'lucide-react';
+import { hoyArgentina, isoDesdeLocalArgentina, localArgentinaDesdeIso } from '@/lib/fechasArgentina';
+import { horaCorta, puntoDelEvento, textoFechaEvento, textoHorarioEvento, type PuntoMapa } from '@/lib/eventos';
+import { SelectorUbicacionMapa } from '@/components/SelectorUbicacionMapa';
 
 interface Evento {
   id: string;
@@ -17,19 +18,18 @@ interface Evento {
   mostrar_desde?: string | null;
   mostrar_hasta?: string | null;
   activo: boolean;
+  latitud?: number | string | null;
+  longitud?: number | string | null;
 }
 
-const formatearIsoParaDatetimeLocal = (isoString?: string | null) => {
-  if (!isoString) return `${hoyArgentina()}T00:00`;
-  const date = new Date(isoString);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  const mm = pad(date.getMonth() + 1);
-  const dd = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const min = pad(date.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-};
+// En hora argentina, aunque el celular del admin esté en otra zona horaria
+const formatearIsoParaDatetimeLocal = (isoString?: string | null) =>
+  localArgentinaDesdeIso(isoString) || `${hoyArgentina()}T00:00`;
+
+// Error de PostgREST cuando la tabla todavía no tiene las columnas del punto
+// (falta correr supabase/propuestas/20261020_eventos_ubicacion.sql).
+const faltanColumnasDelPunto = (error: { code?: string; message?: string } | null) =>
+  !!error && (error.code === 'PGRST204' || /latitud|longitud/i.test(error.message ?? ''));
 
 export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   isOpen,
@@ -48,6 +48,7 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
   const [horaInicio, setHoraInicio] = useState('');
   const [horaFin, setHoraFin] = useState('');
   const [ubicacionTexto, setUbicacionTexto] = useState('');
+  const [punto, setPunto] = useState<PuntoMapa | null>(null);
 
   // Rango de Publicación / Visibilidad en Mapa
   const [mostrarDesde, setMostrarDesde] = useState(`${hoyArgentina()}T00:00`);
@@ -76,6 +77,7 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
     setHoraInicio('');
     setHoraFin('');
     setUbicacionTexto('');
+    setPunto(null);
     setMostrarDesde(`${hoyArgentina()}T00:00`);
     setMostrarHasta(`${hoyArgentina()}T23:59`);
   };
@@ -85,9 +87,10 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
     setTitulo(ev.titulo);
     setDescripcion(ev.descripcion ?? '');
     setFechaEvento(ev.fecha_evento ?? hoyArgentina());
-    setHoraInicio(ev.hora_inicio ?? '');
-    setHoraFin(ev.hora_fin ?? '');
+    setHoraInicio(horaCorta(ev.hora_inicio));
+    setHoraFin(horaCorta(ev.hora_fin));
     setUbicacionTexto(ev.ubicacion_texto ?? '');
+    setPunto(puntoDelEvento(ev));
     setMostrarDesde(formatearIsoParaDatetimeLocal(ev.mostrar_desde));
     setMostrarHasta(formatearIsoParaDatetimeLocal(ev.mostrar_hasta));
   };
@@ -96,24 +99,51 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
     e.preventDefault();
     if (!titulo.trim()) return;
 
-    const payload = {
+    const desdeISO = isoDesdeLocalArgentina(mostrarDesde);
+    const hastaISO = isoDesdeLocalArgentina(mostrarHasta);
+    if (desdeISO && hastaISO && hastaISO <= desdeISO) {
+      alert('"Mostrar hasta" tiene que ser después de "Mostrar desde".');
+      return;
+    }
+
+    const base = {
       titulo: titulo.trim(),
       descripcion: descripcion.trim() || null,
       fecha_evento: fechaEvento,
       hora_inicio: horaInicio.trim() || null,
       hora_fin: horaFin.trim() || null,
       ubicacion_texto: ubicacionTexto.trim() || null,
-      mostrar_desde: mostrarDesde ? new Date(mostrarDesde).toISOString() : null,
-      mostrar_hasta: mostrarHasta ? new Date(mostrarHasta).toISOString() : null,
+      mostrar_desde: desdeISO || null,
+      mostrar_hasta: hastaISO || null,
       activo: true,
     };
 
-    if (eventoEditando) {
-      const { error } = await supabase
-        .from('eventos')
-        .update(payload)
-        .eq('id', eventoEditando.id);
+    // El punto del mapa va solo si la tabla ya tiene las columnas: se sabe
+    // porque el evento que se edita las trae, o porque se marcó un punto.
+    const tablaConPunto = !!eventoEditando && 'latitud' in eventoEditando;
+    const payload =
+      punto || tablaConPunto
+        ? { ...base, latitud: punto?.lat ?? null, longitud: punto?.lng ?? null }
+        : base;
 
+    // Si las columnas todavía no existen, se guarda igual sin el punto y se avisa
+    const guardar = async (datos: typeof base) =>
+      eventoEditando
+        ? supabase.from('eventos').update(datos).eq('id', eventoEditando.id)
+        : supabase.from('eventos').insert(datos);
+
+    let { error } = await guardar(payload);
+    if (error && payload !== base && faltanColumnasDelPunto(error)) {
+      ({ error } = await guardar(base));
+      if (!error) {
+        alert(
+          'El evento se guardó, pero sin el punto del mapa: la base todavía no tiene las columnas de ubicación. ' +
+            'Hay que correr supabase/propuestas/20261020_eventos_ubicacion.sql.',
+        );
+      }
+    }
+
+    if (eventoEditando) {
       if (error) {
         alert('Error al actualizar el evento: ' + error.message);
       } else {
@@ -121,8 +151,6 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
         cargarEventos();
       }
     } else {
-      const { error } = await supabase.from('eventos').insert(payload);
-
       if (error) {
         alert('Error al crear el evento: ' + error.message);
       } else {
@@ -235,6 +263,19 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
               value={ubicacionTexto}
               onChange={(e) => setUbicacionTexto(e.target.value)}
               className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
+            />
+          </div>
+
+          {/* PUNTO EN EL MAPA: "Cómo llegar" usa estas coordenadas */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" /> Punto en el mapa (recomendado)
+            </label>
+            <SelectorUbicacionMapa
+              punto={punto}
+              onCambiar={setPunto}
+              textoLugar={ubicacionTexto}
+              claveCentrado={eventoEditando?.id ?? 'nuevo'}
             />
           </div>
 

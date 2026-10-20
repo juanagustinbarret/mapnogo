@@ -113,3 +113,19 @@ export const ICONO_GPS = L.divIcon({
   iconAnchor: [11, 11],
   popupAnchor: [0, -14],
 });
+
+// ─── Pin de evento (ámbar, con estrella) ────────────────────────────────────
+const SVG_ESTRELLA =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">' +
+  '<path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg>';
+
+export const ICONO_EVENTO = L.divIcon({
+  className: 'ng-pin',
+  html:
+    `<svg class="ng-pin__forma" xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46" aria-hidden="true">` +
+    `<path d="${FORMA_PIN}" fill="#d97706" stroke="#ffffff" stroke-width="2"/></svg>` +
+    `<span class="ng-pin__icono">${SVG_ESTRELLA}</span>`,
+  iconSize: [36, 46],
+  iconAnchor: [18, 45],
+  popupAnchor: [0, -40],
+});

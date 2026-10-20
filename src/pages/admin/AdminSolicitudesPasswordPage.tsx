@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { AdminEventosModal } from '@/components/AdminEventosModal';
+import { PanelLinkRecuperacion } from '@/components/PanelLinkRecuperacion';
+import { buscarComercioPorEmail, crearLinkRecuperacion } from '@/services/linksRecuperacion';
+import { horaDeVencimiento } from '@/lib/linksRecuperacion';
 import {
   KeyRound,
   Mail,
@@ -13,7 +16,6 @@ import {
   LogOut,
   Search,
   RefreshCw,
-  MessageCircle,
   Calendar,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -55,86 +57,29 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
     cargarSolicitudes();
   }, []);
 
-  // Genera un token único y seguro asociado al comercio por 15 minutos
-  const generarTokenSeguro = async (email: string): Promise<string | null> => {
-    // 1. Obtener el ID del comercio mediante su email
-    const { data: comercio, error: errorComercio } = await supabase
-      .from('comercios')
-      .select('id')
-      .eq('email_comercial', email)
-      .maybeSingle();
+  // Link de recuperación ya creado para un pedido, esperando que el admin
+  // elija por dónde mandarlo (ver PanelLinkRecuperacion)
+  const [linkListo, setLinkListo] = useState<{
+    solicitudId: string;
+    link: string;
+    email: string;
+    whatsapp?: string | null;
+    vence: string;
+  } | null>(null);
+  const [errores, setErrores] = useState<Record<string, string>>({});
 
-    if (errorComercio || !comercio) {
-      alert(`No se encontró un comercio registrado con el email ${email}`);
-      return null;
-    }
-
-    // 2. Generar token aleatorio criptográfico seguro (32 bytes)
-    const array = new Uint8Array(24);
-    crypto.getRandomValues(array);
-    const token = Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
-
-    // 3. Insertar el token en la tabla tokens_recuperacion_password
-    const { error: errorToken } = await supabase
-      .from('tokens_recuperacion_password')
-      .insert({
-        comercio_id: comercio.id,
-        token: token,
-        expira_en: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutos
-      });
-
-    if (errorToken) {
-      alert('Error al generar el token seguro: ' + errorToken.message);
-      return null;
-    }
-
-    return token;
-  };
-
-  // Función unificada para generar token y enviar vía Mail o WhatsApp
-  const handleGenerarYEnviar = async (solicitudId: string, emailTarget: string, canal: 'mail' | 'whatsapp') => {
+  const handleGenerarLink = async (solicitudId: string, email: string) => {
     setProcesandoId(solicitudId);
+    setErrores((previos) => ({ ...previos, [solicitudId]: '' }));
     try {
-      const token = await generarTokenSeguro(emailTarget);
-      if (!token) return;
-
-      const linkReset = `${window.location.origin}/reset-password?token=${token}`;
-      const mensajeTexto = `Hola!\n\nRecibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace seguro (válido por 15 minutos):\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este mensaje.\n\nSaludos,\nEquipo NOGOMAP`;
-
-      // Copiar enlace al portapapeles por comodidad
-      await navigator.clipboard.writeText(linkReset);
-
-      if (canal === 'mail') {
-        const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
-        const cuerpo = encodeURIComponent(mensajeTexto);
-        const urlGmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailTarget)}&su=${asunto}&body=${cuerpo}`;
-        window.open(urlGmail, '_blank');
-      } else {
-        // Consultar si el comercio tiene WhatsApp registrado
-        const { data: comercio } = await supabase
-          .from('comercios')
-          .select('whatsapp')
-          .eq('email_comercial', emailTarget)
-          .maybeSingle();
-
-        const numWhatsApp = comercio?.whatsapp ? comercio.whatsapp.replace(/\D/g, '') : '';
-        const urlWhatsApp = numWhatsApp
-          ? `https://wa.me/${numWhatsApp}?text=${encodeURIComponent(mensajeTexto)}`
-          : `https://wa.me/?text=${encodeURIComponent(mensajeTexto)}`;
-
-        window.open(urlWhatsApp, '_blank');
+      const comercio = await buscarComercioPorEmail(email);
+      if (!comercio) {
+        throw new Error(`No hay un comercio con el email ${email}. Revisá si el comercio lo tiene cargado distinto.`);
       }
-
-      // Marcar solicitud como resuelta
-      await supabase
-        .from('solicitudes_recuperacion')
-        .update({ estado: 'resuelto' })
-        .eq('id', solicitudId);
-
-      await cargarSolicitudes();
-      alert(`✅ Token generado y mensaje abierto en ${canal === 'mail' ? 'Gmail' : 'WhatsApp'} (Enlace copiado al portapapeles).`);
+      const link = await crearLinkRecuperacion(comercio.id);
+      setLinkListo({ solicitudId, link, email, whatsapp: comercio.whatsapp, vence: horaDeVencimiento() });
     } catch (err: any) {
-      console.error('Error procesando la solicitud:', err);
+      setErrores((previos) => ({ ...previos, [solicitudId]: err?.message || 'No se pudo generar el link.' }));
     } finally {
       setProcesandoId(null);
     }
@@ -294,7 +239,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
             {filtradas.map((sol) => (
               <div
                 key={sol.id}
-                className={`p-4 rounded-2xl border transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                className={`p-4 rounded-2xl border transition flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-4 ${
                   sol.estado === 'pendiente'
                     ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50'
                     : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-75'
@@ -323,23 +268,13 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
                   {sol.estado === 'pendiente' ? (
                     <>
                       <button
-                        onClick={() => handleGenerarYEnviar(sol.id, sol.email, 'mail')}
+                        onClick={() => handleGenerarLink(sol.id, sol.email)}
                         disabled={procesandoId === sol.id}
                         className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-                        title="Enviar link seguro por mail"
+                        title="Crear un link seguro (vale 15 minutos) y elegir cómo mandarlo"
                       >
-                        <Mail className="w-3.5 h-3.5" />
-                        Enviar Mail
-                      </button>
-
-                      <button
-                        onClick={() => handleGenerarYEnviar(sol.id, sol.email, 'whatsapp')}
-                        disabled={procesandoId === sol.id}
-                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-                        title="Enviar link seguro por WhatsApp"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        Enviar WhatsApp
+                        <KeyRound className="w-3.5 h-3.5" />
+                        {procesandoId === sol.id ? 'Generando…' : 'Generar link'}
                       </button>
 
                       <button
@@ -357,6 +292,28 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
                     </span>
                   )}
                 </div>
+
+                {errores[sol.id] && (
+                  <p role="alert" className="basis-full text-xs font-semibold text-red-600 dark:text-red-400">
+                    {errores[sol.id]}
+                  </p>
+                )}
+
+                {linkListo?.solicitudId === sol.id && (
+                  <div className="basis-full">
+                    <PanelLinkRecuperacion
+                      link={linkListo.link}
+                      email={linkListo.email}
+                      whatsapp={linkListo.whatsapp}
+                      vence={linkListo.vence}
+                      onEnviado={() => {
+                        // Se marca resuelto recién cuando el admin elige por dónde mandarlo
+                        if (sol.estado === 'pendiente') void handleMarcarResuelto(sol.id);
+                      }}
+                      onCerrar={() => setLinkListo(null)}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

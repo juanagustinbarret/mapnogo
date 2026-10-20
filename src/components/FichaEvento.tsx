@@ -5,10 +5,12 @@ import {
   archivoCalendario,
   linkComoLlegarEvento,
   linkEvento,
+  puntoDelEvento,
   textoFechaEvento,
   textoHorarioEvento,
   type EventoPublico,
 } from '@/lib/eventos';
+import { MapaEvento } from '@/components/MapaEvento';
 
 interface Props {
   evento: EventoPublico | null;
@@ -49,7 +51,9 @@ export const FichaEvento: React.FC<Props> = ({ evento, onClose }) => {
 
   if (!evento) return null;
 
-  const comoLlegar = linkComoLlegarEvento(evento.ubicacion_texto);
+  // Con punto marcado en el mapa, "Cómo llegar" va a ese punto exacto
+  const punto = puntoDelEvento(evento);
+  const comoLlegar = linkComoLlegarEvento(evento.ubicacion_texto, punto);
   const horario = evento.hora_inicio ? textoHorarioEvento(evento.hora_inicio, evento.hora_fin) : null;
   const link = linkEvento(window.location.origin, evento.id);
 
@@ -145,6 +149,8 @@ export const FichaEvento: React.FC<Props> = ({ evento, onClose }) => {
               </p>
             )}
           </div>
+
+          {punto && <MapaEvento punto={punto} titulo={evento.titulo} />}
 
           {evento.descripcion && (
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">{evento.descripcion}</p>

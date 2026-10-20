@@ -61,3 +61,30 @@ test('agendar: sin hora de fin dura 2 horas; si termina después de medianoche, 
 test('agendar: sin hora es un evento de todo el día', () => {
   assert.match(archivoCalendario({ ...evento, hora_inicio: null, hora_fin: null }), /DTSTART;VALUE=DATE:20261025\r\nDTEND;VALUE=DATE:20261026/);
 });
+
+import { puntoDelEvento } from '../src/lib/eventos.ts';
+
+test('punto del evento: acepta números o textos y descarta valores inválidos', () => {
+  assert.deepEqual(puntoDelEvento({ latitud: -32.3939, longitud: -59.7881 }), { lat: -32.3939, lng: -59.7881 });
+  assert.deepEqual(puntoDelEvento({ latitud: '-32.39', longitud: '-59.79' }), { lat: -32.39, lng: -59.79 });
+  assert.equal(puntoDelEvento({}), null);
+  assert.equal(puntoDelEvento({ latitud: -32.39, longitud: null }), null);
+  assert.equal(puntoDelEvento({ latitud: 0, longitud: 0 }), null);
+  assert.equal(puntoDelEvento({ latitud: -59.79, longitud: -32.39 }), null); // invertidas
+  assert.equal(puntoDelEvento({ latitud: '', longitud: '' }), null);
+});
+
+test('cómo llegar: con punto marcado usa las coordenadas, no el nombre', () => {
+  assert.equal(
+    linkComoLlegarEvento('Parque Municipal', { lat: -32.3939, lng: -59.7881 }),
+    'https://www.google.com/maps/dir/?api=1&destination=-32.393900,-59.788100',
+  );
+  assert.equal(linkComoLlegarEvento(null, { lat: -32.39, lng: -59.79 }), 'https://www.google.com/maps/dir/?api=1&destination=-32.390000,-59.790000');
+  assert.match(linkComoLlegarEvento('Parque Municipal', null) ?? '', /destination=Parque%20Municipal/);
+});
+
+test('agendar: con punto agrega GEO', () => {
+  const ics = archivoCalendario({ ...evento, latitud: -32.3939, longitud: -59.7881 });
+  assert.match(ics, /GEO:-32\.393900;-59\.788100\r\n/);
+  assert.doesNotMatch(archivoCalendario(evento), /GEO:/);
+});

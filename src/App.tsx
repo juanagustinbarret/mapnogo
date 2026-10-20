@@ -25,6 +25,7 @@ const AdminExpirationsPage = diferida(() => import('@/pages/AdminExpirationsPage
 const AdminSettingsPage = diferida(() => import('@/pages/AdminSettingsPage'), 'AdminSettingsPage');
 const TerminosPage = diferida(() => import('@/pages/TerminosPage'), 'TerminosPage');
 const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'PrivacidadPage');
+const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
 
 export const App: React.FC = () => {
   // Registrar el Service Worker al montar la aplicación
@@ -55,6 +56,7 @@ export const App: React.FC = () => {
                 <Route path="/promociones" element={<PromotionsPage />} />
                 <Route path="/terminos" element={<TerminosPage />} />
                 <Route path="/privacidad" element={<PrivacidadPage />} />
+                <Route path="/baja" element={<BajaPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 {/* Logins Separados */}
                 <Route path="/login" element={<MerchantLoginPage />} />
