@@ -184,8 +184,10 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
     compartirOGuardar(archivo, titulo).then((r) => setAviso(AVISOS[r]));
   };
 
-  const boton =
-    'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100';
+  // Forma común y colores aparte: si se mezclan dos bg-* en la misma clase,
+  // gana el que viene después en el CSS y el botón verde quedaba gris.
+  const forma = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition';
+  const boton = `${forma} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100`;
   const Icono = compartir ? Share2 : Download;
 
   return (
@@ -210,7 +212,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
         <button
           type="button"
           onClick={() => enviar(() => archivoDesdeCanvas(cartelCanvas(slug, nombre), `Cartel_Resenas_${base}.png`), `Cartel de reseñas de ${nombre}`)}
-          className={`${boton} col-span-2 bg-brand-600 hover:bg-brand-700 text-white dark:bg-brand-600 dark:hover:bg-brand-700`}
+          className={`${forma} col-span-2 bg-brand-600 hover:bg-brand-700 text-white`}
         >
           <Printer className="w-3.5 h-3.5" aria-hidden="true" /> Cartel para imprimir (A6)
         </button>
@@ -218,7 +220,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
           <button
             type="button"
             onClick={() => enviar(() => archivoDesdeCanvas(storyCanvas(slug, nombre, direccion), `Story_Resenas_${base}.png`), `Story de reseñas de ${nombre}`)}
-            className={`${boton} col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-sm`}
+            className={`${forma} col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm`}
           >
             <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" /> {compartir ? 'Compartir Story para Instagram' : 'Generar Story para Instagram'}
           </button>
