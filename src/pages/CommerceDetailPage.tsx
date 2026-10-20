@@ -215,6 +215,8 @@ export const CommerceDetailPage: React.FC = () => {
 
   if (!comercio) return <div className="p-8 text-center text-gray-500 font-semibold">Cargando ficha del comercio...</div>;
 
+  const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
+
   const estadoHorario = evaluarEstadoHorario(horarios);
   // Antes la ficha decía siempre "Delivery Activo", aunque fuera de madrugada
   // o el comercio lo hubiera pausado.
@@ -390,16 +392,19 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleWhatsAppClick}
-              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
-            >
-              <MessageCircle className="w-4 h-4" /> Consultar WhatsApp
-            </button>
+            {/* El WhatsApp ahora es opcional al dar de alta: sin número no se muestra el botón */}
+            {tieneWhatsApp && (
+              <button
+                onClick={handleWhatsAppClick}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                <MessageCircle className="w-4 h-4" /> Consultar WhatsApp
+              </button>
+            )}
 
             <button
               onClick={handleComoLlegarClick}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold hover:bg-blue-100 transition"
+              className={`${tieneWhatsApp ? '' : 'flex-1 justify-center '}inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold hover:bg-blue-100 transition`}
             >
               <Navigation className="w-4 h-4" /> Cómo llegar
             </button>

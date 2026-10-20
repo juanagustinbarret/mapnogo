@@ -111,7 +111,13 @@ export const App: React.FC = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/admin/solicitudes-password" element={<AdminSolicitudesPasswordPage />} 
+                <Route
+                  path="/admin/solicitudes-password"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <AdminSolicitudesPasswordPage />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/admin/configuracion"
