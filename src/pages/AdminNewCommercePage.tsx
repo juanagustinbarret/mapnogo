@@ -299,7 +299,7 @@ export const AdminNewCommercePage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  Nombre Propietario
+                  Nombre Propietario *
                 </label>
                 <input
                   type="text"
@@ -318,7 +318,7 @@ export const AdminNewCommercePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  Email
+                  Email *
                 </label>
                 <input
                   type="email"
@@ -334,7 +334,7 @@ export const AdminNewCommercePage: React.FC = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold mb-1">
-                  Contraseña Inicial
+                  Contraseña Inicial *
                 </label>
                 <input
                   type="password"
@@ -360,7 +360,7 @@ export const AdminNewCommercePage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  Nombre del Comercio
+                  Nombre del Comercio *
                 </label>
                 <input
                   type="text"
@@ -379,7 +379,7 @@ export const AdminNewCommercePage: React.FC = () => {
               {/* BUSCADOR DESPLEGABLE DE RUBROS */}
               <div className="relative" ref={dropdownRef}>
                 <label className="block text-xs font-semibold mb-1">
-                  Rubro (Buscador)
+                  Rubro (Buscador) *
                 </label>
 
                 <div className="relative">
@@ -392,9 +392,6 @@ export const AdminNewCommercePage: React.FC = () => {
                       const texto = e.target.value;
                       setBusquedaRubro(texto);
                       setMostrarDropdownRubros(true);
-                      // Antes, al escribir otro rubro sin elegirlo de la lista,
-                      // se guardaba el rubro anterior sin aviso. Ahora el rubro
-                      // queda elegido solo si el texto coincide exacto con uno.
                       const exacto = rubros.find((r) => normalizarTexto(r.nombre) === normalizarTexto(texto.trim()));
                       setFormData((prev) => ({ ...prev, rubro_id: exacto ? exacto.id : '' }));
                     }}
@@ -436,7 +433,7 @@ export const AdminNewCommercePage: React.FC = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold mb-1">
-                  Descripción Corta
+                  Descripción Corta *
                 </label>
                 <input
                   type="text"
@@ -454,7 +451,7 @@ export const AdminNewCommercePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  Dirección (Nogoyá)
+                  Dirección (Nogoyá) *
                 </label>
                 <input
                   type="text"
@@ -469,11 +466,10 @@ export const AdminNewCommercePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  WhatsApp
+                  WhatsApp (Opcional)
                 </label>
                 <input
                   type="tel"
-                  required
                   placeholder="3435123456"
                   value={formData.whatsapp}
                   onChange={(e) =>
