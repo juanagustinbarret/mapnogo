@@ -108,3 +108,27 @@ export function limitesDelRango(desde: string, hasta: string): { desdeISO: strin
     hastaISO: `${sumarDias(hasta, 1)}T00:00:00-03:00`,
   };
 }
+
+// ─── Campos <input type="datetime-local"> en hora argentina ──────────────
+// Esos campos no tienen zona horaria. Antes se interpretaban con la zona del
+// dispositivo: con un celular configurado en otra zona, un evento "hasta las
+// 23:59" quedaba corrido varias horas.
+
+/** '2026-10-20T21:30' (hora argentina) → instante ISO en UTC; '' si no se entiende. */
+export function isoDesdeLocalArgentina(valor?: string | null): string {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(valor ?? '');
+  if (!m) return '';
+  const instante = new Date(`${m[1]}T${m[2]}:${m[3]}:00-03:00`);
+  return Number.isNaN(instante.getTime()) ? '' : instante.toISOString();
+}
+
+/** Instante de la base → '2026-10-20T21:30' en hora argentina, para un datetime-local. */
+export function localArgentinaDesdeIso(valor?: string | null): string {
+  if (!valor) return '';
+  const instante = new Date(valor);
+  if (Number.isNaN(instante.getTime())) return '';
+  const hora = new Intl.DateTimeFormat('en-GB', { timeZone: ZONA, hour: '2-digit', minute: '2-digit', hour12: false })
+    .format(instante)
+    .replace(/^24:/, '00:');
+  return `${hoyArgentina(instante)}T${hora}`;
+}

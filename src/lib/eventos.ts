@@ -35,12 +35,43 @@ export interface EventoPublico {
   hora_fin?: string | null;
   ubicacion_texto?: string | null;
   imagen_url?: string | null;
+  // Punto marcado en el mapa al cargar el evento (columnas nuevas: pueden no venir)
+  latitud?: number | string | null;
+  longitud?: number | string | null;
+}
+
+export interface PuntoMapa {
+  lat: number;
+  lng: number;
 }
 
 const LOCALIDAD = 'Nogoyá, Entre Ríos';
 
-/** Link de Google Maps con el recorrido hasta el lugar del evento (null si no hay lugar). */
-export function linkComoLlegarEvento(ubicacion?: string | null): string | null {
+// Rectángulo que contiene a la Argentina continental. Sirve para descartar
+// coordenadas vacías (0, 0) o con latitud y longitud invertidas.
+const DENTRO_DE_ARGENTINA = { latMin: -56, latMax: -21, lngMin: -74, lngMax: -53 };
+
+/** Punto del evento si tiene coordenadas válidas; null si no. */
+export function puntoDelEvento(evento: Pick<EventoPublico, 'latitud' | 'longitud'>): PuntoMapa | null {
+  if (evento.latitud == null || evento.longitud == null || evento.latitud === '' || evento.longitud === '') return null;
+  const lat = Number(evento.latitud);
+  const lng = Number(evento.longitud);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const { latMin, latMax, lngMin, lngMax } = DENTRO_DE_ARGENTINA;
+  if (lat < latMin || lat > latMax || lng < lngMin || lng > lngMax) return null;
+  return { lat, lng };
+}
+
+/**
+ * Link de Google Maps con el recorrido hasta el evento (null si no hay
+ * lugar). Si el evento tiene un punto marcado en el mapa, se usa ese punto:
+ * buscar por el nombre del lugar ("Parque Municipal") muchas veces lleva a
+ * otro lado.
+ */
+export function linkComoLlegarEvento(ubicacion?: string | null, punto?: PuntoMapa | null): string | null {
+  if (punto) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${punto.lat.toFixed(6)},${punto.lng.toFixed(6)}`;
+  }
   const lugar = (ubicacion ?? '').trim();
   if (!lugar) return null;
   const destino = /nogoy[aá]/i.test(lugar) ? lugar : `${lugar}, ${LOCALIDAD}`;
@@ -82,6 +113,8 @@ export function archivoCalendario(evento: EventoPublico, ahora: Date = new Date(
   lineas.push(`SUMMARY:${escaparIcs(evento.titulo)}`);
   if (evento.descripcion) lineas.push(`DESCRIPTION:${escaparIcs(evento.descripcion)}`);
   if (evento.ubicacion_texto) lineas.push(`LOCATION:${escaparIcs(`${evento.ubicacion_texto}, ${LOCALIDAD}`)}`);
+  const punto = puntoDelEvento(evento);
+  if (punto) lineas.push(`GEO:${punto.lat.toFixed(6)};${punto.lng.toFixed(6)}`);
   lineas.push('END:VEVENT', 'END:VCALENDAR');
   return lineas.join('\r\n') + '\r\n';
 }

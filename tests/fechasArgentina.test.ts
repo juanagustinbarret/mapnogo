@@ -61,3 +61,17 @@ test('limitesDelRango cubre días argentinos completos', () => {
     hastaISO: '2026-11-01T00:00:00-03:00',
   });
 });
+
+import { isoDesdeLocalArgentina, localArgentinaDesdeIso } from '../src/lib/fechasArgentina.ts';
+
+test('datetime-local en hora argentina, sin importar la zona del dispositivo', () => {
+  assert.equal(isoDesdeLocalArgentina('2026-10-20T23:59'), '2026-10-21T02:59:00.000Z');
+  assert.equal(isoDesdeLocalArgentina('2026-10-20T00:00'), '2026-10-20T03:00:00.000Z');
+  assert.equal(isoDesdeLocalArgentina(''), '');
+  assert.equal(isoDesdeLocalArgentina('cualquier cosa'), '');
+  assert.equal(localArgentinaDesdeIso('2026-10-21T02:59:00.000Z'), '2026-10-20T23:59');
+  assert.equal(localArgentinaDesdeIso('2026-10-20T03:00:00+00:00'), '2026-10-20T00:00');
+  assert.equal(localArgentinaDesdeIso(null), '');
+  // ida y vuelta
+  assert.equal(localArgentinaDesdeIso(isoDesdeLocalArgentina('2026-12-31T21:30')), '2026-12-31T21:30');
+});

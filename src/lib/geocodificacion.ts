@@ -158,3 +158,29 @@ export function calleEnCoordenadas(lat: number, lng: number): Promise<string | n
     return datos.address?.road || datos.address?.pedestrian || null;
   });
 }
+
+/**
+ * Busca un lugar por nombre ("Plaza Libertad", "Club Sarmiento", "Parque
+ * Municipal") para ubicar el mapa al cargar un evento. A diferencia de
+ * geocodificarDireccion no le agrega "Calle" adelante y no se limita al
+ * rectángulo del centro: prefiere Nogoyá pero acepta la zona (un evento puede
+ * ser en un club o una aldea de las afueras). Respeta la misma fila de 1
+ * consulta por segundo. Es solo una ayuda: el punto final lo marca el admin.
+ */
+export function buscarLugar(texto: string): Promise<Coordenadas | null> {
+  const limpio = texto.trim();
+  if (!limpio) return Promise.resolve(null);
+  return enFila(async () => {
+    const q = encodeURIComponent(/nogoy[aá]/i.test(limpio) ? `${limpio}, Entre Ríos, Argentina` : `${limpio}, Nogoyá, Entre Ríos, Argentina`);
+    const datos = await pedirJson<Array<{ lat: string; lon: string }>>(
+      `${URL_NOMINATIM}/search?format=json&q=${q}&viewbox=${VIEWBOX_NOGOYA}&bounded=0&countrycodes=ar&limit=1&accept-language=es`,
+    );
+    const primero = datos?.[0];
+    if (!primero) return null;
+    const punto = { lat: parseFloat(primero.lat), lng: parseFloat(primero.lon) };
+    return Number.isFinite(punto.lat) && Number.isFinite(punto.lng) ? punto : null;
+  }).catch((error) => {
+    console.error('Error al buscar el lugar:', error);
+    return null;
+  });
+}
