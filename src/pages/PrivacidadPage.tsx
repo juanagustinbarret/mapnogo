@@ -11,7 +11,7 @@ const SECCIONES: SeccionLegal[] = [
     titulo: 'Quién es responsable de tus datos',
     contenido: (
       <P>
-        El responsable de la base de datos es {nombreResponsable()}
+        Responsables de la base de datos: {nombreResponsable()}
         {CONTACTO.cuit && ` (CUIT ${CONTACTO.cuit})`}
         {CONTACTO.domicilio && `, con domicilio en ${CONTACTO.domicilio}`}, {CONTACTO.ciudad}. Podés contactarnos por {contacto()}.
         Tratamos los datos según la Ley 25.326 de Protección de los Datos Personales.
