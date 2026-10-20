@@ -1,54 +1,97 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { hoyArgentina } from '@/lib/fechasArgentina';
-import { Calendar, Sparkles } from 'lucide-react';
+import { Megaphone, MapPin, Clock, CalendarDays } from 'lucide-react';
 
 interface Evento {
   id: string;
   titulo: string;
-  descripcion: string;
-  fecha_inicio: string;
-  fecha_fin: string;
+  descripcion?: string | null;
+  fecha_evento: string;
+  hora_inicio?: string | null;
+  hora_fin?: string | null;
+  ubicacion_texto?: string | null;
+  imagen_url?: string | null;
+  mostrar_desde?: string | null;
+  mostrar_hasta?: string | null;
 }
 
 export const MarquesinaAvisos: React.FC = () => {
-  const [eventosHoy, setEventosHoy] = useState<Evento[]>([]);
+  const [eventosActivos, setEventosActivos] = useState<Evento[]>([]);
 
   useEffect(() => {
     const fetchEventos = async () => {
-      const hoy = hoyArgentina();
+      const ahora = new Date().toISOString();
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('eventos')
         .select('*')
         .eq('activo', true)
-        .lte('fecha_inicio', hoy)
-        .gte('fecha_fin', hoy);
+        .lte('mostrar_desde', ahora)
+        .gte('mostrar_hasta', ahora)
+        .order('fecha_evento', { ascending: true });
 
-      if (data) setEventosHoy(data as Evento[]);
+      if (!error && data) {
+        setEventosActivos(data as Evento[]);
+      }
     };
 
     fetchEventos();
+
+    const interval = setInterval(fetchEventos, 60000);
+    return () => clearInterval(interval);
   }, []);
 
-  if (eventosHoy.length === 0) return null;
+  if (eventosActivos.length === 0) return null;
+
+  // Formateador limpio de horas (HH:MM)
+  const formatearHora = (hora?: string | null) => {
+    if (!hora) return '';
+    const partes = hora.split(':');
+    return `${partes[0]}:${partes[1]}`;
+  };
 
   return (
-    <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white p-3.5 rounded-2xl shadow-md border border-amber-400/30 space-y-2">
-      {eventosHoy.map((ev) => (
-        <div key={ev.id} className="flex items-center gap-3">
-          <div className="p-2 bg-white/20 rounded-xl shrink-0 backdrop-blur-md">
-            <Sparkles className="w-5 h-5 text-amber-200 animate-pulse" />
+    <div className="bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-gray-900 p-4 rounded-3xl shadow-lg border border-amber-300/50 space-y-3">
+      {eventosActivos.map((ev) => (
+        <div key={ev.id} className="flex items-start gap-3.5">
+          {/* Contenedor del ícono principal de evento / megáfono */}
+          <div className="p-2.5 bg-gray-900 text-amber-400 rounded-2xl shrink-0 shadow-md mt-0.5 border border-gray-800">
+            <Megaphone className="w-5 h-5 animate-bounce" />
           </div>
-          <div>
-            <div className="inline-flex items-center gap-1 text-[10px] uppercase font-black bg-white/20 px-2 py-0.5 rounded-full text-amber-100">
-              <Calendar className="w-3 h-3" /> Evento Destacado
+
+          <div className="space-y-1.5 min-w-0 flex-1">
+            {/* Badges de fecha, hora y lugar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-black bg-white/90 text-gray-900 px-2.5 py-0.5 rounded-full shadow-sm border border-white/60">
+                <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
+                {ev.fecha_evento}
+              </span>
+
+              {ev.hora_inicio && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-white/90 text-gray-900 px-2.5 py-0.5 rounded-full shadow-sm border border-white/60">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  {formatearHora(ev.hora_inicio)}
+                  {ev.hora_fin ? ` a ${formatearHora(ev.hora_fin)}` : ''} hs
+                </span>
+              )}
+
+              {ev.ubicacion_texto && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-gray-900/10 text-gray-900 px-2.5 py-0.5 rounded-full border border-gray-900/10">
+                  <MapPin className="w-3.5 h-3.5 text-gray-900" />
+                  {ev.ubicacion_texto}
+                </span>
+              )}
             </div>
-            <h3 className="font-extrabold text-sm sm:text-base leading-tight mt-0.5">
+
+            {/* Título e información en texto negro destacado */}
+            <h3 className="font-black text-base sm:text-lg text-gray-900 leading-tight">
               {ev.titulo}
             </h3>
+
             {ev.descripcion && (
-              <p className="text-xs text-amber-100 mt-0.5 line-clamp-1">{ev.descripcion}</p>
+              <p className="text-xs font-semibold text-gray-800 leading-relaxed line-clamp-2">
+                {ev.descripcion}
+              </p>
             )}
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { OpcionesRubros } from '@/components/OpcionesRubros';
+import { AdminEventosModal } from '@/components/AdminEventosModal';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
 import { formatCurrency } from '@/lib/formatters';
@@ -132,6 +133,9 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
     ingresosMes: 0,
   });
+
+  // Estado para el modal de eventos / anuncios
+  const [modalEventosOpen, setModalEventosOpen] = useState(false);
 
   // Estados para override manual de la recaudación activa
   const [overrideRecaudacion, setOverrideRecaudacion] = useState<number | null>(null);
@@ -284,7 +288,6 @@ export const AdminDashboardPage: React.FC = () => {
         .select('*')
         .eq('comercio_id', comercio.id);
 
-      // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
       const { generarReportePDF } = await import('@/lib/generatePdfReport');
       generarReportePDF(comercio, metricas, suscripcion, promociones || []);
     } catch (err: any) {
@@ -293,36 +296,36 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const handleCambiarPasswordDirecta = async () => {
-  if (!modalEditar?.email_comercial) {
-    alert('El comercio no tiene un email comercial asignado.');
-    return;
-  }
+    if (!modalEditar?.email_comercial) {
+      alert('El comercio no tiene un email comercial asignado.');
+      return;
+    }
 
-  if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 6) {
-    alert('Ingresá una contraseña de al menos 6 caracteres.');
-    return;
-  }
+    if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 6) {
+      alert('Ingresá una contraseña de al menos 6 caracteres.');
+      return;
+    }
 
-  if (!confirm(`¿Querés cambiar la contraseña para ${modalEditar.email_comercial}?`)) return;
+    if (!confirm(`¿Querés cambiar la contraseña para ${modalEditar.email_comercial}?`)) return;
 
-  setGuardandoClave(true);
+    setGuardandoClave(true);
 
-  try {
-    const { error } = await supabase.rpc('admin_cambiar_password_comercio', {
-      email_target: modalEditar.email_comercial.trim(),
-      nueva_password: nuevaPasswordDirecta.trim(),
-    });
+    try {
+      const { error } = await supabase.rpc('admin_cambiar_password_comercio', {
+        email_target: modalEditar.email_comercial.trim(),
+        nueva_password: nuevaPasswordDirecta.trim(),
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    alert(`✅ Contraseña de ${modalEditar.email_comercial} actualizada correctamente.`);
-    setNuevaPasswordDirecta('');
-  } catch (err: any) {
-    alert('Error al cambiar la contraseña: ' + (err.message || 'Ocurrió un error inesperado'));
-  } finally {
-    setGuardandoClave(false);
-  }
-};
+      alert(`✅ Contraseña de ${modalEditar.email_comercial} actualizada correctamente.`);
+      setNuevaPasswordDirecta('');
+    } catch (err: any) {
+      alert('Error al cambiar la contraseña: ' + (err.message || 'Ocurrió un error inesperado'));
+    } finally {
+      setGuardandoClave(false);
+    }
+  };
 
   const handleGuardarFarmaciaTurno = async () => {
     if (!farmaciaSeleccionadaId) {
@@ -547,7 +550,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-      {/* ENCABEZADO */}
+      {/* ENCABEZADO Y BARRA DE NAVEGACIÓN */}
       <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6 space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
@@ -572,7 +575,7 @@ export const AdminDashboardPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t dark:border-gray-700 pt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 border-t dark:border-gray-700 pt-4">
           <Link to="/admin" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin')}`}>
             <LayoutDashboard className="w-4 h-4" /> Dashboard
           </Link>
@@ -582,8 +585,18 @@ export const AdminDashboardPage: React.FC = () => {
           <Link to="/admin/vencimientos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/vencimientos')}`}>
             <Clock className="w-4 h-4" /> Vencimientos
           </Link>
+
+          {/* BOTÓN DE CREAR / GESTIONAR EVENTOS */}
+          <button
+            type="button"
+            onClick={() => setModalEventosOpen(true)}
+            className="px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white transition shadow-sm"
+          >
+            <Calendar className="w-4 h-4" /> Eventos
+          </button>
+
           <Link to="/admin/solicitudes-password" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/solicitudes-password')}`}>
-          <KeyRound className="w-4 h-4" /> Solicitudes
+            <KeyRound className="w-4 h-4" /> Solicitudes
           </Link>
           <Link to="/admin/comercios/nuevo" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/comercios/nuevo')}`}>
             <PlusCircle className="w-4 h-4" /> Alta comercio
@@ -601,7 +614,6 @@ export const AdminDashboardPage: React.FC = () => {
           <Store className="w-7 h-7 text-brand-600" />
         </div>
 
-        {/* TARJETA RECAUDACIÓN ACTIVA EDITABLE */}
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación activa</p>
@@ -1122,6 +1134,12 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL DE GESTIÓN DE EVENTOS Y ANUNCIOS */}
+      <AdminEventosModal
+        isOpen={modalEventosOpen}
+        onClose={() => setModalEventosOpen(false)}
+      />
     </div>
   );
 };

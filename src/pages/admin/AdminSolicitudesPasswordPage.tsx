@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { AdminEventosModal } from '@/components/AdminEventosModal';
 import {
   KeyRound,
   Mail,
@@ -12,7 +13,8 @@ import {
   LogOut,
   Search,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Calendar,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -32,6 +34,9 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
   const [cargando, setCargando] = useState<boolean>(true);
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+
+  // Estado para el modal de eventos
+  const [modalEventosOpen, setModalEventosOpen] = useState(false);
 
   const cargarSolicitudes = async () => {
     setCargando(true);
@@ -127,7 +132,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
         </div>
 
         {/* NAVEGACIÓN COMPLETA */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 border-t dark:border-gray-700 pt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 border-t dark:border-gray-700 pt-4">
           <Link to="/admin" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin' ? 'bg-brand-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
             <LayoutDashboard className="w-4 h-4" /> Dashboard
           </Link>
@@ -137,6 +142,16 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
           <Link to="/admin/vencimientos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/vencimientos' ? 'bg-amber-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
             <Clock className="w-4 h-4" /> Vencimientos
           </Link>
+
+          {/* BOTÓN DE CREAR / GESTIONAR EVENTOS */}
+          <button
+            type="button"
+            onClick={() => setModalEventosOpen(true)}
+            className="px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white transition shadow-sm"
+          >
+            <Calendar className="w-4 h-4" /> Eventos
+          </button>
+
           <Link to="/admin/solicitudes-password" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/solicitudes-password')}`}>
             <KeyRound className="w-4 h-4" /> Solicitudes {pendientesCount > 0 && <span className="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[10px]">{pendientesCount}</span>}
           </Link>
@@ -231,6 +246,12 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* MODAL DE GESTIÓN DE EVENTOS Y ANUNCIOS */}
+      <AdminEventosModal
+        isOpen={modalEventosOpen}
+        onClose={() => setModalEventosOpen(false)}
+      />
     </div>
   );
 };

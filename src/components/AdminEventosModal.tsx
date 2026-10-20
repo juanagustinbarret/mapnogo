@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Plus, Trash2, CheckCircle2, Clock, X } from 'lucide-react';
+import { Calendar, Plus, Trash2, Clock, X, Eye } from 'lucide-react';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 
 interface Evento {
   id: string;
+  comercio_id?: string | null;
   titulo: string;
-  descripcion: string;
-  fecha_inicio: string;
-  fecha_fin: string;
+  descripcion?: string | null;
+  fecha_evento: string;
+  hora_inicio?: string | null;
+  hora_fin?: string | null;
+  ubicacion_texto?: string | null;
+  imagen_url?: string | null;
+  mostrar_desde?: string | null;
+  mostrar_hasta?: string | null;
   activo: boolean;
 }
 
@@ -19,10 +25,17 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Datos del Evento
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [fechaInicio, setFechaInicio] = useState(hoyArgentina());
-  const [fechaFin, setFechaFin] = useState(hoyArgentina());
+  const [fechaEvento, setFechaEvento] = useState(hoyArgentina());
+  const [horaInicio, setHoraInicio] = useState('');
+  const [horaFin, setHoraFin] = useState('');
+  const [ubicacionTexto, setUbicacionTexto] = useState('');
+
+  // Rango de Publicación / Visibilidad en Mapa
+  const [mostrarDesde, setMostrarDesde] = useState(`${hoyArgentina()}T00:00`);
+  const [mostrarHasta, setMostrarHasta] = useState(`${hoyArgentina()}T23:59`);
 
   const cargarEventos = async () => {
     setLoading(true);
@@ -45,9 +58,13 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
 
     const { error } = await supabase.from('eventos').insert({
       titulo: titulo.trim(),
-      descripcion: descripcion.trim(),
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
+      descripcion: descripcion.trim() || null,
+      fecha_evento: fechaEvento,
+      hora_inicio: horaInicio.trim() || null,
+      hora_fin: horaFin.trim() || null,
+      ubicacion_texto: ubicacionTexto.trim() || null,
+      mostrar_desde: mostrarDesde ? new Date(mostrarDesde).toISOString() : null,
+      mostrar_hasta: mostrarHasta ? new Date(mostrarHasta).toISOString() : null,
       activo: true,
     });
 
@@ -56,6 +73,9 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
     } else {
       setTitulo('');
       setDescripcion('');
+      setHoraInicio('');
+      setHoraFin('');
+      setUbicacionTexto('');
       cargarEventos();
     }
   };
@@ -82,17 +102,17 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
         </div>
 
         {/* FORMULARIO DE ALTA DE EVENTO */}
-        <form onSubmit={handleCrearEvento} className="space-y-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+        <form onSubmit={handleCrearEvento} className="space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
           <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
             Publicar Nuevo Evento
           </h4>
 
           <div>
-            <label className="block text-xs font-semibold mb-1">Título del Evento / Anuncio</label>
+            <label className="block text-xs font-semibold mb-1">Título del Evento / Anuncio *</label>
             <input
               type="text"
               required
-              placeholder="Ej: Fiesta de la Guitarra / Noche de Peatonal"
+              placeholder="Ej: Fiesta del Agua"
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
@@ -109,32 +129,84 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* DATOS DEL EVENTO (FECHA Y HORARIOS) */}
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block text-xs font-semibold mb-1">Fecha Desde</label>
+              <label className="block text-[11px] font-semibold mb-1">Fecha Evento *</label>
               <input
                 type="date"
                 required
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
+                value={fechaEvento}
+                onChange={(e) => setFechaEvento(e.target.value)}
                 className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-semibold mb-1">Fecha Hasta</label>
+              <label className="block text-[11px] font-semibold mb-1">Hora Inicio</label>
               <input
-                type="date"
-                required
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold mb-1">Hora Fin</label>
+              <input
+                type="time"
+                value={horaFin}
+                onChange={(e) => setHoraFin(e.target.value)}
                 className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
               />
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold mb-1">Ubicación / Lugar (opcional)</label>
+            <input
+              type="text"
+              placeholder="Ej: Plaza Libertad / Peatonal"
+              value={ubicacionTexto}
+              onChange={(e) => setUbicacionTexto(e.target.value)}
+              className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
+            />
+          </div>
+
+          {/* SECCIÓN VISIBILIDAD / PROGRAMACIÓN EN EL MAPA */}
+          <div className="border-t dark:border-gray-800 pt-3 space-y-2">
+            <label className="block text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5" /> Rango de Publicación (Visibilidad en Banner)
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-gray-500 font-semibold mb-1">Mostrar Desde (Día y Hora)</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={mostrarDesde}
+                  onChange={(e) => setMostrarDesde(e.target.value)}
+                  className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-gray-500 font-semibold mb-1">Mostrar Hasta (Día y Hora)</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={mostrarHasta}
+                  onChange={(e) => setMostrarHasta(e.target.value)}
+                  className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
           <button
             type="submit"
-            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
           >
             <Plus className="w-4 h-4" /> Guardar Evento
           </button>
@@ -162,7 +234,7 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ev.descripcion}</p>
                   )}
                   <p className="text-[10px] text-amber-600 font-bold mt-1 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> Del {ev.fecha_inicio} al {ev.fecha_fin}
+                    <Clock className="w-3 h-3" /> Evento: {ev.fecha_evento} {ev.hora_inicio ? `(${ev.hora_inicio} a ${ev.hora_fin || '??'})` : ''}
                   </p>
                 </div>
 
