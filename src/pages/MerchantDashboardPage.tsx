@@ -5,7 +5,7 @@ import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Comercio, Suscripcion, Promocion } from '@/types/database.types';
+import { Comercio, Suscripcion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
