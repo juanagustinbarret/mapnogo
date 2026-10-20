@@ -13,9 +13,8 @@ import {
   LogOut,
   Search,
   RefreshCw,
-  Copy,
+  MessageCircle,
   Calendar,
-  ExternalLink,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -92,23 +91,38 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
     return token;
   };
 
-  const handleGenerarYEnviarEmail = async (solicitudId: string, emailTarget: string) => {
+  // Función unificada para generar token y enviar vía Mail o WhatsApp
+  const handleGenerarYEnviar = async (solicitudId: string, emailTarget: string, canal: 'mail' | 'whatsapp') => {
     setProcesandoId(solicitudId);
     try {
       const token = await generarTokenSeguro(emailTarget);
       if (!token) return;
 
       const linkReset = `${window.location.origin}/reset-password?token=${token}`;
-      const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
-      const cuerpo = encodeURIComponent(
-        `Hola,\n\nRecibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace seguro (válido por 15 minutos):\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este correo.\n\nSaludos,\nEquipo NOGOMAP`
-      );
+      const mensajeTexto = `Hola! Recibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace seguro (válido por 15 minutos):\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este mensaje.\n\nSaludos,\nEquipo NOGOMAP`;
 
-      // Copiar al portapapeles por comodidad
+      // Copiar enlace al portapapeles por comodidad
       await navigator.clipboard.writeText(linkReset);
 
-      // Abrir cliente de correo
-      window.location.href = `mailto:${emailTarget}?subject=${asunto}&body=${cuerpo}`;
+      if (canal === 'mail') {
+        const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
+        const cuerpo = encodeURIComponent(mensajeTexto);
+        window.location.href = `mailto:${emailTarget}?subject=${asunto}&body=${cuerpo}`;
+      } else {
+        // Consultar si el comercio tiene WhatsApp registrado
+        const { data: comercio } = await supabase
+          .from('comercios')
+          .select('whatsapp')
+          .eq('email_comercial', emailTarget)
+          .maybeSingle();
+
+        const numWhatsApp = comercio?.whatsapp ? comercio.whatsapp.replace(/\D/g, '') : '';
+        const urlWhatsApp = numWhatsApp
+          ? `https://wa.me/${numWhatsApp}?text=${encodeURIComponent(mensajeTexto)}`
+          : `https://wa.me/?text=${encodeURIComponent(mensajeTexto)}`;
+
+        window.open(urlWhatsApp, '_blank');
+      }
 
       // Marcar solicitud como resuelta
       await supabase
@@ -117,7 +131,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
         .eq('id', solicitudId);
 
       await cargarSolicitudes();
-      alert('✅ Token generado y link copiado al portapapeles.');
+      alert(`✅ Token generado y mensaje enviado por ${canal === 'mail' ? 'Correo' : 'WhatsApp'} (Enlace copiado al portapapeles).`);
     } catch (err: any) {
       console.error('Error procesando la solicitud:', err);
     } finally {
@@ -308,12 +322,23 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
                   {sol.estado === 'pendiente' ? (
                     <>
                       <button
-                        onClick={() => handleGenerarYEnviarEmail(sol.id, sol.email)}
+                        onClick={() => handleGenerarYEnviar(sol.id, sol.email, 'mail')}
                         disabled={procesandoId === sol.id}
-                        className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                        className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                        title="Enviar link seguro por mail"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Generar Link Seguro & Enviar
+                        <Mail className="w-3.5 h-3.5" />
+                        Enviar Mail
+                      </button>
+
+                      <button
+                        onClick={() => handleGenerarYEnviar(sol.id, sol.email, 'whatsapp')}
+                        disabled={procesandoId === sol.id}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                        title="Enviar link seguro por WhatsApp"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Enviar WhatsApp
                       </button>
 
                       <button
