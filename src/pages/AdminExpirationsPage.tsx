@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ModalMetricasWhatsApp } from '@/components/ModalMetricasWhatsApp';
+import { AdminEventosModal } from '@/components/AdminEventosModal';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp';
@@ -22,7 +23,9 @@ import {
   CreditCard,
   PlusCircle,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  Calendar,
+  KeyRound
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -42,12 +45,12 @@ export const AdminExpirationsPage: React.FC = () => {
 
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [search, setSearch] = useState('');
-  // Plantillas de Configuración → Mensajes de WhatsApp (o las predeterminadas)
   const [plantillas, setPlantillas] = useState<Record<TipoPlantilla, string>>(PLANTILLAS_PREDETERMINADAS);
   const [suscripciones, setSuscripciones] = useState<Record<string, SuscripcionResumen>>({});
   const [planes, setPlanes] = useState<Record<string, string>>({});
   const [comercioMetricas, setComercioMetricas] = useState<Comercio | null>(null);
   const [recordatorio, setRecordatorio] = useState<{ comercio: Comercio; resultado: Extract<ResultadoRecordatorio, { ok: true }> } | null>(null);
+  const [modalEventosOpen, setModalEventosOpen] = useState(false);
 
   useEffect(() => {
     fetchComercios();
@@ -72,10 +75,6 @@ export const AdminExpirationsPage: React.FC = () => {
     setPlantillas(leerPlantillasGuardadas(config?.valor));
   };
 
-  // Antes (PR #4) se usaba una sola plantilla con [IMPORTE] y, si el comercio
-  // no tenía suscripción, se bloqueaba con "faltan datos para [IMPORTE]". Ahora
-  // armarRecordatorio decide el caso (sin WhatsApp / sin suscripción / sin
-  // importe) y siempre se abre el editor antes de WhatsApp.
   const handleEnviarWhatsApp = (comercio: Comercio) => {
     const sub = suscripciones[comercio.id];
     const resultado = armarRecordatorio(
@@ -94,8 +93,6 @@ export const AdminExpirationsPage: React.FC = () => {
     setRecordatorio({ comercio, resultado });
   };
 
-  // Antes armaba el mensaje con los últimos 7 días fijos y lo abría directo.
-  // Ahora se elige el período y se ve una vista previa (ModalMetricasWhatsApp).
   const handleEnviarMetricasWhatsApp = (comercio: Comercio) => {
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
     if (!numInfo.isValid) {
@@ -109,10 +106,15 @@ export const AdminExpirationsPage: React.FC = () => {
     c.nombre.toLowerCase().includes(search.toLowerCase()) || (c.whatsapp && c.whatsapp.includes(search))
   );
 
+  const rutaActiva = (ruta: string) =>
+    location.pathname === ruta
+      ? 'bg-amber-600 text-white shadow-sm'
+      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200';
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
       
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
@@ -131,37 +133,49 @@ export const AdminExpirationsPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t dark:border-gray-700 pt-4">
+        {/* NAVEGACIÓN COMPLETA UNIFICADA DE 6 OPCIONES */}
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 border-t dark:border-gray-700 pt-4">
           <Link
             to="/admin"
-            className="px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin' ? 'bg-brand-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
           >
-            <LayoutDashboard className="w-4 h-4 shrink-0" />
-            <span className="truncate">Dashboard</span>
+            <LayoutDashboard className="w-4 h-4" /> Dashboard
           </Link>
 
           <Link
             to="/admin/pagos"
-            className="px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/pagos' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
           >
-            <CreditCard className="w-4 h-4 shrink-0" />
-            <span className="truncate">Pagos</span>
+            <CreditCard className="w-4 h-4" /> Pagos
           </Link>
 
           <Link
             to="/admin/vencimientos"
-            className="px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center bg-amber-600 text-white shadow-sm"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/vencimientos')}`}
           >
-            <Clock className="w-4 h-4 shrink-0" />
-            <span className="truncate">Vencimientos</span>
+            <Clock className="w-4 h-4" /> Vencimientos
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setModalEventosOpen(true)}
+            className="px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white transition shadow-sm"
+          >
+            <Calendar className="w-4 h-4" /> Eventos
+          </button>
+
+          <Link
+            to="/admin/solicitudes-password"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/solicitudes-password' ? 'bg-amber-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
+          >
+            <KeyRound className="w-4 h-4" /> Solicitudes
           </Link>
 
           <Link
             to="/admin/comercios/nuevo"
-            className="px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/comercios/nuevo' ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
           >
-            <PlusCircle className="w-4 h-4 shrink-0" />
-            <span className="truncate">Alta Comercio</span>
+            <PlusCircle className="w-4 h-4" /> Alta Comercio
           </Link>
         </div>
       </div>
@@ -296,6 +310,7 @@ export const AdminExpirationsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
       {comercioMetricas && (
         <ModalMetricasWhatsApp
           comercio={comercioMetricas}
@@ -303,6 +318,7 @@ export const AdminExpirationsPage: React.FC = () => {
           onCerrar={() => setComercioMetricas(null)}
         />
       )}
+
       {recordatorio && (
         <EditorMensajeWhatsApp
           titulo={
@@ -318,6 +334,11 @@ export const AdminExpirationsPage: React.FC = () => {
           onCerrar={() => setRecordatorio(null)}
         />
       )}
+
+      <AdminEventosModal
+        isOpen={modalEventosOpen}
+        onClose={() => setModalEventosOpen(false)}
+      />
     </div>
   );
 };
