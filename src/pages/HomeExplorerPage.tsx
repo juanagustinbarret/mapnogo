@@ -6,18 +6,19 @@ import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
 import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, Truck, ShieldAlert } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import {
-  aplicarPausa,
-  estadoDeliveryEn,
+  estadoDeliveryDelComercio,
   momentoArgentina,
-  rangosDeDelivery,
   textoEstadoDelivery,
+  textoMomentoElegido,
+  type MomentoElegido,
   type RangoDelivery,
 } from '@/lib/delivery';
+import { FiltroDelivery } from '@/components/FiltroDelivery';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 import {
@@ -68,6 +69,8 @@ export const HomeExplorerPage: React.FC = () => {
   // FILTROS AVANZADOS DINÁMICOS
   const [soloAbiertos, setSoloAbiertos] = useState(false);
   const [soloDelivery, setSoloDelivery] = useState(false);
+  // "¿Quién tiene delivery tal día a tal hora?" (null = ahora)
+  const [momentoDelivery, setMomentoDelivery] = useState<MomentoElegido | null>(null);
   const [soloFarmaciasTurno, setSoloFarmaciasTurno] = useState(false);
 
   // Delivery: rangos por comercio
@@ -280,6 +283,7 @@ export const HomeExplorerPage: React.FC = () => {
     soloAbiertos,
     soloDelivery,
     soloFarmaciasTurno,
+    conMomentoDelivery: momentoDelivery !== null,
   };
 
   const farmaciasTurnoIds = farmaciaDeTurno ? [farmaciaDeTurno.id] : [];
@@ -297,9 +301,8 @@ export const HomeExplorerPage: React.FC = () => {
     const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || [], ahora);
     // Sin rangos propios se usan los de atención (como muestra la ficha), y
     // una pausa vigente se muestra como "Delivery pausado hasta las …"
-    const estadoDelivery = c.tiene_delivery
-      ? aplicarPausa(estadoDeliveryEn(rangosDeDelivery(delivery[c.id], horarios[c.id]), momentoAhora), c.delivery_pausado_hasta, ahora)
-      : estadoDeliveryEn([], momentoAhora);
+    // En el día y hora elegidos (o ahora): la pausa cuenta solo si sigue vigente en ese momento
+    const estadoDelivery = estadoDeliveryDelComercio(c, delivery[c.id], horarios[c.id], momentoDelivery?.instante ?? ahora);
     return { ...c, distancia, estadoAtencion, estadoDelivery, horarios: horarios[c.id] || [] };
   });
 
@@ -524,16 +527,16 @@ export const HomeExplorerPage: React.FC = () => {
               <Clock className="w-3.5 h-3.5" /> Abierto Ahora
             </button>
 
-            <button
-              onClick={() => setSoloDelivery(!soloDelivery)}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                soloDelivery
-                  ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
-                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5" /> Con Delivery
-            </button>
+            <FiltroDelivery
+              activo={soloDelivery}
+              onCambiarActivo={(activo) => {
+                setSoloDelivery(activo);
+                if (!activo) setMomentoDelivery(null);
+              }}
+              elegido={momentoDelivery}
+              onElegir={setMomentoDelivery}
+              minutosAhora={momentoAhora.minutos}
+            />
 
             <button
               onClick={() => setSoloFarmaciasTurno(!soloFarmaciasTurno)}
@@ -598,6 +601,8 @@ export const HomeExplorerPage: React.FC = () => {
               <p className="text-sm font-semibold">
                 {soloAbiertos
                   ? 'No hay negocios abiertos en este momento'
+                  : soloDelivery && momentoDelivery
+                  ? `Ningún comercio tiene delivery ${textoMomentoElegido(momentoDelivery, hoyArgentina())}`
                   : soloDelivery
                   ? 'No hay comercios con delivery disponible (o lo pausaron por ahora)'
                   : soloFarmaciasTurno

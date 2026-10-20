@@ -252,3 +252,52 @@ export function fueraDelHorarioDelLocal(rango: RangoDelivery, turnos: TurnoLocal
   }
   return false;
 }
+
+// ─── "¿Quién tiene delivery tal día a tal hora?" ────────────────────────
+
+export interface MomentoElegido {
+  fecha: string; // YYYY-MM-DD (calendario argentino)
+  hora: string; // HH:MM
+  instante: Date;
+  momento: MomentoArgentina;
+}
+
+/** Fecha y hora elegidas (hora de Argentina) → instante y día/minuto; null si no son válidas. */
+export function momentoDesdeFechaHora(fecha: string, hora: string): MomentoElegido | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(aMinutos(hora)) || aMinutos(hora) >= DIA) return null;
+  const instante = new Date(`${fecha}T${hora.slice(0, 5)}:00-03:00`);
+  if (Number.isNaN(instante.getTime())) return null;
+  // Rechaza fechas que no existen (2026-02-30 se correría al 2 de marzo)
+  const enArgentina = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instante);
+  if (enArgentina !== fecha) return null;
+  return { fecha, hora: hora.slice(0, 5), instante, momento: momentoArgentina(instante) };
+}
+
+/**
+ * Estado del delivery de un comercio en un instante: sus rangos (o los de
+ * atención si no cargó propios) y la pausa, si sigue vigente en ese instante.
+ */
+export function estadoDeliveryDelComercio(
+  comercio: { tiene_delivery?: boolean | null; delivery_pausado_hasta?: string | null },
+  propios: RangoDelivery[] | undefined,
+  turnosLocal: Parameters<typeof rangosDeDelivery>[1],
+  instante: Date,
+): EstadoDelivery {
+  const momento = momentoArgentina(instante);
+  if (!comercio.tiene_delivery) return estadoDeliveryEn([], momento);
+  return aplicarPausa(estadoDeliveryEn(rangosDeDelivery(propios, turnosLocal), momento), comercio.delivery_pausado_hasta, instante);
+}
+
+const DIAS_CORTOS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+
+/** "hoy a las 21:30", "mañana a las 13:00" o "el sáb 25/10 a las 21:30". */
+export function textoMomentoElegido(elegido: Pick<MomentoElegido, 'fecha' | 'hora' | 'momento'>, hoy: string): string {
+  const dias = Math.round((Date.parse(`${elegido.fecha}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000);
+  const cuando =
+    dias === 0
+      ? 'hoy'
+      : dias === 1
+      ? 'mañana'
+      : `el ${DIAS_CORTOS[elegido.momento.dia]} ${elegido.fecha.slice(8, 10)}/${elegido.fecha.slice(5, 7)}`;
+  return `${cuando} a las ${elegido.hora}`;
+}

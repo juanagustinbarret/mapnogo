@@ -1,92 +1,76 @@
 import React, { useState } from 'react';
-import { Bike, CalendarClock } from 'lucide-react';
-import { DIAS_SEMANA, aHora, aMinutos, type MomentoArgentina } from '@/lib/delivery';
+import { CalendarClock, Truck } from 'lucide-react';
+import { aHora, momentoDesdeFechaHora, textoMomentoElegido, type MomentoElegido } from '@/lib/delivery';
+import { hoyArgentina, sumarDias } from '@/lib/fechasArgentina';
 
 interface FiltroDeliveryProps {
   activo: boolean;
   onCambiarActivo: (activo: boolean) => void;
-  /** null = ahora */
-  momento: MomentoArgentina | null;
-  momentoAhora: MomentoArgentina;
-  onCambiarMomento: (momento: MomentoArgentina | null) => void;
-  anchoCompleto?: boolean;
+  /** null = sin día y hora elegidos */
+  elegido: MomentoElegido | null;
+  onElegir: (elegido: MomentoElegido | null) => void;
+  /** Minuto actual del día en Argentina, para proponer la hora */
+  minutosAhora: number;
 }
 
-// Botón "Delivery activo" (mismo estilo que "Abiertos Ahora") con la opción
-// de elegir otro día y hora para planificar ("Delivery a las 21:30").
-export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({
-  activo,
-  onCambiarActivo,
-  momento,
-  momentoAhora,
-  onCambiarMomento,
-  anchoCompleto = false,
-}) => {
+// "Con Delivery" (como antes) + elegir fecha y hora: "¿quién tiene delivery
+// el sábado a las 21:30?". Todo se calcula con los horarios cargados en
+// NOGOMAP, en hora de Argentina.
+export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({ activo, onCambiarActivo, elegido, onElegir, minutosAhora }) => {
+  const hoy = hoyArgentina();
   const [abierto, setAbierto] = useState(false);
-  const [dia, setDia] = useState(momento?.dia ?? momentoAhora.dia);
-  const [hora, setHora] = useState(aHora(momento?.minutos ?? momentoAhora.minutos));
+  const [fecha, setFecha] = useState(elegido?.fecha ?? hoy);
+  const [hora, setHora] = useState(elegido?.hora ?? aHora(minutosAhora));
+  const candidato = momentoDesdeFechaHora(fecha, hora);
 
-  const etiqueta = momento
-    ? `Delivery ${momento.dia === momentoAhora.dia ? '' : `el ${DIAS_SEMANA[momento.dia].toLowerCase()} `}a las ${aHora(momento.minutos)}`
-    : 'Delivery activo';
-
-  const claseBase = `text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shrink-0 ${
+  const etiqueta = elegido ? `Delivery ${textoMomentoElegido(elegido, hoy)}` : 'Con Delivery';
+  const clase = `px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
     activo
-      ? 'bg-green-600 text-white shadow-sm'
+      ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
       : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
   }`;
+  const campo = 'w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white';
 
   return (
-    <div className={`relative flex gap-1 ${anchoCompleto ? 'w-full' : ''}`}>
-      <button
-        type="button"
-        aria-pressed={activo}
-        onClick={() => onCambiarActivo(!activo)}
-        className={`${claseBase} px-3.5 py-1.5 ${anchoCompleto ? 'flex-1 py-2' : ''}`}
-      >
-        <Bike className="w-3.5 h-3.5" aria-hidden="true" /> {activo ? `✓ ${etiqueta}` : etiqueta}
+    <div className="relative flex gap-1">
+      <button type="button" aria-pressed={activo} onClick={() => onCambiarActivo(!activo)} className={clase}>
+        <Truck className="w-3.5 h-3.5" aria-hidden="true" /> {etiqueta}
       </button>
       <button
         type="button"
         onClick={() => setAbierto((a) => !a)}
         aria-expanded={abierto}
-        aria-label="Elegir día y hora del delivery"
-        title="Elegir día y hora"
-        className={`${claseBase} px-2.5 ${anchoCompleto ? 'py-2' : 'py-1.5'}`}
+        aria-label="Elegir fecha y hora del delivery"
+        title="¿Delivery otro día u hora?"
+        className={`${clase} px-2.5`}
       >
         <CalendarClock className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
 
       {abierto && (
-        <div className="absolute z-20 top-full mt-1 right-0 w-64 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl space-y-2 text-xs">
+        <div
+          role="dialog"
+          aria-label="Delivery en otro día y hora"
+          className="absolute z-[500] top-full mt-1 left-0 w-64 max-w-[calc(100vw-2rem)] p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl space-y-2 text-xs"
+        >
           <p className="font-semibold text-gray-700 dark:text-gray-200">¿Cuándo querés pedir?</p>
-          <div className="flex gap-2">
-            <select
-              value={dia}
-              onChange={(e) => setDia(Number(e.target.value))}
-              aria-label="Día"
-              className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-900"
-            >
-              {DIAS_SEMANA.map((nombre, i) => (
-                <option key={nombre} value={i}>
-                  {nombre}
-                  {i === momentoAhora.dia ? ' (hoy)' : ''}
-                </option>
-              ))}
-            </select>
-            <input
-              type="time"
-              value={hora}
-              onChange={(e) => setHora(e.target.value)}
-              aria-label="Hora"
-              className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-900"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="block text-[11px] text-gray-500">Fecha</span>
+              <input type="date" value={fecha} min={hoy} max={sumarDias(hoy, 60)} onChange={(e) => setFecha(e.target.value)} className={campo} />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[11px] text-gray-500">Hora</span>
+              <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className={campo} />
+            </label>
           </div>
           <div className="flex justify-between gap-2">
             <button
               type="button"
               onClick={() => {
-                onCambiarMomento(null);
+                onElegir(null);
+                setFecha(hoy);
+                setHora(aHora(minutosAhora));
                 setAbierto(false);
               }}
               className="px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 font-bold"
@@ -95,18 +79,18 @@ export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({
             </button>
             <button
               type="button"
-              disabled={Number.isNaN(aMinutos(hora))}
+              disabled={!candidato}
               onClick={() => {
-                onCambiarMomento({ dia, minutos: aMinutos(hora) });
+                onElegir(candidato);
                 onCambiarActivo(true);
                 setAbierto(false);
               }}
-              className="px-2.5 py-1.5 rounded-lg bg-green-600 text-white font-bold disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold disabled:opacity-50"
             >
-              Ver delivery a esa hora
+              Ver quién tiene delivery
             </button>
           </div>
-          <p className="text-[10px] text-gray-500">Horario de Argentina.</p>
+          <p className="text-[10px] text-gray-500">Según los horarios que cargó cada comercio. Hora de Argentina.</p>
         </div>
       )}
     </div>
