@@ -25,6 +25,7 @@ import {
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
 import { registrarInteraccion } from '@/lib/metrics';
+import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
@@ -84,7 +85,16 @@ export const CommerceDetailPage: React.FC = () => {
   }, [slug]);
 
   const fetchComercio = async () => {
-    const { data: c } = await supabase.from('comercios').select('*, rubro:rubros(*)').eq('slug', slug).single();
+    // Sin el email del comercio (ver src/lib/columnasPublicas.ts)
+    // ("as '*'" es solo para TypeScript: el cliente no tiene los tipos de la base)
+    const pedir = (columnas: string) =>
+      supabase
+        .from('comercios')
+        .select(`${columnas}, rubro:rubros(*)` as '*')
+        .eq('slug', slug)
+        .single();
+    let { data: c, error: errorComercio } = await pedir(COLUMNAS_PUBLICAS_COMERCIO);
+    if (errorComercio && errorComercio.code !== 'PGRST116') ({ data: c } = await pedir('*'));
     if (c) {
       setComercio(c);
 
