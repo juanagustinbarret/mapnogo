@@ -41,7 +41,7 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PanelLinkRecuperacion } from '@/components/PanelLinkRecuperacion';
-import { QrResenas } from '@/components/QrResenas';
+import { QrResenasDiferido } from '@/components/QrResenasDiferido';
 import { slugLimpio } from '@/lib/rutasQr';
 import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
 import { horaDeVencimiento } from '@/lib/linksRecuperacion';
@@ -1205,7 +1205,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
-            <QrResenas slug={qrDe.slug} nombre={qrDe.nombre} />
+            <QrResenasDiferido slug={qrDe.slug} nombre={qrDe.nombre} />
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { QrResenas } from '@/components/QrResenas';
+import { QrResenasDiferido, precargarQrResenas } from '@/components/QrResenasDiferido';
 import { CONTACTO } from '@/lib/contacto';
 import { estadoSuscripcion } from '@/lib/renovacion';
 import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
@@ -66,6 +66,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const [diasParaVencer, setDiasParaVencer] = useState<number | null>(null);
 
   const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
+  const [metricasListas, setMetricasListas] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,6 +88,8 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const fetchMerchantData = async () => {
     setLoading(true);
+    // El QR se baja aparte, en paralelo con los datos
+    precargarQrResenas().catch(() => {});
 
     try {
       // Si el dueño tiene más de un comercio, maybeSingle() daba error y el
@@ -121,15 +124,55 @@ export const MerchantDashboardPage: React.FC = () => {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
 
-        // Si las métricas fallan, igual se carga la suscripción y lo demás
-        // (antes el error cortaba la carga y la suscripción quedaba vacía)
-        try {
-          setMetricasReales(await obtenerMetricasComercio(c.id));
-        } catch (errorMetricas) {
-          console.warn('[panel] No se pudieron leer las métricas:', errorMetricas);
-        }
+        // Las métricas cuentan filas y pueden tardar (o reintentar si la red
+        // falla): se completan solas cuando llegan, sin frenar el panel.
+        // Si fallan, igual se carga la suscripción y lo demás.
+        obtenerMetricasComercio(c.id)
+          .then((m) => {
+            setMetricasReales(m);
+            setMetricasListas(true);
+          })
+          .catch((errorMetricas) => console.warn('[panel] No se pudieron leer las métricas:', errorMetricas));
 
-        const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
+        // El resto se pide todo junto: antes eran 6 consultas una detrás de
+        // otra (en el celular, cada una suma la ida y vuelta a la base).
+        const pedirPromociones = async () => {
+          // Los clics salen de interacciones_ofertas. Si esa tabla o su
+          // relación no existen, PostgREST da error y antes la lista de
+          // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
+          const consultaConClics = await supabase
+            .from('promociones')
+            .select('*, metricas_clics:interacciones_ofertas(count)')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false });
+          if (!consultaConClics.error) return consultaConClics.data;
+          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
+          const simple = await supabase
+            .from('promociones')
+            .select('*')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false });
+          return simple.data;
+        };
+
+        const [{ data: s }, p, { data: h }, { data: r }, { data: ft }] = await Promise.all([
+          supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle(),
+          pedirPromociones(),
+          supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
+          // Reseñas recibidas
+          supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
+          // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
+          // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
+          // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
+          supabase
+            .from('farmacias_turno')
+            .select('fecha')
+            .eq('comercio_id', c.id)
+            .gte('fecha', hoyArgentina())
+            .order('fecha', { ascending: true })
+            .limit(1),
+        ]);
+
         if (s) {
           setSuscripcion(s);
           if (s.proximo_vencimiento) {
@@ -138,52 +181,9 @@ export const MerchantDashboardPage: React.FC = () => {
             setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
           }
         }
-
-        // Los clics salen de interacciones_ofertas. Si esa tabla o su
-        // relación no existen, PostgREST da error y antes la lista de
-        // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
-        const consultaConClics = await supabase
-          .from('promociones')
-          .select('*, metricas_clics:interacciones_ofertas(count)')
-          .eq('comercio_id', c.id)
-          .order('created_at', { ascending: false });
-        let p = consultaConClics.data;
-        if (consultaConClics.error) {
-          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
-          const simple = await supabase
-            .from('promociones')
-            .select('*')
-            .eq('comercio_id', c.id)
-            .order('created_at', { ascending: false });
-          p = simple.data;
-        }
         if (p) setPromociones(p);
-
-        const { data: h } = await supabase
-          .from('horarios_atencion')
-          .select('*')
-          .eq('comercio_id', c.id)
-          .order('dia_semana', { ascending: true });
         if (h) setHorarios(h);
-
-        // Cargar las reseñas recibidas
-        const { data: r } = await supabase
-          .from('resenas')
-          .select(COLUMNAS_RESENA)
-          .eq('comercio_id', c.id)
-          .order('created_at', { ascending: false });
         if (r) setResenas(r);
-
-        // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
-        // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
-        // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
-        const { data: ft } = await supabase
-          .from('farmacias_turno')
-          .select('fecha')
-          .eq('comercio_id', c.id)
-          .gte('fecha', hoyArgentina())
-          .order('fecha', { ascending: true })
-          .limit(1);
         setProximoTurno(ft?.[0]?.fecha ?? null);
       }
     } catch (error) {
@@ -397,7 +397,9 @@ export const MerchantDashboardPage: React.FC = () => {
     try {
       // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
       const { generarReportePDF } = await import('@/lib/generatePdfReport');
-      generarReportePDF(comercio, metricasReales, suscripcion, promociones);
+      // Si las métricas todavía no habían llegado, se piden ahora
+      const metricas = metricasListas ? metricasReales : await obtenerMetricasComercio(comercio.id).catch(() => metricasReales);
+      generarReportePDF(comercio, metricas, suscripcion, promociones);
     } catch (err: any) {
       alert('No se pudo generar el reporte PDF: ' + (err?.message ?? err));
     }
@@ -629,7 +631,7 @@ export const MerchantDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Visitas a la ficha (total)</p>
-            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasReales.visitas}</p>
+            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasListas ? metricasReales.visitas : '…'}</p>
           </div>
           <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
             <Eye className="w-6 h-6" />
@@ -753,7 +755,7 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-center gap-3 py-1">
-            <QrResenas slug={comercio.slug} nombre={comercio.nombre} direccion={comercio.direccion} conStory />
+            <QrResenasDiferido slug={comercio.slug} nombre={comercio.nombre} direccion={comercio.direccion} conStory />
           </div>
         </div>
       </div>
