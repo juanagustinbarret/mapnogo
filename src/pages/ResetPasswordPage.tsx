@@ -40,7 +40,7 @@ export const ResetPasswordPage: React.FC = () => {
         tipo: 'exito',
         texto: '¡Contraseña restablecida con éxito! Redirigiendo al inicio de sesión...'
       });
-      setTimeout(() => navigate('/panel/login'), 2500);
+      setTimeout(() => navigate('/login'), 2500);
     }
   };
 
