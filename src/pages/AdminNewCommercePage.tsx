@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizarTexto } from '@/lib/filtrosComercios';
-import { hoyArgentina } from '@/lib/fechasArgentina';
 import { supabase } from '@/lib/supabase';
 import { Rubro } from '@/types/database.types';
-import { ArrowLeft, Save, Building, User, Search, ChevronDown, Check } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Save, Building, User, Search, ChevronDown, Check, FileSignature } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ComprobanteAlta } from '@/components/ComprobanteAlta';
+import {
+  MEDIOS_DE_ALTA,
+  condicionesDelAlta,
+  primerVencimiento,
+  textoAceptacion,
+  textoPrecio,
+  type DatosAlta,
+  type MedioDeAlta,
+} from '@/lib/comprobanteAlta';
 import {
   MapContainer,
   TileLayer,
@@ -81,8 +90,12 @@ const SelectorMapa: React.FC<SelectorMapaProps> = ({
   );
 };
 
+// La Edge Function admin-crear-comerciante exige 8 caracteres (antes el
+// formulario pedía 6 y el error recién aparecía al enviar).
+const MINIMO_CLAVE = 8;
+const DIAS_GRACIA = 5; // valor por defecto de suscripciones.dias_gracia
+
 export const AdminNewCommercePage: React.FC = () => {
-  const navigate = useNavigate();
 
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,6 +119,26 @@ export const AdminNewCommercePage: React.FC = () => {
     latitud: -32.3939,
     longitud: -59.7881,
   });
+
+  // Ficha de alta como contrato
+  const [documento, setDocumento] = useState('');
+  const [medio, setMedio] = useState<MedioDeAlta>('presencial');
+  const [aceptado, setAceptado] = useState(false);
+  const [plan, setPlan] = useState<{ nombre: string; precio: number } | null>(null);
+  const [comprobante, setComprobante] = useState<DatosAlta | null>(null);
+  const vencimiento = primerVencimiento();
+
+  // Precio del plan para mostrarlo antes de contratar (la Edge Function usa el mismo)
+  useEffect(() => {
+    supabase
+      .from('planes')
+      .select('nombre, precio_mensual')
+      .eq('id', PLAN_ID)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setPlan({ nombre: data.nombre, precio: Number(data.precio_mensual) });
+      });
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -206,13 +239,15 @@ export const AdminNewCommercePage: React.FC = () => {
         throw new Error('Completá todos los campos obligatorios.');
       }
 
-      if (formData.password.length < 6) {
-        throw new Error('La contraseña debe tener al menos 6 caracteres.');
+      if (formData.password.length < MINIMO_CLAVE) {
+        throw new Error(`La contraseña debe tener al menos ${MINIMO_CLAVE} caracteres.`);
       }
 
-      const [anio, mes] = hoyArgentina().split('-').map(Number);
-      const fechaVencimiento =
-        mes === 12 ? `${anio + 1}-01-10` : `${anio}-${String(mes + 1).padStart(2, '0')}-10`;
+      if (!aceptado) {
+        throw new Error('Falta la aceptación de los Términos y condiciones por parte del titular.');
+      }
+
+      const fechaVencimiento = vencimiento;
 
       const { data, error: functionError } =
         await supabase.functions.invoke('admin-crear-comerciante', {
@@ -253,7 +288,24 @@ export const AdminNewCommercePage: React.FC = () => {
         throw new Error(data.error);
       }
 
-      navigate('/admin');
+      const rubro = rubros.find((r) => r.id === formData.rubro_id);
+      setComprobante({
+        comercioId: typeof data?.comercioId === 'string' ? data.comercioId : '',
+        fecha: new Date(),
+        titular: nombreComerciante,
+        documento: documento.trim() || undefined,
+        comercio: nombreComercio,
+        rubro: rubro?.nombre,
+        direccion: formData.direccion.trim(),
+        whatsapp: formData.whatsapp.trim() || undefined,
+        email,
+        plan: plan?.nombre,
+        precioMensual: plan?.precio ?? null,
+        primerVencimiento: fechaVencimiento,
+        diasGracia: DIAS_GRACIA,
+        medio,
+      });
+      window.scrollTo({ top: 0 });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
@@ -263,6 +315,14 @@ export const AdminNewCommercePage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (comprobante) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        <ComprobanteAlta datos={comprobante} />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
@@ -339,7 +399,7 @@ export const AdminNewCommercePage: React.FC = () => {
                 <input
                   type="password"
                   required
-                  minLength={6}
+                  minLength={MINIMO_CLAVE}
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={(e) =>
@@ -553,13 +613,82 @@ export const AdminNewCommercePage: React.FC = () => {
             </div>
           </div>
 
+          {/* CONTRATO: condiciones que acepta el titular (Ley 24.240, contrato de adhesión) */}
+          <div className="border-t dark:border-gray-700 pt-4 space-y-4">
+            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+              <FileSignature className="w-4 h-4" />
+              Contrato de suscripción
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="alta-documento" className="block text-xs font-semibold mb-1">
+                  DNI o CUIT del titular (para el comprobante)
+                </label>
+                <input
+                  id="alta-documento"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Ej: DNI 30.123.456"
+                  value={documento}
+                  onChange={(e) => setDocumento(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
+                />
+              </div>
+              <div>
+                <label htmlFor="alta-medio" className="block text-xs font-semibold mb-1">
+                  ¿Cómo se hizo el alta? *
+                </label>
+                <select
+                  id="alta-medio"
+                  value={medio}
+                  onChange={(e) => setMedio(e.target.value as MedioDeAlta)}
+                  className="w-full px-3.5 py-2.5 border rounded-xl text-sm dark:bg-gray-900 dark:border-gray-700"
+                >
+                  {Object.entries(MEDIOS_DE_ALTA).map(([valor, texto]) => (
+                    <option key={valor} value={valor}>
+                      {texto}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs space-y-2">
+              <p className="font-bold text-gray-900 dark:text-white">
+                {plan?.nombre ?? 'Suscripción mensual'} · {textoPrecio(plan?.precio ?? null)}
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-gray-600 dark:text-gray-400">
+                {condicionesDelAlta({ precioMensual: plan?.precio ?? null, primerVencimiento: vencimiento, diasGracia: DIAS_GRACIA, medio }).map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            </div>
+
+            <label className="flex items-start gap-2.5 text-xs font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                required
+                checked={aceptado}
+                onChange={(e) => setAceptado(e.target.checked)}
+                className="mt-0.5 w-4 h-4 shrink-0 accent-brand-600"
+              />
+              <span>
+                {textoAceptacion()} (
+                <Link to="/terminos" target="_blank" className="text-brand-600 hover:underline">Términos</Link>
+                {' · '}
+                <Link to="/privacidad" target="_blank" className="text-brand-600 hover:underline">Privacidad</Link>)
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
-            disabled={loading || loadingRubros || rubros.length === 0}
+            disabled={loading || loadingRubros || rubros.length === 0 || !aceptado}
             className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2"
           >
             <Save className="w-4 h-4" />
-            {loading ? 'Guardando...' : 'Crear y Habilitar Comercio'}
+            {loading ? 'Guardando...' : 'Crear comercio y emitir comprobante'}
           </button>
         </form>
       </div>
