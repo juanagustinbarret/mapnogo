@@ -13,8 +13,9 @@ import {
   LogOut,
   Search,
   RefreshCw,
-  ExternalLink,
+  Copy,
   Calendar,
+  ExternalLink,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -55,26 +56,70 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
     cargarSolicitudes();
   }, []);
 
-  const handleEnviarMailto = async (solicitudId: string, emailTarget: string) => {
-    const linkReset = `https://mapnogo.vercel.app/reset-password?email=${encodeURIComponent(emailTarget)}`;
-    const asunto = encodeURIComponent('Recuperación de contraseña - NOGOMAP');
-    const cuerpo = encodeURIComponent(
-      `Hola,\n\nRecibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace:\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este correo.\n\nSaludos,\nEquipo NOGOMAP`
-    );
+  // Genera un token único y seguro asociado al comercio por 15 minutos
+  const generarTokenSeguro = async (email: string): Promise<string | null> => {
+    // 1. Obtener el ID del comercio mediante su email
+    const { data: comercio, error: errorComercio } = await supabase
+      .from('comercios')
+      .select('id')
+      .eq('email_comercial', email)
+      .maybeSingle();
 
-    window.location.href = `mailto:${emailTarget}?subject=${asunto}&body=${cuerpo}`;
+    if (errorComercio || !comercio) {
+      alert(`No se encontró un comercio registrado con el email ${email}`);
+      return null;
+    }
 
+    // 2. Generar token aleatorio criptográfico seguro (32 bytes)
+    const array = new Uint8Array(24);
+    crypto.getRandomValues(array);
+    const token = Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
+
+    // 3. Insertar el token en la tabla tokens_recuperacion_password
+    const { error: errorToken } = await supabase
+      .from('tokens_recuperacion_password')
+      .insert({
+        comercio_id: comercio.id,
+        token: token,
+        expira_en: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutos
+      });
+
+    if (errorToken) {
+      alert('Error al generar el token seguro: ' + errorToken.message);
+      return null;
+    }
+
+    return token;
+  };
+
+  const handleGenerarYEnviarEmail = async (solicitudId: string, emailTarget: string) => {
     setProcesandoId(solicitudId);
     try {
-      const { error } = await supabase
+      const token = await generarTokenSeguro(emailTarget);
+      if (!token) return;
+
+      const linkReset = `${window.location.origin}/reset-password?token=${token}`;
+      const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
+      const cuerpo = encodeURIComponent(
+        `Hola,\n\nRecibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace seguro (válido por 15 minutos):\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este correo.\n\nSaludos,\nEquipo NOGOMAP`
+      );
+
+      // Copiar al portapapeles por comodidad
+      await navigator.clipboard.writeText(linkReset);
+
+      // Abrir cliente de correo
+      window.location.href = `mailto:${emailTarget}?subject=${asunto}&body=${cuerpo}`;
+
+      // Marcar solicitud como resuelta
+      await supabase
         .from('solicitudes_recuperacion')
         .update({ estado: 'resuelto' })
         .eq('id', solicitudId);
 
-      if (error) throw error;
       await cargarSolicitudes();
+      alert('✅ Token generado y link copiado al portapapeles.');
     } catch (err: any) {
-      console.error('Error al actualizar estado:', err);
+      console.error('Error procesando la solicitud:', err);
     } finally {
       setProcesandoId(null);
     }
@@ -110,7 +155,6 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
-      
       {/* HEADER PRINCIPAL Y BARRA DE NAVEGACIÓN */}
       <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -124,26 +168,49 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
           </div>
 
           <button
-            onClick={() => { signOut(); navigate('/admin/login'); }}
+            onClick={() => {
+              signOut();
+              navigate('/admin/login');
+            }}
             className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition"
           >
             <LogOut className="w-4 h-4" /> Cerrar Sesión
           </button>
         </div>
 
-        {/* NAVEGACIÓN COMPLETA */}
+        {/* NAVEGACIÓN COMPLETA UNIFICADA */}
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 border-t dark:border-gray-700 pt-4">
-          <Link to="/admin" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin' ? 'bg-brand-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          <Link
+            to="/admin"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${
+              location.pathname === '/admin'
+                ? 'bg-brand-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+          >
             <LayoutDashboard className="w-4 h-4" /> Dashboard
           </Link>
-          <Link to="/admin/pagos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/pagos' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          <Link
+            to="/admin/pagos"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${
+              location.pathname === '/admin/pagos'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+          >
             <CreditCard className="w-4 h-4" /> Pagos
           </Link>
-          <Link to="/admin/vencimientos" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/vencimientos' ? 'bg-amber-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          <Link
+            to="/admin/vencimientos"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${
+              location.pathname === '/admin/vencimientos'
+                ? 'bg-amber-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+          >
             <Clock className="w-4 h-4" /> Vencimientos
           </Link>
 
-          {/* BOTÓN DE CREAR / GESTIONAR EVENTOS */}
           <button
             type="button"
             onClick={() => setModalEventosOpen(true)}
@@ -152,10 +219,27 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
             <Calendar className="w-4 h-4" /> Eventos
           </button>
 
-          <Link to="/admin/solicitudes-password" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva('/admin/solicitudes-password')}`}>
-            <KeyRound className="w-4 h-4" /> Solicitudes {pendientesCount > 0 && <span className="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[10px]">{pendientesCount}</span>}
+          <Link
+            to="/admin/solicitudes-password"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${rutaActiva(
+              '/admin/solicitudes-password'
+            )}`}
+          >
+            <KeyRound className="w-4 h-4" /> Solicitudes{' '}
+            {pendientesCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[10px]">
+                {pendientesCount}
+              </span>
+            )}
           </Link>
-          <Link to="/admin/comercios/nuevo" className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${location.pathname === '/admin/comercios/nuevo' ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          <Link
+            to="/admin/comercios/nuevo"
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${
+              location.pathname === '/admin/comercios/nuevo'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+          >
             <PlusCircle className="w-4 h-4" /> Alta Comercio
           </Link>
         </div>
@@ -202,7 +286,13 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${sol.estado === 'pendiente' ? 'bg-amber-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+                  <div
+                    className={`p-2.5 rounded-xl ${
+                      sol.estado === 'pendiente'
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                    }`}
+                  >
                     <Mail className="w-5 h-5" />
                   </div>
                   <div>
@@ -218,12 +308,12 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
                   {sol.estado === 'pendiente' ? (
                     <>
                       <button
-                        onClick={() => handleEnviarMailto(sol.id, sol.email)}
+                        onClick={() => handleGenerarYEnviarEmail(sol.id, sol.email)}
                         disabled={procesandoId === sol.id}
                         className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
-                        Enviar Correo (`mailto:`)
+                        Generar Link Seguro & Enviar
                       </button>
 
                       <button
@@ -248,10 +338,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
       </div>
 
       {/* MODAL DE GESTIÓN DE EVENTOS Y ANUNCIOS */}
-      <AdminEventosModal
-        isOpen={modalEventosOpen}
-        onClose={() => setModalEventosOpen(false)}
-      />
+      <AdminEventosModal isOpen={modalEventosOpen} onClose={() => setModalEventosOpen(false)} />
     </div>
   );
 };
