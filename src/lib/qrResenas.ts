@@ -8,17 +8,9 @@
 // Se genera acá, sin servicios externos, con el generador de Nayuki (MIT),
 // copiado en src/lib/vendor/qrcodegen.ts.
 
-import { CONTACTO } from './contacto';
 import { QrCode, QrEcc } from './vendor/qrcodegen';
 
-/** Dominio fijo para los QR (no el de una vista previa): tiene que existir siempre. */
-export const DOMINIO_QR = CONTACTO.sitio.replace(/\/+$/, '');
-
-export const rutaQrResenas = (slug: string) => `/n/${encodeURIComponent(slug)}/resenas`;
-export const urlQrResenas = (slug: string, dominio: string = DOMINIO_QR) => `${dominio.replace(/\/+$/, '')}${rutaQrResenas(slug)}`;
-
-/** Destino actual de /n/{slug}/resenas dentro de la app. */
-export const destinoQrResenas = (slug: string) => `/comercio/${encodeURIComponent(slug)}#resenas`;
+export { DOMINIO_QR, destinoQrResenas, rutaQrResenas, urlQrResenas } from './rutasQr';
 
 /** Matriz de módulos (true = oscuro). Corrección de errores media (15 %). */
 export function matrizQr(texto: string): boolean[][] {

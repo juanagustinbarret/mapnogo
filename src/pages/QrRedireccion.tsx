@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { destinoQrResenas } from '@/lib/qrResenas';
+import { destinoQrResenas } from '@/lib/rutasQr';
 
 /**
  * Ruta estable de los QR impresos: /n/{slug}/resenas → ficha en #resenas.
