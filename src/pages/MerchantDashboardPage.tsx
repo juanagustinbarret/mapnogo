@@ -5,8 +5,7 @@ import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { QrResenas } from '@/components/QrResenas';
-import { DOMINIO_QR, dibujarQr, urlQrResenas } from '@/lib/qrResenas';
+import { QrResenasDiferido, precargarQrResenas } from '@/components/QrResenasDiferido';
 import { CONTACTO } from '@/lib/contacto';
 import { estadoSuscripcion } from '@/lib/renovacion';
 import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
@@ -33,8 +32,6 @@ import {
   Calendar,
   Sparkles,
   LayoutDashboard,
-  Download,
-  Image as ImageIcon,
   Copy,
   Save,
   AlertTriangle,
@@ -69,6 +66,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const [diasParaVencer, setDiasParaVencer] = useState<number | null>(null);
 
   const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
+  const [metricasListas, setMetricasListas] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,6 +88,8 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const fetchMerchantData = async () => {
     setLoading(true);
+    // El QR se baja aparte, en paralelo con los datos
+    precargarQrResenas().catch(() => {});
 
     try {
       // Si el dueño tiene más de un comercio, maybeSingle() daba error y el
@@ -124,15 +124,55 @@ export const MerchantDashboardPage: React.FC = () => {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
 
-        // Si las métricas fallan, igual se carga la suscripción y lo demás
-        // (antes el error cortaba la carga y la suscripción quedaba vacía)
-        try {
-          setMetricasReales(await obtenerMetricasComercio(c.id));
-        } catch (errorMetricas) {
-          console.warn('[panel] No se pudieron leer las métricas:', errorMetricas);
-        }
+        // Las métricas cuentan filas y pueden tardar (o reintentar si la red
+        // falla): se completan solas cuando llegan, sin frenar el panel.
+        // Si fallan, igual se carga la suscripción y lo demás.
+        obtenerMetricasComercio(c.id)
+          .then((m) => {
+            setMetricasReales(m);
+            setMetricasListas(true);
+          })
+          .catch((errorMetricas) => console.warn('[panel] No se pudieron leer las métricas:', errorMetricas));
 
-        const { data: s } = await supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle();
+        // El resto se pide todo junto: antes eran 6 consultas una detrás de
+        // otra (en el celular, cada una suma la ida y vuelta a la base).
+        const pedirPromociones = async () => {
+          // Los clics salen de interacciones_ofertas. Si esa tabla o su
+          // relación no existen, PostgREST da error y antes la lista de
+          // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
+          const consultaConClics = await supabase
+            .from('promociones')
+            .select('*, metricas_clics:interacciones_ofertas(count)')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false });
+          if (!consultaConClics.error) return consultaConClics.data;
+          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
+          const simple = await supabase
+            .from('promociones')
+            .select('*')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false });
+          return simple.data;
+        };
+
+        const [{ data: s }, p, { data: h }, { data: r }, { data: ft }] = await Promise.all([
+          supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle(),
+          pedirPromociones(),
+          supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
+          // Reseñas recibidas
+          supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
+          // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
+          // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
+          // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
+          supabase
+            .from('farmacias_turno')
+            .select('fecha')
+            .eq('comercio_id', c.id)
+            .gte('fecha', hoyArgentina())
+            .order('fecha', { ascending: true })
+            .limit(1),
+        ]);
+
         if (s) {
           setSuscripcion(s);
           if (s.proximo_vencimiento) {
@@ -141,52 +181,9 @@ export const MerchantDashboardPage: React.FC = () => {
             setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
           }
         }
-
-        // Los clics salen de interacciones_ofertas. Si esa tabla o su
-        // relación no existen, PostgREST da error y antes la lista de
-        // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
-        const consultaConClics = await supabase
-          .from('promociones')
-          .select('*, metricas_clics:interacciones_ofertas(count)')
-          .eq('comercio_id', c.id)
-          .order('created_at', { ascending: false });
-        let p = consultaConClics.data;
-        if (consultaConClics.error) {
-          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
-          const simple = await supabase
-            .from('promociones')
-            .select('*')
-            .eq('comercio_id', c.id)
-            .order('created_at', { ascending: false });
-          p = simple.data;
-        }
         if (p) setPromociones(p);
-
-        const { data: h } = await supabase
-          .from('horarios_atencion')
-          .select('*')
-          .eq('comercio_id', c.id)
-          .order('dia_semana', { ascending: true });
         if (h) setHorarios(h);
-
-        // Cargar las reseñas recibidas
-        const { data: r } = await supabase
-          .from('resenas')
-          .select(COLUMNAS_RESENA)
-          .eq('comercio_id', c.id)
-          .order('created_at', { ascending: false });
         if (r) setResenas(r);
-
-        // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
-        // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
-        // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
-        const { data: ft } = await supabase
-          .from('farmacias_turno')
-          .select('fecha')
-          .eq('comercio_id', c.id)
-          .gte('fecha', hoyArgentina())
-          .order('fecha', { ascending: true })
-          .limit(1);
         setProximoTurno(ft?.[0]?.fecha ?? null);
       }
     } catch (error) {
@@ -395,79 +392,14 @@ export const MerchantDashboardPage: React.FC = () => {
     fetchMerchantData();
   };
 
-  const handleGenerarFlyerInstagram = () => {
-    if (!comercio) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
-    gradient.addColorStop(0, '#022c22');
-    gradient.addColorStop(0.5, '#0f172a');
-    gradient.addColorStop(1, '#020617');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1920);
-
-    ctx.fillStyle = '#059669';
-    ctx.fillRect(0, 0, 1080, 28);
-    ctx.fillRect(0, 1892, 1080, 28);
-
-    ctx.fillStyle = '#34d399';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('NOGOMAP', 540, 220);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 76px sans-serif';
-    ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '32px sans-serif';
-    ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
-
-    ctx.fillStyle = '#1e293b';
-    ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
-    ctx.fill();
-
-    ctx.fillStyle = '#f59e0b';
-    ctx.font = 'bold 48px sans-serif';
-    ctx.fillText('★ ★ ★ ★ ★', 540, 610);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 44px sans-serif';
-    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
-
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = '28px sans-serif';
-    ctx.fillText('Escaneá el código con tu celular', 540, 730);
-
-    // Mismo destino que el QR del panel: las reseñas del comercio en NOGOMAP
-    // (antes iba a una búsqueda de Google y pedía la imagen a api.qrserver.com)
-    dibujarQr(ctx, urlQrResenas(comercio.slug), 290, 780, 500);
-
-    ctx.fillStyle = '#34d399';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '28px sans-serif';
-    ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
-
-    const link = document.createElement('a');
-    link.download = `Story_Resenas_${comercio.slug}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
   const handleExportarReporte = async () => {
     if (!comercio) return;
     try {
       // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
       const { generarReportePDF } = await import('@/lib/generatePdfReport');
-      generarReportePDF(comercio, metricasReales, suscripcion, promociones);
+      // Si las métricas todavía no habían llegado, se piden ahora
+      const metricas = metricasListas ? metricasReales : await obtenerMetricasComercio(comercio.id).catch(() => metricasReales);
+      generarReportePDF(comercio, metricas, suscripcion, promociones);
     } catch (err: any) {
       alert('No se pudo generar el reporte PDF: ' + (err?.message ?? err));
     }
@@ -699,7 +631,7 @@ export const MerchantDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Visitas a la ficha (total)</p>
-            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasReales.visitas}</p>
+            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1">{metricasListas ? metricasReales.visitas : '…'}</p>
           </div>
           <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
             <Eye className="w-6 h-6" />
@@ -718,7 +650,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between sm:col-span-2 lg:col-span-1">
           <div>
-            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">QR Google Reseñas</p>
+            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">QR de reseñas</p>
             <p className="text-xs font-bold text-gray-600 dark:text-gray-300 mt-1">Listo para imprimir o compartir</p>
           </div>
           <div className="p-3 bg-yellow-50 dark:bg-yellow-950/40 text-yellow-600 rounded-2xl">
@@ -823,17 +755,7 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-center gap-3 py-1">
-            <QrResenas slug={comercio.slug} nombre={comercio.nombre} />
-
-            <div className="flex flex-col w-full gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleGenerarFlyerInstagram}
-                className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
-              >
-                <ImageIcon className="w-3.5 h-3.5" /> Generar Story para Instagram
-              </button>
-            </div>
+            <QrResenasDiferido slug={comercio.slug} nombre={comercio.nombre} direccion={comercio.direccion} conStory />
           </div>
         </div>
       </div>

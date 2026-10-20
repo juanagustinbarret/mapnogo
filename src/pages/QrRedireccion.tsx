@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { destinoQrResenas } from '@/lib/rutasQr';
+import { destinoQrFicha, destinoQrResenas } from '@/lib/rutasQr';
 
 /**
  * Ruta estable de los QR impresos: /n/{slug}/resenas → ficha en #resenas.
@@ -15,5 +15,5 @@ export const QrResenasRedireccion: React.FC = () => {
 /** /n/{slug} → ficha del comercio (por si alguien recorta el link). */
 export const QrFichaRedireccion: React.FC = () => {
   const { slug = '' } = useParams<{ slug: string }>();
-  return <Navigate to={slug ? `/comercio/${encodeURIComponent(slug)}` : '/'} replace />;
+  return <Navigate to={slug ? destinoQrFicha(slug) : '/'} replace />;
 };

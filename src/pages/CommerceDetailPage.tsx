@@ -29,6 +29,7 @@ import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
+import { elegirPorSlugLimpio, patronSlugLimpio, slugLimpio } from '@/lib/rutasQr';
 import {
   COLUMNAS_RESENA,
   LARGO_COMENTARIO,
@@ -62,6 +63,7 @@ export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { hash } = useLocation();
   const [comercio, setComercio] = useState<Comercio | null>(null);
+  const [noEncontrado, setNoEncontrado] = useState(false);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
@@ -107,45 +109,42 @@ export const CommerceDetailPage: React.FC = () => {
   const fetchComercio = async () => {
     // Sin el email del comercio (ver src/lib/columnasPublicas.ts)
     // ("as '*'" es solo para TypeScript: el cliente no tiene los tipos de la base)
-    const pedir = (columnas: string) =>
-      supabase
-        .from('comercios')
-        .select(`${columnas}, rubro:rubros(*)` as '*')
-        .eq('slug', slug)
-        .single();
-    let { data: c, error: errorComercio } = await pedir(COLUMNAS_PUBLICAS_COMERCIO);
-    if (errorComercio && errorComercio.code !== 'PGRST116') ({ data: c } = await pedir('*'));
-    if (c) {
-      setComercio(c);
+    const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
+      const pedir = (columnas: string) =>
+        filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
+      let { data, error } = await pedir(COLUMNAS_PUBLICAS_COMERCIO);
+      if (error) ({ data } = await pedir('*'));
+      return (data ?? []) as any[];
+    };
+    let c: any = (await buscar((q) => q.eq('slug', slug), 1))[0] ?? null;
 
-      const { data: h } = await supabase
-        .from('horarios_atencion')
-        .select('*')
-        .eq('comercio_id', c.id)
-        .order('dia_semana', { ascending: true });
-      if (h) setHorarios(h);
-
-      if (c.tiene_delivery) {
-        const { data: hd } = await supabase
-          .from('horarios_delivery')
-          .select('*')
-          .eq('comercio_id', c.id)
-          .order('dia_semana', { ascending: true });
-        if (hd) setHorariosDelivery(hd);
-      }
-
-      const hoyStr = hoyArgentina();
-      const { data: p } = await supabase
-        .from('promociones')
-        .select('*')
-        .eq('comercio_id', c.id)
-        .eq('aprobada', true)
-        .gte('fecha_fin', hoyStr);
-      if (p) setPromociones(p);
-
-      // Cargar Reseñas del Comercio
-      fetchResenas(c.id);
+    // Slug escrito distinto del guardado: QR con el slug limpio
+    // ("bien-criollo-pizzas") para un comercio cargado como
+    // "BIEN CRIOLLO PIZZAS", o al revés (links viejos después de corregirlo).
+    if (!c && slug) {
+      const limpio = slugLimpio(slug);
+      if (limpio) c = elegirPorSlugLimpio(await buscar((q) => q.ilike('slug', patronSlugLimpio(limpio)), 25), limpio);
     }
+    if (!c) {
+      setNoEncontrado(true);
+      return;
+    }
+    setNoEncontrado(false);
+    setComercio(c);
+
+    // El resto de la ficha se pide todo junto (antes era una consulta después de otra)
+    const hoyStr = hoyArgentina();
+    const [{ data: h }, { data: hd }, { data: p }] = await Promise.all([
+      supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
+      c.tiene_delivery
+        ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
+        : Promise.resolve({ data: null }),
+      supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
+      fetchResenas(c.id),
+    ]);
+    if (h) setHorarios(h);
+    if (hd) setHorariosDelivery(hd);
+    if (p) setPromociones(p);
   };
 
   const fetchResenas = async (comercioId: string) => {
@@ -250,6 +249,14 @@ export const CommerceDetailPage: React.FC = () => {
     }
   };
 
+  if (!comercio && noEncontrado) {
+    return (
+      <div className="p-8 text-center space-y-3">
+        <p className="text-gray-700 dark:text-gray-200 font-semibold">No encontramos este comercio.</p>
+        <Link to="/" className="inline-block text-brand-600 font-bold">Ver el mapa de comercios</Link>
+      </div>
+    );
+  }
   if (!comercio) return <div className="p-8 text-center text-gray-500 font-semibold">Cargando ficha del comercio...</div>;
 
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
