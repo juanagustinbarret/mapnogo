@@ -1,21 +1,16 @@
 // src/lib/rutasQr.ts
+//
+// Direcciones de los QR de reseñas. Separado de qrResenas.ts para que la
+// redirección /n/{slug}/resenas no cargue el generador de QR en el inicio.
 
-export const DOMINIO_QR = 'https://mapnogo.vercel.app';
+import { CONTACTO } from './contacto';
 
-/** Convierte "Farmacia del Centro" en "farmacia-del-centro" sin %20 ni mayúsculas */
-export const sanitizarSlug = (slug: string) =>
-  slug
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Elimina acentos
-    .replace(/[^a-z0-9 -]/g, '')     // Elimina caracteres especiales
-    .replace(/\s+/g, '-')            // Cambia espacios por guiones
-    .replace(/-+/g, '-');            // Evita guiones dobles
+/** Dominio fijo para los QR (no el de una vista previa): tiene que existir siempre. */
+export const DOMINIO_QR = CONTACTO.sitio.replace(/\/+$/, '');
 
-export const rutaQrResenas = (slug: string) => `/n/${sanitizarSlug(slug)}/resenas`;
+export const rutaQrResenas = (slug: string) => `/n/${encodeURIComponent(slug)}/resenas`;
+export const urlQrResenas = (slug: string, dominio: string = DOMINIO_QR) => `${dominio.replace(/\/+$/, '')}${rutaQrResenas(slug)}`;
 
-export const urlQrResenas = (slug: string, dominio: string = DOMINIO_QR) =>
-  `${dominio.replace(/\/+$/, '')}${rutaQrResenas(slug)}`;
+/** Destino actual de /n/{slug}/resenas dentro de la app. */
+export const destinoQrResenas = (slug: string) => `/comercio/${encodeURIComponent(slug)}#resenas`;
 
-export const destinoQrResenas = (slug: string) => `/comercio/${sanitizarSlug(slug)}#resenas`;
