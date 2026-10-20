@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Plus, Trash2, Clock, X, Eye } from 'lucide-react';
+import { Calendar, Plus, Trash2, Clock, X, Eye, Edit2, Save } from 'lucide-react';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { textoFechaEvento, textoHorarioEvento } from '@/lib/eventos';
 
@@ -19,12 +19,27 @@ interface Evento {
   activo: boolean;
 }
 
+const formatearIsoParaDatetimeLocal = (isoString?: string | null) => {
+  if (!isoString) return `${hoyArgentina()}T00:00`;
+  const date = new Date(isoString);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+};
+
 export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   isOpen,
   onClose,
 }) => {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Estado para la edición
+  const [eventoEditando, setEventoEditando] = useState<Evento | null>(null);
 
   // Datos del Evento
   const [titulo, setTitulo] = useState('');
@@ -53,11 +68,35 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
     if (isOpen) cargarEventos();
   }, [isOpen]);
 
-  const handleCrearEvento = async (e: React.FormEvent) => {
+  const limpiarFormulario = () => {
+    setEventoEditando(null);
+    setTitulo('');
+    setDescripcion('');
+    setFechaEvento(hoyArgentina());
+    setHoraInicio('');
+    setHoraFin('');
+    setUbicacionTexto('');
+    setMostrarDesde(`${hoyArgentina()}T00:00`);
+    setMostrarHasta(`${hoyArgentina()}T23:59`);
+  };
+
+  const iniciarEdicion = (ev: Evento) => {
+    setEventoEditando(ev);
+    setTitulo(ev.titulo);
+    setDescripcion(ev.descripcion ?? '');
+    setFechaEvento(ev.fecha_evento ?? hoyArgentina());
+    setHoraInicio(ev.hora_inicio ?? '');
+    setHoraFin(ev.hora_fin ?? '');
+    setUbicacionTexto(ev.ubicacion_texto ?? '');
+    setMostrarDesde(formatearIsoParaDatetimeLocal(ev.mostrar_desde));
+    setMostrarHasta(formatearIsoParaDatetimeLocal(ev.mostrar_hasta));
+  };
+
+  const handleGuardarEvento = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titulo.trim()) return;
 
-    const { error } = await supabase.from('eventos').insert({
+    const payload = {
       titulo: titulo.trim(),
       descripcion: descripcion.trim() || null,
       fecha_evento: fechaEvento,
@@ -67,23 +106,36 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
       mostrar_desde: mostrarDesde ? new Date(mostrarDesde).toISOString() : null,
       mostrar_hasta: mostrarHasta ? new Date(mostrarHasta).toISOString() : null,
       activo: true,
-    });
+    };
 
-    if (error) {
-      alert('Error al crear el evento: ' + error.message);
+    if (eventoEditando) {
+      const { error } = await supabase
+        .from('eventos')
+        .update(payload)
+        .eq('id', eventoEditando.id);
+
+      if (error) {
+        alert('Error al actualizar el evento: ' + error.message);
+      } else {
+        limpiarFormulario();
+        cargarEventos();
+      }
     } else {
-      setTitulo('');
-      setDescripcion('');
-      setHoraInicio('');
-      setHoraFin('');
-      setUbicacionTexto('');
-      cargarEventos();
+      const { error } = await supabase.from('eventos').insert(payload);
+
+      if (error) {
+        alert('Error al crear el evento: ' + error.message);
+      } else {
+        limpiarFormulario();
+        cargarEventos();
+      }
     }
   };
 
   const handleEliminarEvento = async (id: string) => {
     if (!confirm('¿Eliminar este evento?')) return;
     await supabase.from('eventos').delete().eq('id', id);
+    if (eventoEditando?.id === id) limpiarFormulario();
     cargarEventos();
   };
 
@@ -102,11 +154,22 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
           </button>
         </div>
 
-        {/* FORMULARIO DE ALTA DE EVENTO */}
-        <form onSubmit={handleCrearEvento} className="space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-          <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-            Publicar Nuevo Evento
-          </h4>
+        {/* FORMULARIO DE ALTA / EDICIÓN DE EVENTO */}
+        <form onSubmit={handleGuardarEvento} className="space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+              {eventoEditando ? 'Editar Evento' : 'Publicar Nuevo Evento'}
+            </h4>
+            {eventoEditando && (
+              <button
+                type="button"
+                onClick={limpiarFormulario}
+                className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-semibold"
+              >
+                Cancelar edición
+              </button>
+            )}
+          </div>
 
           <div>
             <label className="block text-xs font-semibold mb-1">Título del Evento / Anuncio *</label>
@@ -209,7 +272,15 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
             type="submit"
             className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
           >
-            <Plus className="w-4 h-4" /> Guardar Evento
+            {eventoEditando ? (
+              <>
+                <Save className="w-4 h-4" /> Guardar Cambios
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" /> Guardar Evento
+              </>
+            )}
           </button>
         </form>
 
@@ -239,13 +310,23 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
                   </p>
                 </div>
 
-                <button
-                  onClick={() => handleEliminarEvento(ev.id)}
-                  aria-label={`Eliminar el evento ${ev.titulo}`}
-                  className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => iniciarEdicion(ev)}
+                    aria-label={`Editar el evento ${ev.titulo}`}
+                    className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => handleEliminarEvento(ev.id)}
+                    aria-label={`Eliminar el evento ${ev.titulo}`}
+                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))
           )}
