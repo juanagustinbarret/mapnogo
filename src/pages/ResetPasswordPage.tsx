@@ -1,122 +1,104 @@
 import React, { useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Lock, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { KeyRound, CheckCircle, AlertCircle } from 'lucide-react';
 
 export const ResetPasswordPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token'); // Se lee únicamente el token
   const navigate = useNavigate();
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const emailParam = searchParams.get('email');
 
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [mensaje, setMensaje] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
+    if (!token) {
+      setMensaje({ tipo: 'error', texto: 'Enlace inválido o sin token de autorización.' });
       return;
     }
 
     setLoading(true);
-    setError('');
+    setMensaje(null);
 
-    try {
-      if (emailParam) {
-        // Ejecuta la función RPC que actualiza la clave del comercio directamente por email
-        const { error: rpcErr } = await supabase.rpc('admin_cambiar_password_comercio', {
-          email_target: emailParam.trim(),
-          nueva_password: password.trim(),
-        });
+    // Llamada a la RPC pasándole el token seguro
+    const { data, error } = await supabase.rpc('admin_cambiar_password_comercio', {
+      p_token: token,
+      p_nueva_password: password
+    });
 
-        if (rpcErr) throw rpcErr;
-      } else {
-        // Si entra por sesión tokenizada directa
-        const { error: updateErr } = await supabase.auth.updateUser({ password });
-        if (updateErr) throw updateErr;
-      }
+    setLoading(false);
 
-      setSuccess(true);
-      setTimeout(() => {
-        navigate('/login');
-      }, 2500);
-    } catch (err: any) {
-      setError('Error al actualizar la contraseña: ' + (err.message || 'Ocurrió un error inesperado'));
-    } finally {
-      setLoading(false);
+    if (error || !data?.success) {
+      setMensaje({
+        tipo: 'error',
+        texto: data?.message || error?.message || 'Error al restablecer la contraseña.'
+      });
+    } else {
+      setMensaje({
+        tipo: 'exito',
+        texto: '¡Contraseña restablecida con éxito! Redirigiendo al inicio de sesión...'
+      });
+      setTimeout(() => navigate('/panel/login'), 2500);
     }
   };
 
-  return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg max-w-md w-full space-y-6">
-        <div className="text-center space-y-2">
-          <div className="p-3 bg-brand-50 text-brand-600 rounded-2xl w-fit mx-auto">
-            <Lock className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Nueva Contraseña</h1>
-          <p className="text-xs text-gray-500">
-            {emailParam ? `Reestableciendo clave para: ${emailParam}` : 'Ingresá tu nueva clave para acceder al panel.'}
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+        <div className="bg-white p-6 rounded-2xl shadow-md max-w-md w-full text-center space-y-3">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+          <h2 className="text-lg font-bold text-gray-800">Enlace No Válido</h2>
+          <p className="text-xs text-gray-600">
+            Falta el token de autorización o el enlace está incompleto.
           </p>
         </div>
+      </div>
+    );
+  }
 
-        {error && (
-          <div className="p-3 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs rounded-xl font-semibold">
-            {error}
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl max-w-md w-full space-y-4">
+        <div className="flex items-center gap-2 border-b pb-3">
+          <KeyRound className="w-6 h-6 text-brand-600" />
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Establecer Nueva Contraseña</h2>
+        </div>
+
+        {mensaje && (
+          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+            mensaje.tipo === 'exito' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {mensaje.tipo === 'exito' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            {mensaje.texto}
           </div>
         )}
 
-        {success ? (
-          <div className="p-4 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-2xl text-center space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto" />
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">¡Contraseña actualizada con éxito!</h3>
-            <p className="text-xs text-green-700 dark:text-green-300">Redirigiendo al inicio de sesión...</p>
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold mb-1 text-gray-700 dark:text-gray-300">
+              Nueva Contraseña
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full p-2.5 border rounded-xl text-sm dark:bg-gray-900 dark:text-white"
+            />
           </div>
-        ) : (
-          <form onSubmit={handleUpdatePassword} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold mb-1">Nueva Contraseña</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
-                placeholder="••••••••"
-              />
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold mb-1">Confirmar Nueva Contraseña</label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm transition disabled:opacity-50 shadow-md"
-            >
-              {loading ? 'Guardando...' : 'Guardar Nueva Contraseña'}
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs transition"
+          >
+            {loading ? 'Guardando...' : 'Cambiar Contraseña'}
+          </button>
+        </form>
       </div>
     </div>
   );
