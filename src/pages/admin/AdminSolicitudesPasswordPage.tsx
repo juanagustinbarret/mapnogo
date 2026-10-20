@@ -99,7 +99,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
       if (!token) return;
 
       const linkReset = `${window.location.origin}/reset-password?token=${token}`;
-      const mensajeTexto = `Hola! Recibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace seguro (válido por 15 minutos):\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este mensaje.\n\nSaludos,\nEquipo NOGOMAP`;
+      const mensajeTexto = `Hola!\n\nRecibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\nPodés ingresar tu nueva contraseña haciendo clic en el siguiente enlace seguro (válido por 15 minutos):\n${linkReset}\n\nSi no solicitaste este cambio, podés ignorar este mensaje.\n\nSaludos,\nEquipo NOGOMAP`;
 
       // Copiar enlace al portapapeles por comodidad
       await navigator.clipboard.writeText(linkReset);
@@ -107,7 +107,8 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
       if (canal === 'mail') {
         const asunto = encodeURIComponent('Restablecer contraseña - NOGOMAP');
         const cuerpo = encodeURIComponent(mensajeTexto);
-        window.location.href = `mailto:${emailTarget}?subject=${asunto}&body=${cuerpo}`;
+        const urlGmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailTarget)}&su=${asunto}&body=${cuerpo}`;
+        window.open(urlGmail, '_blank');
       } else {
         // Consultar si el comercio tiene WhatsApp registrado
         const { data: comercio } = await supabase
@@ -131,7 +132,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
         .eq('id', solicitudId);
 
       await cargarSolicitudes();
-      alert(`✅ Token generado y mensaje enviado por ${canal === 'mail' ? 'Correo' : 'WhatsApp'} (Enlace copiado al portapapeles).`);
+      alert(`✅ Token generado y mensaje abierto en ${canal === 'mail' ? 'Gmail' : 'WhatsApp'} (Enlace copiado al portapapeles).`);
     } catch (err: any) {
       console.error('Error procesando la solicitud:', err);
     } finally {
