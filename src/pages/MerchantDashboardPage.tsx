@@ -92,8 +92,6 @@ export const MerchantDashboardPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // Si el dueño tiene más de un comercio, maybeSingle() daba error y el
-      // panel mostraba "Sin comercio asignado": ahora abre el primero.
       let { data: c } = await supabase
         .from('comercios')
         .select('*')
@@ -124,8 +122,6 @@ export const MerchantDashboardPage: React.FC = () => {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
 
-        // Si las métricas fallan, igual se carga la suscripción y lo demás
-        // (antes el error cortaba la carga y la suscripción quedaba vacía)
         try {
           setMetricasReales(await obtenerMetricasComercio(c.id));
         } catch (errorMetricas) {
@@ -136,15 +132,10 @@ export const MerchantDashboardPage: React.FC = () => {
         if (s) {
           setSuscripcion(s);
           if (s.proximo_vencimiento) {
-            // Días de calendario en Argentina: con horas y Math.ceil, el
-            // mismo día del vencimiento a la noche ya decía "vencida"
             setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
           }
         }
 
-        // Los clics salen de interacciones_ofertas. Si esa tabla o su
-        // relación no existen, PostgREST da error y antes la lista de
-        // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
         const consultaConClics = await supabase
           .from('promociones')
           .select('*, metricas_clics:interacciones_ofertas(count)')
@@ -169,7 +160,6 @@ export const MerchantDashboardPage: React.FC = () => {
           .order('dia_semana', { ascending: true });
         if (h) setHorarios(h);
 
-        // Cargar las reseñas recibidas
         const { data: r } = await supabase
           .from('resenas')
           .select(COLUMNAS_RESENA)
@@ -177,9 +167,6 @@ export const MerchantDashboardPage: React.FC = () => {
           .order('created_at', { ascending: false });
         if (r) setResenas(r);
 
-        // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
-        // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
-        // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
         const { data: ft } = await supabase
           .from('farmacias_turno')
           .select('fecha')
@@ -201,7 +188,6 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!confirm('¿Seguro que querés quitar tus próximos turnos de farmacia (desde hoy)?')) return;
 
     try {
-      // Solo hoy y lo que viene: el historial de turnos pasados se conserva
       const { error } = await supabase
         .from('farmacias_turno')
         .delete()
@@ -225,9 +211,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const handlePausarDelivery = async (horas: number | 'hoy') => {
     if (!comercio) return;
     setPausandoDelivery(true);
-    // Siempre en hora argentina (antes "por hoy" usaba la medianoche del celular)
     const fechaHasta = finDePausa(horas);
-
     const isoFecha = fechaHasta.toISOString();
 
     const { error } = await supabase
@@ -395,80 +379,76 @@ export const MerchantDashboardPage: React.FC = () => {
     fetchMerchantData();
   };
 
-  // Reemplazá la función handleGenerarFlyerInstagram por esta:
+  const handleGenerarFlyerInstagram = () => {
+    if (!comercio) return;
 
-const handleGenerarFlyerInstagram = () => {
-  if (!comercio) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 1080;
-  canvas.height = 1920;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
+    gradient.addColorStop(0, '#022c22');
+    gradient.addColorStop(0.5, '#0f172a');
+    gradient.addColorStop(1, '#020617');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1080, 1920);
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
-  gradient.addColorStop(0, '#022c22');
-  gradient.addColorStop(0.5, '#0f172a');
-  gradient.addColorStop(1, '#020617');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 1080, 1920);
+    ctx.fillStyle = '#059669';
+    ctx.fillRect(0, 0, 1080, 28);
+    ctx.fillRect(0, 1892, 1080, 28);
 
-  ctx.fillStyle = '#059669';
-  ctx.fillRect(0, 0, 1080, 28);
-  ctx.fillRect(0, 1892, 1080, 28);
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('NOGOMAP', 540, 220);
 
-  ctx.fillStyle = '#34d399';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('NOGOMAP', 540, 220);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 76px sans-serif';
+    ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 76px sans-serif';
-  ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '32px sans-serif';
+    ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
 
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '32px sans-serif';
-  ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
+    ctx.fillStyle = '#1e293b';
+    ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
+    ctx.fill();
 
-  ctx.fillStyle = '#1e293b';
-  ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
-  ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.fillText('★ ★ ★ ★ ★', 540, 610);
 
-  ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 48px sans-serif';
-  ctx.fillText('★ ★ ★ ★ ★', 540, 610);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 44px sans-serif';
+    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 44px sans-serif';
-  ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '28px sans-serif';
+    ctx.fillText('Escaneá el código con tu celular', 540, 730);
 
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '28px sans-serif';
-  ctx.fillText('Escaneá el código con tu celular', 540, 730);
+    // Se usa estrictamente el slug del comercio para generar una URL limpia
+    const urlFinal = urlQrResenas(comercio.slug);
+    dibujarQr(ctx, urlFinal, 290, 780, 500);
 
-  // Usamos estrictamente el slug del comercio para la URL limpia
-  const urlFinal = urlQrResenas(comercio.slug);
-  dibujarQr(ctx, urlFinal, 290, 780, 500);
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
 
-  ctx.fillStyle = '#34d399';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '28px sans-serif';
+    ctx.fillText(urlFinal.replace(/^https:\/\//, ''), 540, 1750);
 
-  ctx.fillStyle = '#64748b';
-  ctx.font = '28px sans-serif';
-  // Muestra la URL navegable limpia sin el prefijo https:// para la estética visual
-  ctx.fillText(urlFinal.replace(/^https:\/\//, ''), 540, 1750);
-
-  const link = document.createElement('a');
-  link.download = `Story_Resenas_${comercio.slug}.png`;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-};
+    const link = document.createElement('a');
+    link.download = `Story_Resenas_${comercio.slug}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
 
   const handleExportarReporte = async () => {
     if (!comercio) return;
     try {
-      // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
       const { generarReportePDF } = await import('@/lib/generatePdfReport');
       generarReportePDF(comercio, metricasReales, suscripcion, promociones);
     } catch (err: any) {
@@ -670,7 +650,7 @@ const handleGenerarFlyerInstagram = () => {
         </div>
       </div>
 
-      {/* BLOQUE GESTIÓN FARMACIA DE TURNO (MÓDULO DE EDICIÓN / BORRADO) */}
+      {/* BLOQUE GESTIÓN FARMACIA DE TURNO */}
       {esFarmaciaDeTurno && (
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-red-200 dark:border-red-900/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -781,7 +761,6 @@ const handleGenerarFlyerInstagram = () => {
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-brand-600" /> Suscripción
             </h3>
-            {/* Antes siempre verde y "Activa", aunque estuviera vencida */}
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${estadoSuscripcion(suscripcion?.estado).clase}`}>
               {estadoSuscripcion(suscripcion?.estado).texto}
             </span>
