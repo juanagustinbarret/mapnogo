@@ -162,3 +162,50 @@ test('sin rangos de delivery propios se usan los horarios de atención', () => {
   assert.deepEqual(rangosDeDelivery(undefined, undefined), []);
   assert.deepEqual(estadoDeliveryEn(rangosDeDelivery([], local), en(LUNES, '10:00')), { estado: 'activo', hasta: '13:00' });
 });
+
+import { estadoDeliveryDelComercio, momentoDesdeFechaHora, textoMomentoElegido } from '../src/lib/delivery.ts';
+import { filtrarComerciosMapa } from '../src/lib/filtrosAvanzados.ts';
+
+test('fecha y hora elegidas en hora argentina', () => {
+  const m = momentoDesdeFechaHora('2026-10-24', '21:30')!; // sábado
+  assert.equal(m.instante.toISOString(), '2026-10-25T00:30:00.000Z');
+  assert.deepEqual(m.momento, { dia: 5, minutos: 21 * 60 + 30 });
+  assert.equal(momentoDesdeFechaHora('2026-02-30', '10:00'), null);
+  assert.equal(momentoDesdeFechaHora('2026-10-24', '25:00'), null);
+  assert.equal(momentoDesdeFechaHora('', '10:00'), null);
+  assert.equal(textoMomentoElegido(m, '2026-10-24'), 'hoy a las 21:30');
+  assert.equal(textoMomentoElegido(m, '2026-10-23'), 'mañana a las 21:30');
+  assert.equal(textoMomentoElegido(m, '2026-10-20'), 'el sáb 24/10 a las 21:30');
+});
+
+test('delivery de un comercio en el día y hora elegidos (rangos, cruce de medianoche y pausa)', () => {
+  const sabadoNoche = [{ dia_semana: 5, hora_inicio: '20:00', hora_fin: '02:00' }];
+  const c = { tiene_delivery: true, delivery_pausado_hasta: null };
+  const sab2130 = momentoDesdeFechaHora('2026-10-24', '21:30')!.instante;
+  const dom0100 = momentoDesdeFechaHora('2026-10-25', '01:00')!.instante;
+  const sab1500 = momentoDesdeFechaHora('2026-10-24', '15:00')!.instante;
+  assert.equal(estadoDeliveryDelComercio(c, sabadoNoche, [], sab2130).estado, 'activo');
+  assert.equal(estadoDeliveryDelComercio(c, sabadoNoche, [], dom0100).estado, 'activo'); // sigue después de medianoche
+  assert.equal(estadoDeliveryDelComercio(c, sabadoNoche, [], sab1500).estado, 'mas_tarde');
+  // pausa hasta el sábado 22:00: a las 21:30 está pausado, el domingo 01:00 ya no
+  const pausado = { tiene_delivery: true, delivery_pausado_hasta: '2026-10-25T01:00:00Z' };
+  assert.equal(estadoDeliveryDelComercio(pausado, sabadoNoche, [], sab2130).estado, 'pausado');
+  assert.equal(estadoDeliveryDelComercio(pausado, sabadoNoche, [], dom0100).estado, 'activo');
+  // sin rangos propios usa el horario de atención
+  const turnos = [{ dia_semana: 5, hora_apertura: '09:00', hora_cierre: '13:00' }];
+  assert.equal(estadoDeliveryDelComercio(c, [], turnos, momentoDesdeFechaHora('2026-10-24', '10:00')!.instante).estado, 'activo');
+  assert.equal(estadoDeliveryDelComercio({ tiene_delivery: false }, sabadoNoche, [], sab2130).estado, 'sin_delivery');
+});
+
+test('filtro: con fecha y hora exige delivery activo en ese momento; sin fecha, como antes', () => {
+  const base = { habilitado_admin: true, nombre: 'x', rubro_id: 'r' };
+  const comercios = [
+    { ...base, id: 'activo', tiene_delivery: true, estadoDelivery: { estado: 'activo', hasta: '02:00' } },
+    { ...base, id: 'mas_tarde', tiene_delivery: true, estadoDelivery: { estado: 'mas_tarde', desde: '20:00' } },
+    { ...base, id: 'pausado', tiene_delivery: true, delivery_pausado_hasta: '2099-01-01T00:00:00Z', estadoDelivery: { estado: 'pausado', hasta: '22:00' } },
+    { ...base, id: 'sin', tiene_delivery: false, estadoDelivery: { estado: 'sin_delivery' } },
+  ];
+  const filtros = { busqueda: '', rubroId: 'todos', soloAbiertos: false, soloDelivery: true, soloFarmaciasTurno: false };
+  assert.deepEqual(filtrarComerciosMapa(comercios, { ...filtros, conMomentoDelivery: true }).map((c) => c.id), ['activo']);
+  assert.deepEqual(filtrarComerciosMapa(comercios, filtros).map((c) => c.id), ['activo', 'mas_tarde']);
+});

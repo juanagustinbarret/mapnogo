@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { QrFichaRedireccion, QrResenasRedireccion } from '@/pages/QrRedireccion';
 import { AdminSolicitudesPasswordPage } from '@/pages/admin/AdminSolicitudesPasswordPage';
 import { HomeExplorerPage } from '@/pages/HomeExplorerPage';
 import { CommerceDetailPage } from '@/pages/CommerceDetailPage';
@@ -53,6 +54,9 @@ export const App: React.FC = () => {
                 {/* Rutas Públicas */}
                 <Route path="/" element={<HomeExplorerPage />} />
                 <Route path="/comercio/:slug" element={<CommerceDetailPage />} />
+                {/* Rutas estables de los QR impresos: no cambiar ni borrar */}
+                <Route path="/n/:slug/resenas" element={<QrResenasRedireccion />} />
+                <Route path="/n/:slug" element={<QrFichaRedireccion />} />
                 <Route path="/promociones" element={<PromotionsPage />} />
                 <Route path="/terminos" element={<TerminosPage />} />
                 <Route path="/privacidad" element={<PrivacidadPage />} />

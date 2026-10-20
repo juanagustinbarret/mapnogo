@@ -41,6 +41,7 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PanelLinkRecuperacion } from '@/components/PanelLinkRecuperacion';
+import { QrResenas } from '@/components/QrResenas';
 import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
 import { horaDeVencimiento } from '@/lib/linksRecuperacion';
 
@@ -145,6 +146,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [farmaciaTurnoActual, setFarmaciaTurnoActual] = useState<any | null>(null);
 
   const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
+  const [qrDe, setQrDe] = useState<Comercio | null>(null);
   const [rubrosEdicion, setRubrosEdicion] = useState<Rubro[]>([]);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState('');
@@ -869,6 +871,15 @@ export const AdminDashboardPage: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={() => setQrDe(comercio)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 inline-flex items-center gap-1"
+                    aria-label={`QR de reseñas de ${comercio.nombre}`}
+                  >
+                    QR
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => abrirEdicion(comercio)}
                     className="px-3 py-2 rounded-xl text-xs font-bold bg-brand-600 text-white inline-flex items-center gap-1"
                   >
@@ -1166,6 +1177,26 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {qrDe && (
+        <div
+          className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`QR de reseñas de ${qrDe.nombre}`}
+          onClick={(e) => e.target === e.currentTarget && setQrDe(null)}
+          onKeyDown={(e) => e.key === 'Escape' && setQrDe(null)}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 w-full max-w-xs space-y-3 shadow-2xl border dark:border-gray-700">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-gray-900 dark:text-white truncate">{qrDe.nombre}</p>
+              <button type="button" autoFocus onClick={() => setQrDe(null)} aria-label="Cerrar" className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <QrResenas slug={qrDe.slug} nombre={qrDe.nombre} />
           </div>
         </div>
       )}

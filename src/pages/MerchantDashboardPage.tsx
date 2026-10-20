@@ -5,6 +5,8 @@ import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { QrResenas } from '@/components/QrResenas';
+import { DOMINIO_QR, dibujarQr, urlQrResenas } from '@/lib/qrResenas';
 import { CONTACTO } from '@/lib/contacto';
 import { estadoSuscripcion } from '@/lib/renovacion';
 import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
@@ -12,7 +14,7 @@ import { Comercio, Suscripcion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
-import { estrellasValidas } from '@/lib/resenas';
+import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
 import {
   Store,
   CreditCard,
@@ -170,7 +172,7 @@ export const MerchantDashboardPage: React.FC = () => {
         // Cargar las reseñas recibidas
         const { data: r } = await supabase
           .from('resenas')
-          .select('*')
+          .select(COLUMNAS_RESENA)
           .eq('comercio_id', c.id)
           .order('created_at', { ascending: false });
         if (r) setResenas(r);
@@ -436,35 +438,28 @@ export const MerchantDashboardPage: React.FC = () => {
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 44px sans-serif';
-    ctx.fillText('¡DEJANOS TU RESEÑA EN GOOGLE!', 540, 680);
+    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
 
     ctx.fillStyle = '#cbd5e1';
     ctx.font = '28px sans-serif';
     ctx.fillText('Escaneá el código con tu celular', 540, 730);
 
-    const googleReviewUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${comercio.nombre},${comercio.direccion}, Nogoyá, Entre Ríos`)}`;
-    const qrImg = new Image();
-    qrImg.crossOrigin = 'anonymous';
-    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(googleReviewUrl)}`;
+    // Mismo destino que el QR del panel: las reseñas del comercio en NOGOMAP
+    // (antes iba a una búsqueda de Google y pedía la imagen a api.qrserver.com)
+    dibujarQr(ctx, urlQrResenas(comercio.slug), 290, 780, 500);
 
-    qrImg.onload = () => {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(290, 780, 500, 500);
-      ctx.drawImage(qrImg, 310, 800, 460, 460);
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
 
-      ctx.fillStyle = '#34d399';
-      ctx.font = 'bold 36px sans-serif';
-      ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '28px sans-serif';
+    ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
 
-      ctx.fillStyle = '#64748b';
-      ctx.font = '28px sans-serif';
-      ctx.fillText('www.nogomap.com.ar', 540, 1750);
-
-      const link = document.createElement('a');
-      link.download = `Story_Resenas_${comercio.slug}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    };
+    const link = document.createElement('a');
+    link.download = `Story_Resenas_${comercio.slug}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   const handleExportarReporte = async () => {
@@ -534,14 +529,6 @@ export const MerchantDashboardPage: React.FC = () => {
     await signOut();
     navigate('/login');
   };
-
-  const googleReviewUrl = comercio
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${comercio.nombre},${comercio.direccion}, Nogoyá, Entre Ríos`)}`
-    : '';
-
-  const qrUrl = comercio
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(googleReviewUrl)}`
-    : '';
 
   const mensajeWhatsAppAdmin = encodeURIComponent(
     `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre}`
@@ -828,27 +815,17 @@ export const MerchantDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between space-y-4">
           <div>
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
-              <QrCode className="w-5 h-5 text-brand-600" /> QR Google Reseñas
+              <QrCode className="w-5 h-5 text-brand-600" /> QR de reseñas
             </h3>
             <p className="text-xs text-gray-500 mt-2">
-              Llevá tus reseñas a otro nivel. Imprimí el QR o generá un flyer listo para publicar en las historias de tu negocio.
+              Lleva a las reseñas de tu comercio en NOGOMAP. Imprimilo o generá una story para Instagram.
             </p>
           </div>
 
           <div className="flex flex-col items-center gap-3 py-1">
-            <img src={qrUrl} alt="QR Google Maps" className="w-28 h-28 p-1.5 bg-white rounded-xl border shadow-sm" />
+            <QrResenas slug={comercio.slug} nombre={comercio.nombre} />
 
             <div className="flex flex-col w-full gap-2 pt-1">
-              <a
-                href={qrUrl}
-                download={`QR_Resenas_${comercio.slug}.png`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
-              >
-                <Download className="w-3.5 h-3.5" /> Descargar QR solo
-              </a>
-
               <button
                 type="button"
                 onClick={handleGenerarFlyerInstagram}

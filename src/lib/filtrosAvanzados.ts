@@ -9,6 +9,13 @@ export interface FiltrosMapa {
   soloAbiertos: boolean;
   soloDelivery: boolean;
   soloFarmaciasTurno: boolean;
+  /**
+   * Si se eligió día y hora ("¿quién tiene delivery el sábado a las 21:30?"),
+   * el filtro de delivery exige que esté activo en ese momento (c.estadoDelivery
+   * tiene que venir calculado para ese instante). Sin momento, "Con Delivery"
+   * muestra los que ofrecen delivery y no lo pausaron.
+   */
+  conMomentoDelivery?: boolean;
 }
 
 /**
@@ -61,7 +68,11 @@ export function filtrarComerciosMapa(
     // 4. Delivery
     if (filtros.soloDelivery) {
       if (!c.tiene_delivery) return false;
-      if (c.delivery_pausado_hasta && new Date(c.delivery_pausado_hasta) > ahora) return false;
+      if (filtros.conMomentoDelivery) {
+        if (c.estadoDelivery?.estado !== 'activo') return false;
+      } else if (c.delivery_pausado_hasta && new Date(c.delivery_pausado_hasta) > ahora) {
+        return false;
+      }
     }
 
     // 5. Farmacia de turno
