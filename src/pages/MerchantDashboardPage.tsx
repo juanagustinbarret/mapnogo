@@ -12,7 +12,7 @@ import { Comercio, Suscripcion } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
-import { estrellasValidas } from '@/lib/resenas';
+import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
 import {
   Store,
   CreditCard,
@@ -170,7 +170,7 @@ export const MerchantDashboardPage: React.FC = () => {
         // Cargar las reseñas recibidas
         const { data: r } = await supabase
           .from('resenas')
-          .select('*')
+          .select(COLUMNAS_RESENA)
           .eq('comercio_id', c.id)
           .order('created_at', { ascending: false });
         if (r) setResenas(r);

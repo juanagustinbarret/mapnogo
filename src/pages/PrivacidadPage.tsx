@@ -33,7 +33,7 @@ const SECCIONES: SeccionLegal[] = [
             <><b>Tu ubicación</b>, solo si tocás "Usar mi ubicación": se usa en tu dispositivo para mostrar distancias y ordenar por cercanía. No la guardamos. Para mostrar el nombre de tu calle, las coordenadas se consultan a OpenStreetMap (Nominatim).</>,
             <><b>Un identificador anónimo</b> generado en tu navegador, junto con las visitas a fichas y los toques en "WhatsApp" y "Cómo llegar". Sirve para darle estadísticas a cada comercio sin contar dos veces a la misma persona. No incluye tu nombre ni tu teléfono.</>,
             <><b>Notificaciones de ofertas</b>, si las activás: guardamos la dirección técnica que da tu navegador para enviarlas. Se borra al desactivarlas.</>,
-            <><b>Reseñas y reportes</b> que escribas: el nombre que pongas, la calificación y el texto. Las reseñas se muestran públicamente con ese nombre.</>,
+            <><b>Reseñas y reportes</b> que escribas: el nombre que pongas, la calificación y el texto. Las reseñas se muestran públicamente con ese nombre. Para evitar reseñas repetidas guardamos una huella cifrada de tu conexión (no tu dirección IP), que solo sirve para permitir una reseña por comercio desde la misma conexión y no se muestra.</>,
             <><b>Preferencias</b> como el modo oscuro, guardadas solo en tu navegador.</>,
           ]}
         />
