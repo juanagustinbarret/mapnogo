@@ -42,6 +42,7 @@ import {
 import 'leaflet/dist/leaflet.css';
 import { PanelLinkRecuperacion } from '@/components/PanelLinkRecuperacion';
 import { QrResenas } from '@/components/QrResenas';
+import { slugLimpio } from '@/lib/rutasQr';
 import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
 import { horaDeVencimiento } from '@/lib/linksRecuperacion';
 
@@ -488,8 +489,10 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    if (!modalEditar.slug.trim()) {
-      setErrorEdicion('El slug del comercio es obligatorio.');
+    // Siempre se guarda limpio ("bien-criollo-pizzas"): con espacios o
+    // mayúsculas el link y el QR del comercio quedaban con %20
+    if (!slugLimpio(modalEditar.slug)) {
+      setErrorEdicion('El slug del comercio es obligatorio (letras o números).');
       return;
     }
 
@@ -504,7 +507,7 @@ export const AdminDashboardPage: React.FC = () => {
         .from('comercios')
         .update({
           nombre: modalEditar.nombre.trim(),
-          slug: modalEditar.slug.trim(),
+          slug: slugLimpio(modalEditar.slug),
           descripcion_corta: modalEditar.descripcion_corta?.trim() ?? '',
           descripcion_completa:
             modalEditar.descripcion_completa?.trim() || null,
@@ -527,6 +530,7 @@ export const AdminDashboardPage: React.FC = () => {
         })
         .eq('id', modalEditar.id);
 
+      if (error?.code === '23505') throw new Error(`El slug "${slugLimpio(modalEditar.slug)}" ya lo usa otro comercio. Probá con otro.`);
       if (error) throw error;
 
       setModalEditar(null);
@@ -950,6 +954,11 @@ export const AdminDashboardPage: React.FC = () => {
                   <div>
                     <label className={etiquetaClase}>Slug de la ficha pública *</label>
                     <input required value={modalEditar.slug} onChange={(e) => actualizarCampo('slug', e.target.value)} className={campoClase} />
+                    {slugLimpio(modalEditar.slug) !== modalEditar.slug && (
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        Se guarda como <b>{slugLimpio(modalEditar.slug) || '—'}</b>. Los links y QR viejos siguen funcionando.
+                      </p>
+                    )}
                   </div>
                   <div className="sm:col-span-2">
                     <label className={etiquetaClase}>Rubro *</label>
