@@ -232,3 +232,16 @@ test('puntaje propio de NOGOMAP para el popup: cero, pocas, muchas e inválidas'
   assert.deepEqual(calcularPuntaje([0, -3, 'x', null, 5]), { puntaje: 5, total: 1 });
   assert.equal(textoPuntaje(calcularPuntaje([5, 4, 4]).puntaje, 3), '4,3 (3)');
 });
+
+import { textoHorariosParaFicha } from '../src/lib/resenasGoogle.ts';
+
+test('horarios para copiar a Google (lunes primero, turnos cortados, cerrado)', () => {
+  const t = textoHorariosParaFicha([
+    { dia_semana: 0, hora_apertura: '08:00:00', hora_cierre: '12:00:00' },
+    { dia_semana: 0, hora_apertura: '16:00:00', hora_cierre: '20:00:00' },
+    { dia_semana: 5, hora_apertura: '09:00:00', hora_cierre: '13:00:00', activo: false },
+  ]);
+  assert.match(t, /^Lunes: 08:00 a 12:00 y 16:00 a 20:00\n/);
+  assert.match(t, /Sábado: Cerrado/);
+  assert.match(t, /Domingo: Cerrado$/);
+});

@@ -5,6 +5,8 @@ import { Rubro } from '@/types/database.types';
 import { ArrowLeft, Save, Building, User, Search, ChevronDown, Check, FileSignature } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ComprobanteAlta } from '@/components/ComprobanteAlta';
+import { FichaGoogleAdmin } from '@/components/FichaGoogleAdmin';
+import { guardarVinculoGoogle, type VinculoGoogle } from '@/services/googleAdmin';
 import {
   MEDIOS_DE_ALTA,
   condicionesDelAlta,
@@ -126,6 +128,9 @@ export const AdminNewCommercePage: React.FC = () => {
   const [aceptado, setAceptado] = useState(false);
   const [plan, setPlan] = useState<{ nombre: string; precio: number } | null>(null);
   const [comprobante, setComprobante] = useState<DatosAlta | null>(null);
+  // Ficha de Google elegida antes de crear el comercio (se guarda después del alta)
+  const [vinculoGoogle, setVinculoGoogle] = useState<VinculoGoogle>({ placeId: null, estado: 'no_vinculado' });
+  const [avisoGoogle, setAvisoGoogle] = useState('');
   const vencimiento = primerVencimiento();
 
   // Precio del plan para mostrarlo antes de contratar (la Edge Function usa el mismo)
@@ -289,6 +294,14 @@ export const AdminNewCommercePage: React.FC = () => {
       }
 
       const rubro = rubros.find((r) => r.id === formData.rubro_id);
+      const comercioId = typeof data?.comercioId === 'string' ? data.comercioId : '';
+      if (comercioId && vinculoGoogle.estado !== 'no_vinculado') {
+        try {
+          await guardarVinculoGoogle(comercioId, vinculoGoogle);
+        } catch (e: unknown) {
+          setAvisoGoogle(`El comercio se creó, pero no se guardó la ficha de Google: ${e instanceof Error ? e.message : 'error'}. Vinculala desde el panel.`);
+        }
+      }
       setComprobante({
         comercioId: typeof data?.comercioId === 'string' ? data.comercioId : '',
         fecha: new Date(),
@@ -319,6 +332,11 @@ export const AdminNewCommercePage: React.FC = () => {
   if (comprobante) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        {avisoGoogle && (
+          <p role="alert" className="no-imprimir p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+            {avisoGoogle}
+          </p>
+        )}
         <ComprobanteAlta datos={comprobante} />
       </div>
     );
@@ -611,6 +629,25 @@ export const AdminNewCommercePage: React.FC = () => {
                 {formData.longitud.toFixed(6)}
               </p>
             </div>
+          </div>
+
+          {/* FICHA DE GOOGLE (opcional): se guarda al crear el comercio */}
+          <div className="border-t dark:border-gray-700 pt-4 space-y-3">
+            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300">Ficha de Google (opcional)</h3>
+            {formData.nombreComercio.trim() && formData.direccion.trim() ? (
+              <FichaGoogleAdmin
+                comercio={{
+                  nombre: formData.nombreComercio.trim(),
+                  direccion: formData.direccion.trim(),
+                  telefono: formData.whatsapp.trim(),
+                  rubro: rubros.find((r) => r.id === formData.rubro_id)?.nombre,
+                }}
+                valor={vinculoGoogle}
+                onCambiar={setVinculoGoogle}
+              />
+            ) : (
+              <p className="text-xs text-gray-500">Completá el nombre y la dirección del comercio para buscarlo en Google.</p>
+            )}
           </div>
 
           {/* CONTRATO: condiciones que acepta el titular (Ley 24.240, contrato de adhesión) */}

@@ -41,6 +41,10 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PanelLinkRecuperacion } from '@/components/PanelLinkRecuperacion';
+import { FichaGoogleAdmin } from '@/components/FichaGoogleAdmin';
+import { VincularGoogleLote } from '@/components/VincularGoogleLote';
+import { ESTADOS_GOOGLE, estadoGoogle } from '@/lib/resenasGoogle';
+import { guardarVinculoGoogle, type VinculoGoogle } from '@/services/googleAdmin';
 import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
 import { horaDeVencimiento } from '@/lib/linksRecuperacion';
 
@@ -145,6 +149,14 @@ export const AdminDashboardPage: React.FC = () => {
   const [farmaciaTurnoActual, setFarmaciaTurnoActual] = useState<any | null>(null);
 
   const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
+  const [loteGoogle, setLoteGoogle] = useState(false);
+
+  // Vínculo con Google guardado (desde el modal o desde el lote): actualizar la lista
+  const alVincularGoogle = (comercioId: string, v: VinculoGoogle) => {
+    const cambio = { google_place_id: v.estado === 'vinculado' ? v.placeId : null, google_estado: v.estado };
+    setComercios((lista) => lista.map((c) => (c.id === comercioId ? { ...c, ...cambio } : c)));
+    setModalEditar((actual) => (actual && actual.id === comercioId ? { ...actual, ...cambio } : actual));
+  };
   const [rubrosEdicion, setRubrosEdicion] = useState<Rubro[]>([]);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState('');
@@ -797,6 +809,13 @@ export const AdminDashboardPage: React.FC = () => {
             <p className="text-xs text-gray-500 mt-1">
               Editá los datos, cuentas asignadas, descargá métricas en PDF o cambiá la visibilidad del local.
             </p>
+            <button
+              type="button"
+              onClick={() => setLoteGoogle(true)}
+              className="mt-2 px-3 py-2 rounded-xl text-xs font-bold bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+            >
+              Vincular con Google ({comercios.filter((c) => estadoGoogle(c) === 'no_vinculado').length} sin vincular)
+            </button>
           </div>
 
           <div className="relative w-full md:w-80">
@@ -841,6 +860,9 @@ export const AdminDashboardPage: React.FC = () => {
                     </span>
                     <span className={`px-2 py-1 rounded-lg text-xs font-bold ${comercio.habilitado_admin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {comercio.habilitado_admin ? 'Visible' : 'Oculto'}
+                    </span>
+                    <span className={`px-2 py-1 rounded-lg text-xs font-bold ${ESTADOS_GOOGLE[estadoGoogle(comercio)].clase}`}>
+                      Google: {ESTADOS_GOOGLE[estadoGoogle(comercio)].texto}
                     </span>
                   </div>
                 </div>
@@ -1043,6 +1065,26 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </Seccion>
 
+              <Seccion titulo="Ficha de Google">
+                <p className="text-xs text-gray-500">
+                  Se guarda al confirmar (no hace falta "Guardar cambios"). Las reseñas de Google se muestran en la ficha.
+                </p>
+                <FichaGoogleAdmin
+                  comercio={{
+                    id: modalEditar.id,
+                    nombre: modalEditar.nombre,
+                    direccion: modalEditar.direccion,
+                    telefono: modalEditar.telefono || modalEditar.whatsapp,
+                    rubro: comercios.find((c) => c.id === modalEditar.id)?.rubro?.nombre,
+                  }}
+                  valor={{ placeId: modalEditar.google_place_id ?? null, estado: estadoGoogle(modalEditar) }}
+                  onCambiar={async (vinculo) => {
+                    await guardarVinculoGoogle(modalEditar.id, vinculo);
+                    alVincularGoogle(modalEditar.id, vinculo);
+                  }}
+                />
+              </Seccion>
+
               <Seccion titulo="Dirección y ubicación">
                 <div>
                   <label className={etiquetaClase}>Dirección</label>
@@ -1168,6 +1210,9 @@ export const AdminDashboardPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {loteGoogle && (
+        <VincularGoogleLote comercios={comercios} onCerrar={() => setLoteGoogle(false)} onGuardado={alVincularGoogle} />
       )}
     </div>
   );

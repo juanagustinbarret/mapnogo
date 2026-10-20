@@ -175,3 +175,17 @@ export const PASOS_CREAR_FICHA = [
   'Google le pide verificar que es el dueño (video, llamada o postal). Solo el dueño puede hacerlo.',
   'Cuando la ficha esté publicada, avisanos y la vinculamos en NOGOMAP.',
 ];
+
+const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+/** Horarios de NOGOMAP (dia_semana 0 = lunes) en texto para copiar a Google. */
+export function textoHorariosParaFicha(
+  horarios: Array<{ dia_semana: number; hora_apertura: string; hora_cierre: string; activo?: boolean | null }>,
+): string {
+  return DIAS.map((dia, i) => {
+    const turnos = horarios
+      .filter((h) => h.dia_semana === i && h.activo !== false)
+      .map((h) => `${h.hora_apertura.slice(0, 5)} a ${h.hora_cierre.slice(0, 5)}`);
+    return `${dia}: ${turnos.length ? turnos.join(' y ') : 'Cerrado'}`;
+  }).join('\n');
+}

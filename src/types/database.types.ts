@@ -68,6 +68,9 @@ export interface Comercio {
   /** Columna nueva (supabase/propuestas/20261018_delivery.sql); falta en bases sin migrar */
   tiene_delivery?: boolean;
   delivery_pausado_hasta?: string | null;
+  /** Columnas nuevas (supabase/propuestas/20261020_google_places.sql) */
+  google_place_id?: string | null;
+  google_estado?: 'no_vinculado' | 'vinculado' | 'sin_ficha' | null;
 }
 
 export interface HorarioAtencion {
