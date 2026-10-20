@@ -395,72 +395,75 @@ export const MerchantDashboardPage: React.FC = () => {
     fetchMerchantData();
   };
 
-  const handleGenerarFlyerInstagram = () => {
-    if (!comercio) return;
+  // Reemplazá la función handleGenerarFlyerInstagram por esta:
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+const handleGenerarFlyerInstagram = () => {
+  if (!comercio) return;
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
-    gradient.addColorStop(0, '#022c22');
-    gradient.addColorStop(0.5, '#0f172a');
-    gradient.addColorStop(1, '#020617');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1920);
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
 
-    ctx.fillStyle = '#059669';
-    ctx.fillRect(0, 0, 1080, 28);
-    ctx.fillRect(0, 1892, 1080, 28);
+  const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
+  gradient.addColorStop(0, '#022c22');
+  gradient.addColorStop(0.5, '#0f172a');
+  gradient.addColorStop(1, '#020617');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 1080, 1920);
 
-    ctx.fillStyle = '#34d399';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('NOGOMAP', 540, 220);
+  ctx.fillStyle = '#059669';
+  ctx.fillRect(0, 0, 1080, 28);
+  ctx.fillRect(0, 1892, 1080, 28);
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 76px sans-serif';
-    ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
+  ctx.fillStyle = '#34d399';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('NOGOMAP', 540, 220);
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '32px sans-serif';
-    ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 76px sans-serif';
+  ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
 
-    ctx.fillStyle = '#1e293b';
-    ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
-    ctx.fill();
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '32px sans-serif';
+  ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
 
-    ctx.fillStyle = '#f59e0b';
-    ctx.font = 'bold 48px sans-serif';
-    ctx.fillText('★ ★ ★ ★ ★', 540, 610);
+  ctx.fillStyle = '#1e293b';
+  ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
+  ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 44px sans-serif';
-    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 48px sans-serif';
+  ctx.fillText('★ ★ ★ ★ ★', 540, 610);
 
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = '28px sans-serif';
-    ctx.fillText('Escaneá el código con tu celular', 540, 730);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 44px sans-serif';
+  ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
 
-    // Mismo destino que el QR del panel: las reseñas del comercio en NOGOMAP
-    // (antes iba a una búsqueda de Google y pedía la imagen a api.qrserver.com)
-    dibujarQr(ctx, urlQrResenas(comercio.slug), 290, 780, 500);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '28px sans-serif';
+  ctx.fillText('Escaneá el código con tu celular', 540, 730);
 
-    ctx.fillStyle = '#34d399';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
+  // Usamos estrictamente el slug del comercio para la URL limpia
+  const urlFinal = urlQrResenas(comercio.slug);
+  dibujarQr(ctx, urlFinal, 290, 780, 500);
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = '28px sans-serif';
-    ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
+  ctx.fillStyle = '#34d399';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
 
-    const link = document.createElement('a');
-    link.download = `Story_Resenas_${comercio.slug}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
+  ctx.fillStyle = '#64748b';
+  ctx.font = '28px sans-serif';
+  // Muestra la URL navegable limpia sin el prefijo https:// para la estética visual
+  ctx.fillText(urlFinal.replace(/^https:\/\//, ''), 540, 1750);
+
+  const link = document.createElement('a');
+  link.download = `Story_Resenas_${comercio.slug}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+};
 
   const handleExportarReporte = async () => {
     if (!comercio) return;

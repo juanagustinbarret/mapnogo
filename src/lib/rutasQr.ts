@@ -1,14 +1,20 @@
 // src/lib/rutasQr.ts
-//
-// Direcciones de los QR de reseñas. Usamos el dominio real desplegado en Vercel.
+import { CONTACTO } from './contacto';
 
-/** Dominio fijo y absoluto para la generación de los códigos QR */
-export const DOMINIO_QR = 'https://mapnogo.vercel.app';
+// Forzamos siempre la URL absoluta con https:// para que MIUI/Xiaomi/iOS lo abran directamente
+const sitioLimpio = CONTACTO.sitio.replace(/\/+$/, '');
+export const DOMINIO_QR = sitioLimpio.startsWith('http://') || sitioLimpio.startsWith('https://')
+  ? sitioLimpio
+  : `https://${sitioLimpio || 'mapnogo.vercel.app'}`;
 
-export const rutaQrResenas = (slug: string) => `/n/${encodeURIComponent(slug)}/resenas`;
+/** Sanitiza el slug garantizando minúsculas y sin espacios */
+const sanitizarSlug = (slug: string) =>
+  encodeURIComponent(slug.trim().toLowerCase().replace(/\s+/g, '-'));
+
+export const rutaQrResenas = (slug: string) => `/n/${sanitizarSlug(slug)}/resenas`;
 
 export const urlQrResenas = (slug: string, dominio: string = DOMINIO_QR) =>
   `${dominio.replace(/\/+$/, '')}${rutaQrResenas(slug)}`;
 
 /** Destino actual de /n/{slug}/resenas dentro de la app */
-export const destinoQrResenas = (slug: string) => `/comercio/${encodeURIComponent(slug)}#resenas`;
+export const destinoQrResenas = (slug: string) => `/comercio/${sanitizarSlug(slug)}#resenas`;
