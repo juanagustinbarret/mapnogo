@@ -23,3 +23,65 @@ export function textoHorarioEvento(inicio?: string | null, fin?: string | null):
 export function textoFechaEvento(fecha?: string | null): string {
   return formatearFecha(fecha) || (fecha ?? '');
 }
+
+// ─── Ficha del evento (tocar un evento en la marquesina) ────────────────
+
+export interface EventoPublico {
+  id: string;
+  titulo: string;
+  descripcion?: string | null;
+  fecha_evento: string;
+  hora_inicio?: string | null;
+  hora_fin?: string | null;
+  ubicacion_texto?: string | null;
+  imagen_url?: string | null;
+}
+
+const LOCALIDAD = 'Nogoyá, Entre Ríos';
+
+/** Link de Google Maps con el recorrido hasta el lugar del evento (null si no hay lugar). */
+export function linkComoLlegarEvento(ubicacion?: string | null): string | null {
+  const lugar = (ubicacion ?? '').trim();
+  if (!lugar) return null;
+  const destino = /nogoy[aá]/i.test(lugar) ? lugar : `${lugar}, ${LOCALIDAD}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`;
+}
+
+/** Link para compartir: abre el inicio con la ficha del evento. */
+export function linkEvento(origen: string, id: string): string {
+  return `${origen.replace(/\/+$/, '')}/?evento=${encodeURIComponent(id)}`;
+}
+
+const dosDigitos = (n: number) => String(n).padStart(2, '0');
+const aUtcIcs = (d: Date) =>
+  `${d.getUTCFullYear()}${dosDigitos(d.getUTCMonth() + 1)}${dosDigitos(d.getUTCDate())}T${dosDigitos(d.getUTCHours())}${dosDigitos(d.getUTCMinutes())}00Z`;
+const escaparIcs = (texto: string) => texto.replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
+
+/**
+ * Archivo de calendario (.ics) para "Agendar". Las horas son de Argentina
+ * (UTC-3) y se guardan en UTC. Sin hora de inicio, es un evento de todo el
+ * día; sin hora de fin, dura 2 horas; si la de fin es menor, termina al día
+ * siguiente (ej. 22:00 a 02:00).
+ */
+export function archivoCalendario(evento: EventoPublico, ahora: Date = new Date()): string {
+  const fecha = evento.fecha_evento.slice(0, 10);
+  const inicioTxt = horaCorta(evento.hora_inicio);
+  const lineas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NOGOMAP//Eventos//ES', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT'];
+  lineas.push(`UID:evento-${evento.id}@nogomap`, `DTSTAMP:${aUtcIcs(ahora)}`);
+  if (inicioTxt) {
+    const inicio = new Date(`${fecha}T${inicioTxt}:00-03:00`);
+    const finTxt = horaCorta(evento.hora_fin);
+    let fin = finTxt ? new Date(`${fecha}T${finTxt}:00-03:00`) : new Date(inicio.getTime() + 2 * 3600_000);
+    if (fin <= inicio) fin = new Date(fin.getTime() + 24 * 3600_000);
+    lineas.push(`DTSTART:${aUtcIcs(inicio)}`, `DTEND:${aUtcIcs(fin)}`);
+  } else {
+    const siguiente = new Date(`${fecha}T12:00:00Z`);
+    siguiente.setUTCDate(siguiente.getUTCDate() + 1);
+    lineas.push(`DTSTART;VALUE=DATE:${fecha.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${siguiente.toISOString().slice(0, 10).replace(/-/g, '')}`);
+  }
+  lineas.push(`SUMMARY:${escaparIcs(evento.titulo)}`);
+  if (evento.descripcion) lineas.push(`DESCRIPTION:${escaparIcs(evento.descripcion)}`);
+  if (evento.ubicacion_texto) lineas.push(`LOCATION:${escaparIcs(`${evento.ubicacion_texto}, ${LOCALIDAD}`)}`);
+  lineas.push('END:VEVENT', 'END:VCALENDAR');
+  return lineas.join('\r\n') + '\r\n';
+}
