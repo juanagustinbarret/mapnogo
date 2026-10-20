@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Megaphone, MapPin, Clock, CalendarDays } from 'lucide-react';
+import { Megaphone, MapPin, Clock, CalendarDays, ChevronRight } from 'lucide-react';
 import { textoFechaEvento, textoHorarioEvento } from '@/lib/eventos';
+import { FichaEvento } from '@/components/FichaEvento';
 
 interface Evento {
   id: string;
@@ -42,12 +44,32 @@ export const MarquesinaAvisos: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Ficha del evento tocado (o del que llega en el link compartido: ?evento=id)
+  const [parametros, setParametros] = useSearchParams();
+  const [abierto, setAbierto] = useState<Evento | null>(null);
+  const idCompartido = parametros.get('evento');
+
+  useEffect(() => {
+    if (!idCompartido || abierto) return;
+    const evento = eventosActivos.find((ev) => ev.id === idCompartido);
+    if (evento) setAbierto(evento);
+  }, [idCompartido, eventosActivos, abierto]);
+
+  const cerrarFicha = useCallback(() => {
+    setAbierto(null);
+    if (parametros.has('evento')) {
+      const siguientes = new URLSearchParams(parametros);
+      siguientes.delete('evento');
+      setParametros(siguientes, { replace: true });
+    }
+  }, [parametros, setParametros]);
+
   if (eventosActivos.length === 0) return null;
 
   return (
     <div className="bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-gray-900 p-4 rounded-3xl shadow-lg border border-amber-300/50 space-y-3">
       {eventosActivos.map((ev) => (
-        <div key={ev.id} className="flex items-start gap-3.5">
+        <div key={ev.id} className="relative flex items-start gap-3.5 rounded-2xl hover:bg-white/10 transition focus-within:ring-2 focus-within:ring-gray-900/60">
           {/* Contenedor del ícono principal de evento / megáfono */}
           <div className="p-2.5 bg-gray-900 text-amber-400 rounded-2xl shrink-0 shadow-md mt-0.5 border border-gray-800">
             <Megaphone className="w-5 h-5 motion-safe:animate-bounce" aria-hidden="true" />
@@ -78,7 +100,15 @@ export const MarquesinaAvisos: React.FC = () => {
 
             {/* Título e información en texto negro destacado */}
             <h3 className="font-black text-base sm:text-lg text-gray-900 leading-tight">
-              {ev.titulo}
+              {/* Toda la tarjeta abre la ficha (el botón se estira sobre ella) */}
+              <button
+                type="button"
+                onClick={() => setAbierto(ev)}
+                aria-haspopup="dialog"
+                className="text-left after:absolute after:inset-0 after:rounded-2xl focus:outline-none"
+              >
+                {ev.titulo}
+              </button>
             </h3>
 
             {ev.descripcion && (
@@ -86,9 +116,15 @@ export const MarquesinaAvisos: React.FC = () => {
                 {ev.descripcion}
               </p>
             )}
+
+            <p className="inline-flex items-center gap-0.5 text-[11px] font-black text-gray-900/80" aria-hidden="true">
+              Ver info y cómo llegar <ChevronRight className="w-3.5 h-3.5" />
+            </p>
           </div>
         </div>
       ))}
+
+      <FichaEvento evento={abierto} onClose={cerrarFicha} />
     </div>
   );
 };

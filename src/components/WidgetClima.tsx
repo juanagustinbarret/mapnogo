@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CloudSun, CloudRain, AlertTriangle, Wind, Zap } from 'lucide-react';
-import { interpretarClima, URL_CLIMA_NOGOYA, type ClimaData } from '@/lib/clima';
+import { ENDPOINT_CLIMA, LICENCIA_MET, type ClimaData } from '@/lib/clima';
 
 export const WidgetClima: React.FC = () => {
   const [clima, setClima] = useState<ClimaData | null>(null);
@@ -10,10 +10,11 @@ export const WidgetClima: React.FC = () => {
     let vigente = true;
     const fetchClimaNogoya = async () => {
       try {
-        const res = await fetch(URL_CLIMA_NOGOYA);
+        // El servidor (/api/clima) consulta a MET Norway y devuelve el clima ya interpretado
+        const res = await fetch(ENDPOINT_CLIMA);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const datos = interpretarClima(await res.json());
-        if (vigente && datos) setClima(datos);
+        const datos = (await res.json()) as ClimaData;
+        if (vigente && typeof datos?.temp === 'number') setClima(datos);
       } catch (err) {
         console.warn('No se pudo cargar el clima:', err);
       } finally {
@@ -65,7 +66,7 @@ export const WidgetClima: React.FC = () => {
       {hayAlerta && (
         <div
           className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500 text-gray-950 font-black text-[11px] rounded-xl shadow-md motion-safe:animate-pulse w-fit"
-          title="Aviso automático según el pronóstico de Open-Meteo. No es una alerta oficial del SMN."
+          title="Aviso automático según el pronóstico de MET Norway. No es una alerta oficial del SMN."
         >
           <AlertTriangle className="w-3.5 h-3.5 text-gray-950 shrink-0" />
           <span>
@@ -76,14 +77,14 @@ export const WidgetClima: React.FC = () => {
         </div>
       )}
 
-      {/* Atribución que pide la licencia CC-BY 4.0 de Open-Meteo */}
+      {/* Atribución que pide la licencia CC BY 4.0 de MET Norway */}
       <a
-        href="https://open-meteo.com/"
+        href={LICENCIA_MET}
         target="_blank"
         rel="noopener noreferrer"
         className="text-[10px] text-white/60 hover:text-white/90 w-fit"
       >
-        Datos del clima: Open-Meteo.com
+        Datos del clima: MET Norway (CC BY 4.0)
       </a>
     </div>
   );
