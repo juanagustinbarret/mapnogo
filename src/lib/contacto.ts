@@ -6,7 +6,11 @@
 //    muestra solo el WhatsApp).
 //  - responsables / cuit / domicilio: quién responde legalmente por el sitio
 //    y por la base de datos (Ley 25.326). Si quedan vacíos, el texto dice
-//    "los administradores de NOGOMAP".
+//    "los administradores de NOGOMAP". La normativa de comercio electrónico
+//    (Res. 270/2020) pide mostrar nombre, CUIT, domicilio y email del
+//    proveedor: completarlos cuanto antes.
+//  - horarioAtencion: si la atención es solo por WhatsApp o email, tiene que
+//    ser de al menos 8 horas los días hábiles (Disposición 954/2025).
 
 export const CONTACTO = {
   emailSoporte: '',
@@ -14,11 +18,16 @@ export const CONTACTO = {
   responsables: '',
   cuit: '',
   domicilio: '',
+  horarioAtencion: 'de lunes a viernes de 9 a 17 h',
   ciudad: 'Nogoyá, Entre Ríos, Argentina',
   sitio: 'https://mapnogo.vercel.app',
 };
 
 export const ACTUALIZACION_LEGALES = '20/10/2026';
+
+/** Cómo contactarnos, en una frase: email (si hay) y WhatsApp. */
+export const textoContacto = () =>
+  CONTACTO.emailSoporte ? `${CONTACTO.emailSoporte} o por WhatsApp al ${whatsappLegible()}` : `WhatsApp al ${whatsappLegible()}`;
 
 /** "+54 9 343 545-1818" para mostrar el WhatsApp de soporte. */
 export function whatsappLegible(numero: string = CONTACTO.whatsappSoporte): string {

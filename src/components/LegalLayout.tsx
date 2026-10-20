@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Mail, MessageCircle } from 'lucide-react';
 import { ACTUALIZACION_LEGALES, CONTACTO, whatsappLegible } from '@/lib/contacto';
 
@@ -14,7 +14,16 @@ export const LegalLayout: React.FC<{ titulo: string; intro: React.ReactNode; sec
   titulo,
   intro,
   secciones,
-}) => (
+}) => {
+  // Links como /terminos#suscripciones: ir a esa sección al entrar
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const t = setTimeout(() => document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView(), 50);
+    return () => clearTimeout(t);
+  }, [hash]);
+
+  return (
   <article className="max-w-3xl mx-auto px-4 py-8 space-y-6 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
     <Link to="/" className="inline-flex items-center gap-1.5 text-brand-600 font-bold text-xs hover:underline">
       <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Volver al mapa
@@ -70,7 +79,8 @@ export const LegalLayout: React.FC<{ titulo: string; intro: React.ReactNode; sec
       </p>
     </footer>
   </article>
-);
+  );
+};
 
 export const P: React.FC<{ children: React.ReactNode }> = ({ children }) => <p>{children}</p>;
 export const Lista: React.FC<{ items: React.ReactNode[] }> = ({ items }) => (

@@ -15,6 +15,8 @@ export const Footer: React.FC = () => {
           <span aria-hidden="true">·</span>
           <Link to="/privacidad" className="hover:text-brand-600 hover:underline">Privacidad</Link>
           <span aria-hidden="true">·</span>
+          <Link to="/terminos#suscripciones" className="hover:text-brand-600 hover:underline">Contratos de adhesión - Ley N° 24.240 de Defensa del Consumidor</Link>
+          <span aria-hidden="true">·</span>
           {CONTACTO.emailSoporte ? (
             <a href={`mailto:${CONTACTO.emailSoporte}`} className="hover:text-brand-600 hover:underline">{CONTACTO.emailSoporte}</a>
           ) : (
@@ -22,6 +24,15 @@ export const Footer: React.FC = () => {
               Soporte: WhatsApp {whatsappLegible()}
             </a>
           )}
+        </nav>
+        {/* Disposición 954/2025: a simple vista y sin registro previo */}
+        <nav aria-label="Baja y arrepentimiento" className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-bold">
+          <Link to="/baja" className="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-700 hover:border-brand-500 hover:text-brand-600">
+            BOTÓN DE BAJA DE SERVICIO
+          </Link>
+          <Link to="/baja?tipo=arrepentimiento" className="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-700 hover:border-brand-500 hover:text-brand-600">
+            BOTÓN DE ARREPENTIMIENTO
+          </Link>
         </nav>
         <p>© {new Date().getFullYear()} NOGOMAP. Todos los derechos reservados.</p>
       </div>
