@@ -6,7 +6,6 @@ import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { QrResenas } from '@/components/QrResenas';
-import { DOMINIO_QR, dibujarQr, urlQrResenas } from '@/lib/qrResenas';
 import { CONTACTO } from '@/lib/contacto';
 import { estadoSuscripcion } from '@/lib/renovacion';
 import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
@@ -33,8 +32,6 @@ import {
   Calendar,
   Sparkles,
   LayoutDashboard,
-  Download,
-  Image as ImageIcon,
   Copy,
   Save,
   AlertTriangle,
@@ -395,73 +392,6 @@ export const MerchantDashboardPage: React.FC = () => {
     fetchMerchantData();
   };
 
-  const handleGenerarFlyerInstagram = () => {
-    if (!comercio) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
-    gradient.addColorStop(0, '#022c22');
-    gradient.addColorStop(0.5, '#0f172a');
-    gradient.addColorStop(1, '#020617');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1920);
-
-    ctx.fillStyle = '#059669';
-    ctx.fillRect(0, 0, 1080, 28);
-    ctx.fillRect(0, 1892, 1080, 28);
-
-    ctx.fillStyle = '#34d399';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('NOGOMAP', 540, 220);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 76px sans-serif';
-    ctx.fillText(comercio.nombre.toUpperCase(), 540, 360);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '32px sans-serif';
-    ctx.fillText(comercio.direccion || 'Nogoyá, Entre Ríos', 540, 430);
-
-    ctx.fillStyle = '#1e293b';
-    ctx.roundRect ? ctx.roundRect(140, 520, 800, 950, 40) : ctx.fillRect(140, 520, 800, 950);
-    ctx.fill();
-
-    ctx.fillStyle = '#f59e0b';
-    ctx.font = 'bold 48px sans-serif';
-    ctx.fillText('★ ★ ★ ★ ★', 540, 610);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 44px sans-serif';
-    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
-
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = '28px sans-serif';
-    ctx.fillText('Escaneá el código con tu celular', 540, 730);
-
-    // Mismo destino que el QR del panel: las reseñas del comercio en NOGOMAP
-    // (antes iba a una búsqueda de Google y pedía la imagen a api.qrserver.com)
-    dibujarQr(ctx, urlQrResenas(comercio.slug), 290, 780, 500);
-
-    ctx.fillStyle = '#34d399';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '28px sans-serif';
-    ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
-
-    const link = document.createElement('a');
-    link.download = `Story_Resenas_${comercio.slug}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
   const handleExportarReporte = async () => {
     if (!comercio) return;
     try {
@@ -718,7 +648,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between sm:col-span-2 lg:col-span-1">
           <div>
-            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">QR Google Reseñas</p>
+            <p className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">QR de reseñas</p>
             <p className="text-xs font-bold text-gray-600 dark:text-gray-300 mt-1">Listo para imprimir o compartir</p>
           </div>
           <div className="p-3 bg-yellow-50 dark:bg-yellow-950/40 text-yellow-600 rounded-2xl">
@@ -823,17 +753,7 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-center gap-3 py-1">
-            <QrResenas slug={comercio.slug} nombre={comercio.nombre} />
-
-            <div className="flex flex-col w-full gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleGenerarFlyerInstagram}
-                className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
-              >
-                <ImageIcon className="w-3.5 h-3.5" /> Generar Story para Instagram
-              </button>
-            </div>
+            <QrResenas slug={comercio.slug} nombre={comercio.nombre} direccion={comercio.direccion} conStory />
           </div>
         </div>
       </div>
