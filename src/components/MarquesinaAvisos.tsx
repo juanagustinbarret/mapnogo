@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Megaphone, MapPin, Clock, CalendarDays } from 'lucide-react';
+import { textoFechaEvento, textoHorarioEvento } from '@/lib/eventos';
 
 interface Evento {
   id: string;
@@ -43,20 +44,13 @@ export const MarquesinaAvisos: React.FC = () => {
 
   if (eventosActivos.length === 0) return null;
 
-  // Formateador limpio de horas (HH:MM)
-  const formatearHora = (hora?: string | null) => {
-    if (!hora) return '';
-    const partes = hora.split(':');
-    return `${partes[0]}:${partes[1]}`;
-  };
-
   return (
     <div className="bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-gray-900 p-4 rounded-3xl shadow-lg border border-amber-300/50 space-y-3">
       {eventosActivos.map((ev) => (
         <div key={ev.id} className="flex items-start gap-3.5">
           {/* Contenedor del ícono principal de evento / megáfono */}
           <div className="p-2.5 bg-gray-900 text-amber-400 rounded-2xl shrink-0 shadow-md mt-0.5 border border-gray-800">
-            <Megaphone className="w-5 h-5 animate-bounce" />
+            <Megaphone className="w-5 h-5 motion-safe:animate-bounce" aria-hidden="true" />
           </div>
 
           <div className="space-y-1.5 min-w-0 flex-1">
@@ -64,14 +58,13 @@ export const MarquesinaAvisos: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-black bg-white/90 text-gray-900 px-2.5 py-0.5 rounded-full shadow-sm border border-white/60">
                 <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
-                {ev.fecha_evento}
+                {textoFechaEvento(ev.fecha_evento)}
               </span>
 
               {ev.hora_inicio && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-white/90 text-gray-900 px-2.5 py-0.5 rounded-full shadow-sm border border-white/60">
                   <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  {formatearHora(ev.hora_inicio)}
-                  {ev.hora_fin ? ` a ${formatearHora(ev.hora_fin)}` : ''} hs
+                  {textoHorarioEvento(ev.hora_inicio, ev.hora_fin)}
                 </span>
               )}
 

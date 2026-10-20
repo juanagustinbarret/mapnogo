@@ -8,7 +8,6 @@ import {
   Store,
   Menu,
   X,
-  PlusCircle,
   LayoutDashboard,
   Home,
   Tag,

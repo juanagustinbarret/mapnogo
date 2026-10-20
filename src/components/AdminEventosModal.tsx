@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Calendar, Plus, Trash2, Clock, X, Eye } from 'lucide-react';
 import { hoyArgentina } from '@/lib/fechasArgentina';
+import { textoFechaEvento, textoHorarioEvento } from '@/lib/eventos';
 
 interface Evento {
   id: string;
@@ -96,7 +97,7 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
             <Calendar className="w-5 h-5 text-amber-500" />
             Gestión de Eventos y Anuncios
           </h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+          <button onClick={onClose} aria-label="Cerrar" className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -234,12 +235,13 @@ export const AdminEventosModal: React.FC<{ isOpen: boolean; onClose: () => void 
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ev.descripcion}</p>
                   )}
                   <p className="text-[10px] text-amber-600 font-bold mt-1 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> Evento: {ev.fecha_evento} {ev.hora_inicio ? `(${ev.hora_inicio} a ${ev.hora_fin || '??'})` : ''}
+                    <Clock className="w-3 h-3" /> Evento: {textoFechaEvento(ev.fecha_evento)} {textoHorarioEvento(ev.hora_inicio, ev.hora_fin) && `(${textoHorarioEvento(ev.hora_inicio, ev.hora_fin)})`}
                   </p>
                 </div>
 
                 <button
                   onClick={() => handleEliminarEvento(ev.id)}
+                  aria-label={`Eliminar el evento ${ev.titulo}`}
                   className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
                 >
                   <Trash2 className="w-4 h-4" />

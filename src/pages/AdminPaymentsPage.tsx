@@ -4,25 +4,23 @@ import { Comercio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { leerImporte } from '@/lib/importes';
 import { fechaCalendario } from '@/lib/fechasArgentina';
-import { 
-  CreditCard, 
-  CheckCircle, 
-  XCircle, 
-  Search, 
-  DollarSign, 
-  LayoutDashboard, 
-  Clock, 
-  PlusCircle, 
-  LogOut, 
-  History, 
-  X, 
-  UserCheck, 
+import {
+  CreditCard,
+  CheckCircle,
+  XCircle,
+  Search,
+  DollarSign,
+  LogOut,
+  History,
+  X,
+  UserCheck,
   ShieldCheck,
   Edit2,
   Trash2
 } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { AdminNav } from '@/components/AdminNav';
 
 // Mapeo directo de UUIDs a Nombres de Administradores
 const MAPA_ADMINISTRADORES: Record<string, string> = {
@@ -57,7 +55,6 @@ interface PagoAuditoria {
 export const AdminPaymentsPage: React.FC = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [search, setSearch] = useState('');
@@ -353,56 +350,7 @@ export const AdminPaymentsPage: React.FC = () => {
           </button>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t dark:border-gray-700 pt-4">
-          <Link
-            to="/admin"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 shrink-0" />
-            <span className="truncate">Dashboard</span>
-          </Link>
-
-          <Link
-            to="/admin/pagos"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin/pagos'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <CreditCard className="w-4 h-4 shrink-0" />
-            <span className="truncate">Pagos</span>
-          </Link>
-
-          <Link
-            to="/admin/vencimientos"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin/vencimientos'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <Clock className="w-4 h-4 shrink-0" />
-            <span className="truncate">Vencimientos</span>
-          </Link>
-
-          <Link
-            to="/admin/comercios/nuevo"
-            className={`px-3 py-2.5 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 text-center transition ${
-              location.pathname === '/admin/comercios/nuevo'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4 shrink-0" />
-            <span className="truncate">Alta Comercio</span>
-          </Link>
-        </div>
+        <AdminNav />
       </div>
 
       {/* SECCIÓN PAGOS */}
