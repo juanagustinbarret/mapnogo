@@ -52,7 +52,7 @@ export const ComprobanteAlta: React.FC<{ datos: DatosAlta }> = ({ datos }) => {
       {/* El ticket: siempre en blanco y negro para que se imprima bien */}
       <article id="ticket-alta" className="ticket-imprimible mx-auto max-w-sm bg-white text-gray-900 border border-gray-300 rounded-2xl p-5 font-mono text-[12px] leading-snug shadow-sm" aria-label="Comprobante de alta">
         <header className="text-center space-y-0.5 border-b-2 border-gray-900 pb-2 mb-2">
-          <p className="text-base font-black tracking-wide">NOGOMAP</p>
+          <p className="text-base font-black tracking-wide">NOGOYORK</p>
           <p className="font-bold">COMPROBANTE DE ALTA</p>
           <p>Contrato de suscripción · Ley 24.240</p>
           <p className="font-bold">N° {numero}</p>
@@ -85,7 +85,7 @@ export const ComprobanteAlta: React.FC<{ datos: DatosAlta }> = ({ datos }) => {
 
         <div className="grid grid-cols-2 gap-4 mt-8 text-center">
           <div className="border-t border-gray-900 pt-1">Firma del titular</div>
-          <div className="border-t border-gray-900 pt-1">Por NOGOMAP</div>
+          <div className="border-t border-gray-900 pt-1">Por NOGOYORK</div>
         </div>
 
         <footer className="mt-4 pt-2 border-t border-gray-300 text-[11px] text-gray-600">

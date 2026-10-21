@@ -1,4 +1,4 @@
-// public/sw.js - Service Worker de NOGOMAP (notificaciones push)
+// public/sw.js - Service Worker de NOGOYORK (notificaciones push)
 //
 // Solo maneja notificaciones: no intercepta pedidos ni guarda nada en caché,
 // así que no puede dejar a nadie con una versión vieja del sitio.
@@ -9,7 +9,7 @@
 
 // Cambiar VERSION fuerza a los navegadores a instalar este archivo de nuevo.
 const VERSION = '2026-10-18-logo-rana';
-const TITULO_POR_DEFECTO = 'NOGOMAP 🏪';
+const TITULO_POR_DEFECTO = 'NOGOYORK 🏪';
 const CUERPO_POR_DEFECTO = '¡Hay una nueva oferta o novedad en el directorio!';
 const ICONO = '/pwa-192x192.png?v=2';
 const INSIGNIA = '/badge-96x96.png?v=2';

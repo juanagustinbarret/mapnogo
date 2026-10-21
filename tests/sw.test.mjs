@@ -58,7 +58,7 @@ test('push con texto plano: se muestra igual (antes se perdía)', async () => {
   await disparar(sw.oyentes.push, { data: datos('Nueva promo cerca tuyo') });
   assert.equal(sw.mostradas.length, 1);
   assert.equal(sw.mostradas[0].opciones.body, 'Nueva promo cerca tuyo');
-  assert.equal(sw.mostradas[0].titulo, 'NOGOMAP 🏪');
+  assert.equal(sw.mostradas[0].titulo, 'NOGOYORK 🏪');
 });
 
 test('push sin datos o con campos vacíos: muestra el aviso por defecto', async () => {
@@ -67,7 +67,7 @@ test('push sin datos o con campos vacíos: muestra el aviso por defecto', async 
   await disparar(sw.oyentes.push, { data: datos({ title: '  ', body: '' }) });
   assert.equal(sw.mostradas.length, 2);
   for (const { titulo, opciones } of sw.mostradas) {
-    assert.equal(titulo, 'NOGOMAP 🏪');
+    assert.equal(titulo, 'NOGOYORK 🏪');
     assert.match(opciones.body, /oferta o novedad/);
     assert.equal(opciones.data.url, `${ORIGEN}/`);
   }

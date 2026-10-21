@@ -23,10 +23,10 @@ test('con suscripción: recordatorio completo, importe y fecha en formato argent
   assert.equal(r.tipo, 'recordatorio_pago');
   assert.equal(
     r.texto,
-    '¡Hola BIEN CRIOLLO PIZZAS! 👋 Te escribimos de NOGOMAP.\n' +
+    '¡Hola BIEN CRIOLLO PIZZAS! 👋 Te escribimos de NOGOYORK.\n' +
       'Te recordamos que tu suscripción de $ 12.000 vence el 10/11/2026.\n' +
       'Cuando hagas el pago, avisanos por acá así lo registramos.\n' +
-      '¡Gracias por ser parte de NOGOMAP! 🙌',
+      '¡Gracias por ser parte de NOGOYORK! 🙌',
   );
   assert.deepEqual(r.faltantes, []);
   assert.equal(r.aviso, undefined);
@@ -38,7 +38,7 @@ test('regresión: sin suscripción ya no se bloquea con [IMPORTE]; arma la invit
   if (!r.ok) return;
   assert.equal(r.tipo, 'invitacion_suscripcion');
   assert.doesNotMatch(r.texto, /\[|\{|\$/, 'sin placeholders ni importe');
-  assert.match(r.texto, /^¡Hola BIEN CRIOLLO PIZZAS! 👋 Te escribimos de NOGOMAP\./);
+  assert.match(r.texto, /^¡Hola BIEN CRIOLLO PIZZAS! 👋 Te escribimos de NOGOYORK\./);
   assert.match(r.aviso!, /no tiene una suscripción/);
 });
 
@@ -109,9 +109,9 @@ test('validación de la plantilla general', () => {
   assert.match(validarPlantilla('Hola', 'recordatorio_pago').advertencias.join(), /nombre_comercio/);
 });
 
-test('todos los mensajes predeterminados dicen NOGOMAP y no traen sintaxis vieja', () => {
+test('todos los mensajes predeterminados dicen NOGOYORK y no traen sintaxis vieja', () => {
   for (const texto of Object.values(P)) {
-    assert.match(texto, /NOGOMAP/);
+    assert.match(texto, /NOGOYORK/);
     assert.doesNotMatch(texto, /\[[A-Z ]+\]|Nogoy[aá] Cerca/i);
   }
 });
@@ -127,14 +127,14 @@ test('mensaje de métricas con la plantilla predeterminada y con una editada', (
   assert.equal(
     armarMensajeMetricas(datos).texto,
     [
-      '¡Hola Pizzería Don Pepe! 📊 Estos son tus números en NOGOMAP del 01/10/2026 al 31/10/2026:',
+      '¡Hola Pizzería Don Pepe! 📊 Estos son tus números en NOGOYORK del 01/10/2026 al 31/10/2026:',
       '',
       '👀 *1.234* visitas a tu ficha (▲ 12 %)',
       '💬 *1* consulta por WhatsApp (▼ 50 %)',
       '📍 *78* pedidos de "Cómo llegar" (= igual)',
       '',
       'Mirá el detalle en tu panel: https://mapnogo.vercel.app/panel?desde=2026-10-01&hasta=2026-10-31',
-      '¡Gracias por ser parte de NOGOMAP! 🙌',
+      '¡Gracias por ser parte de NOGOYORK! 🙌',
     ].join('\n'),
   );
   assert.equal(

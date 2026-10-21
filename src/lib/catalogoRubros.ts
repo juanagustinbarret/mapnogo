@@ -1,6 +1,6 @@
 // src/lib/catalogoRubros.ts
 //
-// Catálogo de rubros de NOGOMAP agrupado en categorías, pensado para el
+// Catálogo de rubros de NOGOYORK agrupado en categorías, pensado para el
 // comercio y los servicios de una ciudad del interior como Nogoyá.
 //
 // - La tabla `rubros` de la base es plana (nombre, slug, icono, estado,

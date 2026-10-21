@@ -97,8 +97,8 @@ const escaparIcs = (texto: string) => texto.replace(/\\/g, '\\\\').replace(/\r?\
 export function archivoCalendario(evento: EventoPublico, ahora: Date = new Date()): string {
   const fecha = evento.fecha_evento.slice(0, 10);
   const inicioTxt = horaCorta(evento.hora_inicio);
-  const lineas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NOGOMAP//Eventos//ES', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT'];
-  lineas.push(`UID:evento-${evento.id}@nogomap`, `DTSTAMP:${aUtcIcs(ahora)}`);
+  const lineas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NOGOYORK//Eventos//ES', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT'];
+  lineas.push(`UID:evento-${evento.id}@nogoyork`, `DTSTAMP:${aUtcIcs(ahora)}`);
   if (inicioTxt) {
     const inicio = new Date(`${fecha}T${inicioTxt}:00-03:00`);
     const finTxt = horaCorta(evento.hora_fin);

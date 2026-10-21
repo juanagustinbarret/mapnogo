@@ -27,14 +27,14 @@ export function linkDeRecuperacion(origen: string, token: string): string {
 export function mensajeRecuperacion(link: string): string {
   return (
     'Hola!\n\n' +
-    'Recibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOMAP.\n\n' +
+    'Recibimos tu solicitud para restablecer la contraseña de tu comercio en NOGOYORK.\n\n' +
     `Entrá a este enlace seguro (válido por ${MINUTOS_VALIDEZ_LINK} minutos) y elegí una contraseña nueva:\n${link}\n\n` +
     'Si no lo pediste, ignorá este mensaje.\n\n' +
-    'Saludos,\nEquipo NOGOMAP'
+    'Saludos,\nEquipo NOGOYORK'
   );
 }
 
-const ASUNTO = 'Restablecer contraseña - NOGOMAP';
+const ASUNTO = 'Restablecer contraseña - NOGOYORK';
 
 /** Redactar en Gmail web con todo cargado. */
 export function urlGmail(email: string, link: string): string {

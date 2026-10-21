@@ -11,7 +11,7 @@ test('sin responsables cargados, el texto no queda vacío', () => {
   const antes = CONTACTO.responsables;
   try {
     CONTACTO.responsables = '';
-    assert.equal(nombreResponsable(), 'los administradores de NOGOMAP');
+    assert.equal(nombreResponsable(), 'los administradores de NOGOYORK');
     CONTACTO.responsables = 'Ana Pérez';
     assert.equal(nombreResponsable(), 'Ana Pérez');
   } finally {

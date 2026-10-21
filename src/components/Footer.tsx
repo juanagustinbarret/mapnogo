@@ -8,7 +8,7 @@ export const Footer: React.FC = () => {
     <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-8">
       <div className="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400 space-y-2">
         <div className="flex items-center justify-center gap-1 font-semibold text-gray-900 dark:text-white">
-          <MapPin className="w-4 h-4 text-brand-500" /> NOGOMAP - Nogoyá — Entre Ríos
+          <MapPin className="w-4 h-4 text-brand-500" /> NOGOYORK - Nogoyá — Entre Ríos
         </div>
         <nav aria-label="Información legal y contacto" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
           <Link to="/terminos" className="hover:text-brand-600 hover:underline">Términos y condiciones</Link>
@@ -34,7 +34,7 @@ export const Footer: React.FC = () => {
             BOTÓN DE ARREPENTIMIENTO
           </Link>
         </nav>
-        <p>© {new Date().getFullYear()} NOGOMAP. Todos los derechos reservados.</p>
+        <p>© {new Date().getFullYear()} NOGOYORK. Todos los derechos reservados.</p>
       </div>
     </footer>
   );

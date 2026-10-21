@@ -78,7 +78,7 @@ serve(async (req: Request) => {
       // Antes decía siempre "el día 10", aunque el vencimiento fuera otro.
       const importe = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
         .format(Number(sub.precio_acordado) || 0);
-      const mensaje = `Hola, te recordamos que el ${formatearFecha(sub.proximo_vencimiento)} vence la suscripción de ${comercio.nombre} a NOGOMAP por ${importe}. ¡Gracias!`;
+      const mensaje = `Hola, te recordamos que el ${formatearFecha(sub.proximo_vencimiento)} vence la suscripción de ${comercio.nombre} a NOGOYORK por ${importe}. ¡Gracias!`;
 
       if (whatsappToken && phoneAccountId) {
         const respuesta = await fetch(`https://graph.facebook.com/v18.0/${phoneAccountId}/messages`, {

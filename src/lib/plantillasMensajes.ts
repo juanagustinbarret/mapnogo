@@ -49,20 +49,20 @@ export const TITULOS_PLANTILLAS: Record<TipoPlantilla, string> = {
 
 export const PLANTILLAS_PREDETERMINADAS: Record<TipoPlantilla, string> = {
   recordatorio_pago:
-    '¡Hola {nombre_comercio}! 👋 Te escribimos de NOGOMAP.\n' +
+    '¡Hola {nombre_comercio}! 👋 Te escribimos de NOGOYORK.\n' +
     'Te recordamos que tu suscripción de {importe} vence el {fecha_vencimiento}.\n' +
     'Cuando hagas el pago, avisanos por acá así lo registramos.\n' +
-    '¡Gracias por ser parte de NOGOMAP! 🙌',
+    '¡Gracias por ser parte de NOGOYORK! 🙌',
   invitacion_suscripcion:
-    '¡Hola {nombre_comercio}! 👋 Te escribimos de NOGOMAP.\n' +
+    '¡Hola {nombre_comercio}! 👋 Te escribimos de NOGOYORK.\n' +
     'Vimos que tu comercio todavía no tiene una suscripción activa. ' +
     'Si querés que te sigan encontrando en el mapa y publicar tus ofertas, escribinos por acá y te contamos cómo activarla. ' +
     '¡Gracias! 🙌',
   metricas:
-    '¡Hola {nombre_comercio}! 📊 Estos son tus números en NOGOMAP {periodo}:\n\n' +
+    '¡Hola {nombre_comercio}! 📊 Estos son tus números en NOGOYORK {periodo}:\n\n' +
     '{resumen_metricas}\n\n' +
     'Mirá el detalle en tu panel: {link_panel}\n' +
-    '¡Gracias por ser parte de NOGOMAP! 🙌',
+    '¡Gracias por ser parte de NOGOYORK! 🙌',
 };
 
 const PATRON_VARIABLE = /\{([a-z_]+)\}/g;

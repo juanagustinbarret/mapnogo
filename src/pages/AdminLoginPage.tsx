@@ -55,7 +55,7 @@ export const AdminLoginPage: React.FC = () => {
             <Shield className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel Administrador</h1>
-          <p className="text-xs text-gray-500">Ingreso exclusivo para la administración de NOGOMAP.</p>
+          <p className="text-xs text-gray-500">Ingreso exclusivo para la administración de NOGOYORK.</p>
         </div>
 
         {error && (

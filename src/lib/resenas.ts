@@ -32,7 +32,8 @@ export function mensajeErrorResena(error: { code?: string; message?: string } | 
   return 'No se pudo publicar la reseña. Probá de nuevo en un rato.';
 }
 
-const CLAVE_LOCAL = 'nogomap:resenas-enviadas:v1';
+export const CLAVE_LOCAL_RESENAS = 'nogoyork:resenas-enviadas:v1';
+const CLAVE_LOCAL = CLAVE_LOCAL_RESENAS;
 
 function leerEnviadas(almacen: Pick<Storage, 'getItem'> | null): string[] {
   try {

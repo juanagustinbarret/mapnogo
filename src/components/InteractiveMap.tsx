@@ -231,7 +231,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0" /> {comercio.direccion}
                   </div>
 
-                  {/* Puntaje de las reseñas de NOGOMAP (se pide al abrir el popup) */}
+                  {/* Puntaje de las reseñas de NOGOYORK (se pide al abrir el popup) */}
                   <PuntajePopup comercioId={comercio.id} slug={comercio.slug} />
 
                   <div className="flex items-center justify-between pt-2 border-t text-xs">

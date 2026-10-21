@@ -1,7 +1,7 @@
 // src/components/Navbar.tsx
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { LogoNogomap } from '@/components/LogoNogomap';
+import { LogoNogoyork } from '@/components/LogoNogoyork';
 import {
   Sun,
   Moon,
@@ -56,16 +56,16 @@ export const Navbar: React.FC = () => {
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* LOGO CON MARCA NOGO (VERDE) Y MAP (ROJO) */}
+          {/* LOGO CON MARCA NOGO (VERDE) Y YORK (ROJO) */}
           <button
             onClick={() => handleNavigation('/')}
             className="flex items-center gap-2 text-xl font-black focus:outline-none"
-            aria-label="NOGOMAP, ir al inicio"
+            aria-label="NOGOYORK, ir al inicio"
           >
-            <LogoNogomap className="w-8 h-8 shrink-0" />
+            <LogoNogoyork className="w-8 h-8 shrink-0" />
             <span className="font-extrabold text-xl tracking-tight">
               <span className="text-emerald-600 dark:text-emerald-500">NOGO</span>
-              <span className="text-red-600 dark:text-red-500">MAP</span>
+              <span className="text-red-600 dark:text-red-500">YORK</span>
             </span>
           </button>
 

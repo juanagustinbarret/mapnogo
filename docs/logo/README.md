@@ -1,11 +1,11 @@
-# Logo de NOGOMAP
+# Logo de NOGOYORK
 
 Rana sobre un mapa plegado, con un pin. Diseño propio, plano.
 
 | Archivo | Uso |
 |---|---|
 | `logo.svg` | Diseño completo (también en `public/logo.svg`). PWA 192/512, imagen para compartir. |
-| `logo-chico.svg` | Versión simplificada, grilla de 32 px: favicon SVG, 32 px y el encabezado (`src/components/LogoNogomap.tsx`). |
+| `logo-chico.svg` | Versión simplificada, grilla de 32 px: favicon SVG, 32 px y el encabezado (`src/components/LogoNogoyork.tsx`). |
 | `logo-16.svg` | Versión de 16 px alineada a píxeles (favicon 16 y .ico). |
 | `logo-maskable.svg` | Fondo completo con el dibujo dentro de la zona segura (Android). |
 | `logo-apple.svg` | Ícono de iOS (180 px, sin transparencia). |

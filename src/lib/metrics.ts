@@ -15,8 +15,8 @@ import type { ValoresMetricas } from '@/lib/mensajeMetricas';
 export type TipoInteraccion = 'visita' | 'whatsapp' | 'como_llegar';
 
 export const VENTANA_SIN_REPETIR_MS = 30 * 60 * 1000;
-const CLAVE_VISITANTE = 'nogomap:visitante';
-const CLAVE_RECIENTES = 'nogomap:interacciones-recientes';
+const CLAVE_VISITANTE = 'nogoyork:visitante';
+const CLAVE_RECIENTES = 'nogoyork:interacciones-recientes';
 
 const PATRON_BOT = /bot|crawl|spider|slurp|facebookexternalhit|headless|lighthouse|pagespeed/i;
 

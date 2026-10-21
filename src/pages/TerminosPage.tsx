@@ -29,8 +29,8 @@ const SECCIONES: SeccionLegal[] = [
     contenido: (
       <>
         <P>
-          NOGOMAP es un directorio y mapa de comercios y servicios de Nogoyá y la zona. Muestra datos de contacto, horarios,
-          delivery, ofertas, novedades, eventos, la farmacia de turno, teléfonos útiles y el clima. NOGOMAP no vende
+          NOGOYORK es un directorio y mapa de comercios y servicios de Nogoyá y la zona. Muestra datos de contacto, horarios,
+          delivery, ofertas, novedades, eventos, la farmacia de turno, teléfonos útiles y el clima. NOGOYORK no vende
           productos ni presta los servicios de los comercios: los da a conocer y facilita el contacto directo con ellos (por
           ejemplo, por WhatsApp).
         </P>
@@ -68,7 +68,7 @@ const SECCIONES: SeccionLegal[] = [
     contenido: (
       <>
         <P>
-          Las reseñas son la opinión de quien las escribe. <b>Las reseñas negativas están permitidas</b> y nadie (ni NOGOMAP
+          Las reseñas son la opinión de quien las escribe. <b>Las reseñas negativas están permitidas</b> y nadie (ni NOGOYORK
           ni el comercio) puede pedirte que no las hagas o sancionarte por hacerlas. Solo se ocultan o borran las que:
         </P>
         <Lista
@@ -141,7 +141,7 @@ const SECCIONES: SeccionLegal[] = [
               <Link to="/baja" className={enlace}>Botón de arrepentimiento</Link>.
             </>,
             <>
-              <b>Si NOGOMAP deja de prestar el servicio</b> sin que haya un incumplimiento tuyo, te avisamos con al menos 30
+              <b>Si NOGOYORK deja de prestar el servicio</b> sin que haya un incumplimiento tuyo, te avisamos con al menos 30
               días de anticipación y te devolvemos la parte proporcional del período pagado que no se use.
             </>,
             <>
@@ -176,7 +176,7 @@ const SECCIONES: SeccionLegal[] = [
     titulo: 'Responsabilidad',
     contenido: (
       <P>
-        NOGOMAP responde por el servicio que presta (el directorio, el mapa y el panel de los comercios) según la ley. No es
+        NOGOYORK responde por el servicio que presta (el directorio, el mapa y el panel de los comercios) según la ley. No es
         parte de las compras, pedidos ni contrataciones entre vecinos y comercios: por la calidad, el precio, la entrega o
         la garantía de lo que ofrece cada comercio responde ese comercio. Nada de estos términos excluye ni limita los
         derechos que te dan la Ley de Defensa del Consumidor y el Código Civil y Comercial.
@@ -188,7 +188,7 @@ const SECCIONES: SeccionLegal[] = [
     titulo: 'Propiedad intelectual',
     contenido: (
       <P>
-        La marca NOGOMAP, el logo, el diseño y el código del sitio pertenecen a sus responsables. Los textos, fotos y
+        La marca NOGOYORK, el logo, el diseño y el código del sitio pertenecen a sus responsables. Los textos, fotos y
         marcas de cada comercio son de ese comercio. Los datos del mapa son © colaboradores de OpenStreetMap y los del
         clima, de MET Norway (licencia CC BY 4.0).
       </P>
@@ -232,7 +232,7 @@ export const TerminosPage: React.FC = () => (
     titulo="Términos y condiciones"
     intro={
       <P>
-        Estas son las reglas para usar NOGOMAP como vecino y las condiciones de la suscripción para comercios (contrato
+        Estas son las reglas para usar NOGOYORK como vecino y las condiciones de la suscripción para comercios (contrato
         de adhesión, Ley 24.240). Están escritas para que se entiendan.
       </P>
     }

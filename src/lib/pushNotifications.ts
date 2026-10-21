@@ -36,7 +36,7 @@ export type ResultadoPush =
 export const MENSAJES_FALLO_PUSH: Record<MotivoFalloPush, string> = {
   no_soportado: 'Este navegador no permite recibir notificaciones.',
   ios_sin_instalar:
-    'En iPhone las notificaciones funcionan solo si agregás NOGOMAP a la pantalla de inicio (Compartir → "Agregar a inicio") y la abrís desde ahí.',
+    'En iPhone las notificaciones funcionan solo si agregás NOGOYORK a la pantalla de inicio (Compartir → "Agregar a inicio") y la abrís desde ahí.',
   denegado:
     'Las notificaciones están bloqueadas para este sitio. Podés habilitarlas desde la configuración del navegador (el candado junto a la dirección).',
   descartado: 'No se activaron las notificaciones. Podés volver a intentarlo cuando quieras.',

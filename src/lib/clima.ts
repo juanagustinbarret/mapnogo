@@ -5,7 +5,7 @@
 // Fuente: MET Norway (api.met.no, servicio meteorológico público de Noruega).
 // Es gratis también para uso comercial, con licencia CC BY 4.0 (hay que dar
 // crédito). Open-Meteo, que se usaba antes, solo es gratis para uso no
-// comercial, y NOGOMAP cobra suscripciones.
+// comercial, y NOGOYORK cobra suscripciones.
 //
 // MET Norway pide identificarse (User-Agent) y no repetir la consulta antes
 // de que venza, cosas que el navegador no puede hacer bien. Por eso el
@@ -16,7 +16,7 @@
 export const COORDENADAS_NOGOYA = { lat: -32.3942, lon: -59.7881 }; // MET Norway pide 4 decimales como máximo
 export const URL_MET_NOGOYA =
   `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${COORDENADAS_NOGOYA.lat}&lon=${COORDENADAS_NOGOYA.lon}`;
-export const USER_AGENT_CLIMA = 'NOGOMAP/1.0 (+https://mapnogo.vercel.app)';
+export const USER_AGENT_CLIMA = 'NOGOYORK/1.0 (+https://mapnogo.vercel.app)';
 export const ENDPOINT_CLIMA = '/api/clima';
 export const LICENCIA_MET = 'https://api.met.no/doc/License';
 

@@ -10,7 +10,7 @@ test('código de constancia con fecha argentina y 4 caracteres fáciles de dicta
 
 test('mensaje de baja y de arrepentimiento', () => {
   const baja = mensajeSolicitud({ tipo: 'baja', codigo: 'BAJA-20261020-AB12', comercio: ' Almacén Tito ', contacto: '343 5451818' });
-  assert.match(baja, /^BOTÓN DE BAJA DE SERVICIO - NOGOMAP\n/);
+  assert.match(baja, /^BOTÓN DE BAJA DE SERVICIO - NOGOYORK\n/);
   assert.match(baja, /Comercio: Almacén Tito\n/);
   assert.match(baja, /Código de constancia: BAJA-20261020-AB12$/);
   assert.doesNotMatch(baja, /Comentario/);

@@ -24,7 +24,7 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <form onSubmit={handleLogin} className="w-full max-w-md bg-white dark:bg-gray-800 p-8 rounded-xl border border-gray-200 dark:border-gray-700 shadow-md space-y-4">
         <h2 className="text-xl font-bold text-center text-gray-900 dark:text-white flex items-center justify-center gap-2">
-          <LogIn className="w-5 h-5 text-brand-600" /> Ingresar a NOGOMAP
+          <LogIn className="w-5 h-5 text-brand-600" /> Ingresar a NOGOYORK
         </h2>
 
         {error && <div className="p-3 bg-red-100 text-red-700 text-xs rounded-lg text-center">{error}</div>}

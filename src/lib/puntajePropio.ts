@@ -1,6 +1,6 @@
 // src/lib/puntajePropio.ts
 //
-// Puntaje de las reseñas de NOGOMAP (tabla resenas): el que se muestra en el
+// Puntaje de las reseñas de NOGOYORK (tabla resenas): el que se muestra en el
 // popup del mapa y en la ficha.
 
 import { estrellasValidas } from './resenas';

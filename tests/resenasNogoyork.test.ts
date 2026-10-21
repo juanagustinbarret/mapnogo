@@ -54,7 +54,7 @@ test('aviso local de "ya opinaste" (sin romperse si no hay almacenamiento)', () 
   marcarResenado('a', almacen);
   assert.equal(yaReseno('a', almacen), true);
   assert.equal(yaReseno('b', almacen), false);
-  assert.deepEqual(JSON.parse(datos.get('nogomap:resenas-enviadas:v1')!), ['a']);
+  assert.deepEqual(JSON.parse(datos.get('nogoyork:resenas-enviadas:v1')!), ['a']);
   const roto = { getItem: () => '{no es json', setItem: () => { throw new Error('lleno'); } };
   assert.equal(yaReseno('a', roto), false);
   assert.doesNotThrow(() => marcarResenado('a', roto));

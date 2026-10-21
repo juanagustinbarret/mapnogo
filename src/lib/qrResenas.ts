@@ -1,6 +1,6 @@
 // src/lib/qrResenas.ts
 //
-// QR del comercio hacia sus reseñas DENTRO de NOGOMAP. El QR codifica una
+// QR del comercio hacia sus reseñas DENTRO de NOGOYORK. El QR codifica una
 // dirección corta y estable, /n/{slug}/resenas, que la app redirige a la
 // ficha (#resenas): si mañana cambia la estructura de la web, alcanza con
 // mantener esa ruta y los QR ya impresos siguen andando.

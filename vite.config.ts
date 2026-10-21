@@ -6,7 +6,7 @@ import { responderClima } from './src/lib/clima';
 // Solo en desarrollo (pnpm dev): atiende /api/clima igual que la función de
 // Cloudflare Pages / Vercel, para que el widget del clima se vea en local.
 const climaEnDesarrollo = (): Plugin => ({
-  name: 'nogomap-clima-desarrollo',
+  name: 'nogoyork-clima-desarrollo',
   apply: 'serve',
   configureServer(server) {
     server.middlewares.use('/api/clima', async (_req, res) => {

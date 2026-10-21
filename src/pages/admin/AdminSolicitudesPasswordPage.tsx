@@ -123,7 +123,7 @@ export const AdminSolicitudesPasswordPage: React.FC = () => {
               <KeyRound className="w-7 h-7 text-amber-500" /> Solicitud Cambio de Contraseña
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Gestión de solicitudes de blanqueo de clave recibidas de los comercios en NOGOMAP.
+              Gestión de solicitudes de blanqueo de clave recibidas de los comercios en NOGOYORK.
             </p>
           </div>
 
