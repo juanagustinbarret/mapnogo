@@ -1,3 +1,4 @@
+// src/lib/filtrosAvanzados.ts
 import type { HorarioAtencion } from '@/types/database.types';
 import { evaluarEstadoHorario, estaAbierto, type StatusHorarioResult } from '@/lib/scheduleEvaluator';
 import { categoriaDeRubro } from '@/lib/catalogoRubros';
@@ -9,30 +10,14 @@ export interface FiltrosMapa {
   soloAbiertos: boolean;
   soloDelivery: boolean;
   soloFarmaciasTurno: boolean;
-  /**
-   * Si se eligió día y hora ("¿quién tiene delivery el sábado a las 21:30?"),
-   * el filtro de delivery exige que esté activo en ese momento (c.estadoDelivery
-   * tiene que venir calculado para ese instante). Sin momento, "Con Delivery"
-   * muestra los que ofrecen delivery y no lo pausaron.
-   */
   conMomentoDelivery?: boolean;
+  medioPago?: string; // Nuevo filtro de medio de pago
 }
 
-/**
- * ¿Está abierto ahora? Misma regla que la etiqueta de la tarjeta
- * (evaluarEstadoHorario): hora de Argentina, turnos que cruzan la medianoche
- * y "cierra pronto" cuenta como abierto.
- *
- * Antes se usaba la hora del dispositivo y se comparaban textos
- * ("23:00" >= "20:00:00" && "23:00" <= "02:00:00"): un turno de 20:00 a 02:00
- * nunca figuraba abierto y la tarjeta decía "Abierto" mientras el filtro lo
- * escondía.
- */
 export function comercioEstaAbiertoAhora(horarios: HorarioAtencion[], ahora: Date = new Date()): boolean {
   return estaAbierto(evaluarEstadoHorario(horarios ?? [], ahora));
 }
 
-/** Busca sin importar tildes ni mayúsculas, también por rubro y categoría. */
 export function coincideBusqueda(c: any, busqueda: string): boolean {
   const termino = normalizarTexto(busqueda.trim());
   if (!termino) return true;
@@ -57,7 +42,7 @@ export function filtrarComerciosMapa(
     // 1. Visibilidad básica
     if (!c.habilitado_admin) return false;
 
-    // 2. Búsqueda (nombre, dirección, descripción, rubro, categoría, servicios)
+    // 2. Búsqueda
     if (!coincideBusqueda(c, filtros.busqueda)) return false;
 
     // 3. Rubro
@@ -65,7 +50,16 @@ export function filtrarComerciosMapa(
       if (c.rubro_id !== filtros.rubroId) return false;
     }
 
-    // 4. Delivery
+    // 4. Medios de Pago (Coincidencia sobre c.medios_pago array)
+    if (filtros.medioPago) {
+      if (!Array.isArray(c.medios_pago)) return false;
+      const coincide = c.medios_pago.some((m: string) =>
+        normalizarTexto(m).includes(normalizarTexto(filtros.medioPago!))
+      );
+      if (!coincide) return false;
+    }
+
+    // 5. Delivery
     if (filtros.soloDelivery) {
       if (!c.tiene_delivery) return false;
       if (filtros.conMomentoDelivery) {
@@ -75,12 +69,12 @@ export function filtrarComerciosMapa(
       }
     }
 
-    // 5. Farmacia de turno
+    // 6. Farmacia de turno
     if (filtros.soloFarmaciasTurno) {
       if (!farmaciasTurnoIds.includes(c.id)) return false;
     }
 
-    // 6. Abierto ahora (si ya viene evaluado, se usa ese mismo estado)
+    // 7. Abierto ahora
     if (filtros.soloAbiertos) {
       const estado: StatusHorarioResult | undefined = c.estadoAtencion;
       const abierto = estado ? estaAbierto(estado) : comercioEstaAbiertoAhora(c.horarios || [], ahora);

@@ -60,6 +60,7 @@ export const HomeExplorerPage: React.FC = () => {
   const [horarios, setHorarios] = useState<Record<string, HorarioAtencion[]>>({});
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
+  const [medioPago, setMedioPago] = useState<string>('');
   
   // Farmacia de Turno Hoy
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
@@ -282,6 +283,7 @@ export const HomeExplorerPage: React.FC = () => {
     soloDelivery,
     soloFarmaciasTurno,
     conMomentoDelivery: momentoDelivery !== null,
+    medioPago,
   };
 
   const farmaciasTurnoIds = farmaciaDeTurno ? [farmaciaDeTurno.id] : [];
@@ -503,7 +505,7 @@ export const HomeExplorerPage: React.FC = () => {
         )}
 
         {/* CHIPS DE FILTRADO AVANZADO RÁPIDO - ORGANIZADOS EN FILAS RESPONSIVAS */}
-        <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full">
+        <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full space-y-2.5">
           <div className="px-4 space-y-2">
             
             {/* FILA 1: ABIERTO AHORA + CON DELIVERY */}
@@ -529,7 +531,7 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* FILA 2: CONSULTAR HORARIO DELIVERY (RESPONSIVE EN SU PROPIA LÍNEA) */}
+            {/* FILA 2: CONSULTAR HORARIO DELIVERY */}
             <div>
               <FiltroDeliveryBotonConsulta
                 activo={soloDelivery}
@@ -540,7 +542,32 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* FILA 3: FARMACIA DE TURNO Y RUBROS */}
+            {/* FILA 3: FILTRO DE MEDIOS DE PAGO (SOLO EFECTIVO Y TRANSFERENCIA) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mr-1 shrink-0">
+                Medio de Pago:
+              </span>
+              {[
+                { id: '', label: 'Todos' },
+                { id: 'efectivo', label: '💵 Efectivo' },
+                { id: 'transferencia', label: '🏦 Transferencia' },
+              ].map((mp) => (
+                <button
+                  key={mp.id}
+                  type="button"
+                  onClick={() => setMedioPago(mp.id)}
+                  className={`px-3 py-1 text-xs font-bold rounded-xl transition shrink-0 ${
+                    medioPago === mp.id
+                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {mp.label}
+                </button>
+              ))}
+            </div>
+
+            {/* FILA 4: FARMACIA DE TURNO Y RUBROS */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 onClick={() => setSoloFarmaciasTurno(!soloFarmaciasTurno)}

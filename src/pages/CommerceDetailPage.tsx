@@ -43,6 +43,7 @@ import {
 import { calcularPuntaje } from '@/lib/puntajePropio';
 import { etiquetaPuntaje, fechaResena, textoPuntaje } from '@/lib/puntaje';
 import { Estrellas } from '@/components/Estrellas';
+import { CarruselFotosComercio } from '@/components/CarruselFotosComercio';
 
 interface HorarioDelivery {
   id: string;
@@ -107,8 +108,6 @@ export const CommerceDetailPage: React.FC = () => {
   }, [comercio, hash]);
 
   const fetchComercio = async () => {
-    // Sin el email del comercio (ver src/lib/columnasPublicas.ts)
-    // ("as '*'" es solo para TypeScript: el cliente no tiene los tipos de la base)
     const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
       const pedir = (columnas: string) =>
         filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
@@ -118,9 +117,6 @@ export const CommerceDetailPage: React.FC = () => {
     };
     let c: any = (await buscar((q) => q.eq('slug', slug), 1))[0] ?? null;
 
-    // Slug escrito distinto del guardado: QR con el slug limpio
-    // ("bien-criollo-pizzas") para un comercio cargado como
-    // "BIEN CRIOLLO PIZZAS", o al revés (links viejos después de corregirlo).
     if (!c && slug) {
       const limpio = slugLimpio(slug);
       if (limpio) c = elegirPorSlugLimpio(await buscar((q) => q.ilike('slug', patronSlugLimpio(limpio)), 25), limpio);
@@ -132,7 +128,6 @@ export const CommerceDetailPage: React.FC = () => {
     setNoEncontrado(false);
     setComercio(c);
 
-    // El resto de la ficha se pide todo junto (antes era una consulta después de otra)
     const hoyStr = hoyArgentina();
     const [{ data: h }, { data: hd }, { data: p }] = await Promise.all([
       supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
@@ -175,7 +170,6 @@ export const CommerceDetailPage: React.FC = () => {
     setGuardandoResena(false);
 
     if (error) {
-      // 23505: la base ya tiene una reseña de esta conexión para este comercio
       if (error.code === '23505') marcarResenado(comercio.id);
       alert(mensajeErrorResena(error));
     } else {
@@ -262,14 +256,11 @@ export const CommerceDetailPage: React.FC = () => {
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
 
   const estadoHorario = evaluarEstadoHorario(horarios);
-  // Antes la ficha decía siempre "Delivery Activo", aunque fuera de madrugada
-  // o el comercio lo hubiera pausado.
   const estadoDeliveryAhora = aplicarPausa(
     estadoDelivery(rangosDeDelivery(horariosDelivery, horarios)),
     comercio?.delivery_pausado_hasta,
   );
   const textoDeliveryAhora = textoEstadoDelivery(estadoDeliveryAhora) ?? 'Sin delivery en este momento';
-  // Puntaje con coma decimal ("4,6 (12)")
   const puntajePropio = calcularPuntaje(resenas.map((r) => r.estrellas));
   const promedioEstrellas = textoPuntaje(puntajePropio.puntaje, puntajePropio.total);
   const yaOpino = yaReseno(comercio.id);
@@ -297,6 +288,14 @@ export const CommerceDetailPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* CARRUSEL DE FOTOS DEL LOCAL */}
+      {comercio.galeria_urls && comercio.galeria_urls.length > 0 && (
+        <CarruselFotosComercio
+          fotos={comercio.galeria_urls}
+          nombreComercio={comercio.nombre}
+        />
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex justify-between items-start flex-wrap gap-2">
@@ -441,7 +440,6 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* El WhatsApp ahora es opcional al dar de alta: sin número no se muestra el botón */}
             {tieneWhatsApp && (
               <button
                 onClick={handleWhatsAppClick}
@@ -504,7 +502,7 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* SECCIÓN DE RESEÑAS (#resenas: el QR y el popup del mapa llevan acá) */}
+      {/* SECCIÓN DE RESEÑAS */}
       <section id="resenas" aria-labelledby="titulo-resenas" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="titulo-resenas" className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
@@ -518,7 +516,6 @@ export const CommerceDetailPage: React.FC = () => {
           )}
         </div>
 
-        {/* Formulario de envío de reseña */}
         {yaOpino ? (
           <p className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300" role="status">
             {MENSAJE_YA_RESENO}
@@ -578,7 +575,6 @@ export const CommerceDetailPage: React.FC = () => {
           </form>
         )}
 
-        {/* Lista de Reseñas cargadas */}
         <div className="space-y-3">
           {resenas.length === 0 ? (
             <p className="text-xs text-gray-500 text-center py-4">Aún no hay reseñas para este comercio. ¡Sé el primero en calificar!</p>
