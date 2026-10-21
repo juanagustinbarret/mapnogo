@@ -17,8 +17,9 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
 // Paneles del comercio y del admin: se cargan recién al entrar (no van en el
 // paquete inicial que descarga cada visitante del mapa)
-const MerchantDashboardPage = diferida(() => import('@/pages/MerchantDashboardPage'), 'MerchantDashboardPage');
-const MerchantProfilePage = diferida(() => import('@/pages/MerchantProfilePage'), 'MerchantProfilePage');
+// Las dos secciones del panel del comercio en un solo componente: cambiar
+// entre /panel y /panel/perfil no desmonta nada (ver PanelComercio.tsx)
+const PanelComercio = diferida(() => import('@/pages/PanelComercio'), 'PanelComercio');
 const AdminDashboardPage = diferida(() => import('@/pages/AdminDashboardPage'), 'AdminDashboardPage');
 const AdminNewCommercePage = diferida(() => import('@/pages/AdminNewCommercePage'), 'AdminNewCommercePage');
 const AdminPaymentsPage = diferida(() => import('@/pages/AdminPaymentsPage'), 'AdminPaymentsPage');
@@ -67,22 +68,17 @@ export const App: React.FC = () => {
                 <Route path="/admin/login" element={<AdminLoginPage />} />
 
                 {/* Rutas Comerciante */}
-                <Route
-                  path="/panel"
-                  element={
-                    <ProtectedRoute allowedRoles={['comerciante', 'admin']}>
-                      <MerchantDashboardPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/panel/perfil"
-                  element={
-                    <ProtectedRoute allowedRoles={['comerciante', 'admin']}>
-                      <MerchantProfilePage />
-                    </ProtectedRoute>
-                  }
-                />
+                {['/panel', '/panel/perfil'].map((ruta) => (
+                  <Route
+                    key={ruta}
+                    path={ruta}
+                    element={
+                      <ProtectedRoute allowedRoles={['comerciante', 'admin']}>
+                        <PanelComercio />
+                      </ProtectedRoute>
+                    }
+                  />
+                ))}
                 
                 {/* Rutas Administrador */}
                 <Route

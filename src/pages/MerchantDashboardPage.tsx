@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
 import { GestionGaleriaComercio } from '@/components/GestionGaleriaComercio';
@@ -15,6 +15,15 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
+import {
+  REVALIDAR_AL_ENTRAR_MS,
+  avisarCambioPanel,
+  guardarCachePanel,
+  hayQueRevalidar,
+  leerCachePanel,
+  useCambiosDeOtraSeccion,
+  useRevalidarAlVolver,
+} from '@/lib/datosPanel';
 import {
   Store,
   CreditCard,
@@ -46,31 +55,72 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
+// Lo que se guarda en el caché del panel (src/lib/datosPanel.ts)
+interface DatosInicioPanel {
+  comercio: Comercio;
+  suscripcion: Suscripcion | null;
+  promociones: any[];
+  horarios: any[];
+  resenas: any[];
+  proximoTurno: string | null;
+  metricas: { visitas: number; whatsapp: number; comoLlegar: number } | null;
+}
+
+const diasHastaVencer = (s: Suscripcion | null) =>
+  s?.proximo_vencimiento ? diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)) : null;
+
+// Indicador de carga de una sección (en vez de tapar todo el panel)
+const Esqueleto: React.FC<{ className?: string }> = ({ className = 'h-3 w-24' }) => (
+  <span className={`inline-block rounded bg-gray-200 dark:bg-gray-700 animate-pulse ${className}`} aria-hidden="true" />
+);
+const BloqueCargando: React.FC<{ texto: string }> = ({ texto }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="status" aria-label={texto}>
+    {[0, 1].map((i) => (
+      <div key={i} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border dark:border-gray-700 space-y-2">
+        <Esqueleto className="h-3 w-1/3 block" />
+        <Esqueleto className="h-3 w-3/4 block" />
+      </div>
+    ))}
+  </div>
+);
+
 export const MerchantDashboardPage: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [comercio, setComercio] = useState<Comercio | null>(null);
-  const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(null);
-  const [promociones, setPromociones] = useState<any[]>([]);
-  const [horarios, setHorarios] = useState<any[]>([]);
-  const [resenas, setResenas] = useState<any[]>([]);
-  const [proximoTurno, setProximoTurno] = useState<string | null>(null);
+  // Si ya se cargó antes (otra sección, el mapa y volver), se muestra al toque
+  // y se actualiza por detrás.
+  const claveCache = `inicio:${user?.id ?? ''}`;
+  const [previo] = useState(() => (user ? leerCachePanel<DatosInicioPanel>(claveCache) : undefined));
+  const datosPrevios = previo?.datos;
+  const cargadoEn = useRef<number | null>(previo?.en ?? null);
+  const cargaEnCurso = useRef(false);
+  const cargaPendiente = useRef(false);
+
+  const [comercio, setComercio] = useState<Comercio | null>(() => datosPrevios?.comercio ?? null);
+  const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(() => datosPrevios?.suscripcion ?? null);
+  const [promociones, setPromociones] = useState<any[]>(() => datosPrevios?.promociones ?? []);
+  const [horarios, setHorarios] = useState<any[]>(() => datosPrevios?.horarios ?? []);
+  const [resenas, setResenas] = useState<any[]>(() => datosPrevios?.resenas ?? []);
+  const [proximoTurno, setProximoTurno] = useState<string | null>(() => datosPrevios?.proximoTurno ?? null);
   const esFarmaciaDeTurno = proximoTurno !== null;
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
 
-  const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(null);
+  const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(() => datosPrevios?.comercio.delivery_pausado_hasta ?? null);
   const [pausandoDelivery, setPausandoDelivery] = useState(false);
-  const [diasParaVencer, setDiasParaVencer] = useState<number | null>(null);
+  const [diasParaVencer, setDiasParaVencer] = useState<number | null>(() => diasHastaVencer(datosPrevios?.suscripcion ?? null));
 
-  const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
-  const [metricasListas, setMetricasListas] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [metricasReales, setMetricasReales] = useState(() => datosPrevios?.metricas ?? { visitas: 0, whatsapp: 0, comoLlegar: 0 });
+  const [metricasListas, setMetricasListas] = useState(() => !!datosPrevios?.metricas);
+  // Pantalla de carga completa: solo la primera vez, hasta saber cuál es el comercio
+  const [loading, setLoading] = useState(() => !datosPrevios);
+  // Después, cada sección muestra su propio indicador mientras llegan sus datos
+  const [cargandoDetalle, setCargandoDetalle] = useState(() => !datosPrevios);
 
   // ESTADO PARA LA GALERÍA DE FOTOS
-  const [galeriaUrls, setGaleriaUrls] = useState<string[]>([]);
+  const [galeriaUrls, setGaleriaUrls] = useState<string[]>(() => datosPrevios?.comercio.galeria_urls ?? []);
   const [guardandoGaleria, setGuardandoGaleria] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -86,12 +136,48 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
+  // Antes dependía de `user` (objeto): Supabase entrega uno nuevo cada vez
+  // que la pestaña vuelve a estar visible y el panel recargaba todo.
   useEffect(() => {
-    if (user) fetchMerchantData();
-  }, [user]);
+    if (!user) return;
+    if (!datosPrevios) void fetchMerchantData();
+    else if (cargadoEn.current === null || hayQueRevalidar(cargadoEn.current, Date.now(), REVALIDAR_AL_ENTRAR_MS)) {
+      void fetchMerchantData({ silencioso: true });
+    }
+  }, [user?.id]);
 
-  const fetchMerchantData = async () => {
-    setLoading(true);
+  // Volver a la pestaña del navegador: se actualiza por detrás solo si pasó un rato
+  useRevalidarAlVolver(
+    () => cargadoEn.current,
+    () => void fetchMerchantData({ silencioso: true }),
+  );
+  // Cambios guardados en "Editar datos del local": refrescar por detrás
+  useCambiosDeOtraSeccion('inicio', () => void fetchMerchantData({ silencioso: true }));
+
+  // Mantener el caché al día con lo que se ve (incluye cambios locales)
+  useEffect(() => {
+    if (!user || !comercio || cargandoDetalle) return;
+    guardarCachePanel<DatosInicioPanel>(
+      claveCache,
+      { comercio, suscripcion, promociones, horarios, resenas, proximoTurno, metricas: metricasListas ? metricasReales : null },
+      cargadoEn.current ?? Date.now(),
+    );
+  }, [user, claveCache, comercio, suscripcion, promociones, horarios, resenas, proximoTurno, metricasListas, metricasReales, cargandoDetalle]);
+
+  /** Después de un cambio: actualizar por detrás (sin pantalla de carga) y avisar a la otra sección. */
+  const refrescar = () => {
+    avisarCambioPanel('inicio');
+    return fetchMerchantData({ silencioso: true });
+  };
+
+  const fetchMerchantData = async ({ silencioso = false }: { silencioso?: boolean } = {}) => {
+    // Una sola carga a la vez; si piden otra mientras tanto, se hace al terminar
+    if (cargaEnCurso.current) {
+      cargaPendiente.current = true;
+      return;
+    }
+    cargaEnCurso.current = true;
+    if (!silencioso) setLoading(true);
     precargarQrResenas().catch(() => {});
 
     try {
@@ -125,6 +211,11 @@ export const MerchantDashboardPage: React.FC = () => {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
         setGaleriaUrls(c.galeria_urls || []);
+        // Ya se puede mostrar el panel; el resto llega por secciones
+        if (!silencioso) {
+          setCargandoDetalle(true);
+          setLoading(false);
+        }
 
         obtenerMetricasComercio(c.id)
           .then((m) => {
@@ -164,19 +255,25 @@ export const MerchantDashboardPage: React.FC = () => {
 
         if (s) {
           setSuscripcion(s);
-          if (s.proximo_vencimiento) {
-            setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
-          }
+          setDiasParaVencer(diasHastaVencer(s));
         }
         if (p) setPromociones(p);
         if (h) setHorarios(h);
         if (r) setResenas(r);
         setProximoTurno(ft?.[0]?.fecha ?? null);
+        cargadoEn.current = Date.now();
       }
     } catch (error) {
+      // En una actualización por detrás se sigue mostrando lo que había
       console.error('Error al cargar datos del comercio:', error);
     } finally {
       setLoading(false);
+      setCargandoDetalle(false);
+      cargaEnCurso.current = false;
+      if (cargaPendiente.current) {
+        cargaPendiente.current = false;
+        void fetchMerchantData({ silencioso: true });
+      }
     }
   };
 
@@ -196,6 +293,7 @@ export const MerchantDashboardPage: React.FC = () => {
     } else {
       setGaleriaUrls(nuevasFotos);
       setComercio({ ...comercio, galeria_urls: nuevasFotos });
+      avisarCambioPanel('inicio');
       alert('✅ Galería de fotos actualizada correctamente.');
     }
   };
@@ -218,7 +316,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
       setProximoTurno(null);
       alert('✅ El comercio ya no figura como farmacia de turno.');
-      await fetchMerchantData();
+      await refrescar();
     } catch (err: any) {
       alert('Ocurrió un error inesperado: ' + err.message);
     }
@@ -311,7 +409,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('Error al copiar horarios: ' + e.message);
     } finally {
       setSavingHorarios(false);
-      await fetchMerchantData();
+      await refrescar();
     }
   };
 
@@ -339,7 +437,7 @@ export const MerchantDashboardPage: React.FC = () => {
       } else {
         alert('✅ Todos los horarios semanales fueron actualizados.');
       }
-      await fetchMerchantData();
+      await refrescar();
     } catch (e: any) {
       alert('Error al guardar horarios: ' + e.message);
     } finally {
@@ -379,7 +477,7 @@ export const MerchantDashboardPage: React.FC = () => {
     } else {
       setPromoForm({ titulo: '', descripcion: '', tipo: 'promocion', precio_anterior: '', precio_promocional: '', fecha_fin: '' });
       setIsModalOpen(false);
-      fetchMerchantData();
+      void refrescar();
     }
     setSavingPromo(false);
   };
@@ -391,7 +489,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo eliminar la publicación: ' + error.message);
       return;
     }
-    fetchMerchantData();
+    void refrescar();
   };
 
   const handleExportarReporte = async () => {
@@ -418,7 +516,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo agregar el turno: ' + error.message);
       return;
     }
-    fetchMerchantData();
+    void refrescar();
   };
 
   const handleUpdateHorario = async (horario: any) => {
@@ -443,7 +541,7 @@ export const MerchantDashboardPage: React.FC = () => {
     }
 
     alert('Horario actualizado correctamente.');
-    await fetchMerchantData();
+    await refrescar();
   };
 
   const handleDeleteHorario = async (id: string) => {
@@ -452,7 +550,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo eliminar el turno: ' + error.message);
       return;
     }
-    fetchMerchantData();
+    void refrescar();
   };
 
   const handleSignOut = async () => {
@@ -719,22 +817,26 @@ export const MerchantDashboardPage: React.FC = () => {
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-brand-600" /> Suscripción
             </h3>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${estadoSuscripcion(suscripcion?.estado).clase}`}>
-              {estadoSuscripcion(suscripcion?.estado).texto}
-            </span>
+            {cargandoDetalle ? (
+              <Esqueleto className="h-5 w-16" />
+            ) : (
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${estadoSuscripcion(suscripcion?.estado).clase}`}>
+                {estadoSuscripcion(suscripcion?.estado).texto}
+              </span>
+            )}
           </div>
 
           <div className="space-y-3 text-xs">
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <span className="text-gray-500">Monto del Plan:</span>
               <span className="font-bold text-gray-900 dark:text-white">
-                {suscripcion ? formatCurrency(suscripcion.precio_acordado) : 'Sin datos'}
+                {cargandoDetalle ? <Esqueleto /> : suscripcion ? formatCurrency(suscripcion.precio_acordado) : 'Sin datos'}
               </span>
             </div>
 
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <span className="text-gray-500 flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Próximo Vencimiento:</span>
-              <span className="font-bold text-brand-600">{suscripcion ? formatDate(suscripcion.proximo_vencimiento) : 'Sin datos'}</span>
+              <span className="font-bold text-brand-600">{cargandoDetalle ? <Esqueleto /> : suscripcion ? formatDate(suscripcion.proximo_vencimiento) : 'Sin datos'}</span>
             </div>
           </div>
 
@@ -774,7 +876,9 @@ export const MerchantDashboardPage: React.FC = () => {
           <MessageSquare className="w-5 h-5 text-brand-600" /> Opiniones y Calificaciones de Clientes
         </h3>
 
-        {resenas.length === 0 ? (
+        {cargandoDetalle ? (
+          <BloqueCargando texto="Cargando opiniones" />
+        ) : resenas.length === 0 ? (
           <p className="text-xs text-gray-500 text-center py-6">Aún no recibiste opiniones para tu comercio.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -827,6 +931,9 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
         </div>
 
+        {cargandoDetalle ? (
+          <BloqueCargando texto="Cargando horarios" />
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {diasSemana.map((dia, idx) => {
             const turnosDia = horarios.filter(
@@ -929,6 +1036,7 @@ export const MerchantDashboardPage: React.FC = () => {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* DELIVERY */}
@@ -1016,7 +1124,9 @@ export const MerchantDashboardPage: React.FC = () => {
           </button>
         </div>
 
-        {promociones.length === 0 ? (
+        {cargandoDetalle ? (
+          <BloqueCargando texto="Cargando publicaciones" />
+        ) : promociones.length === 0 ? (
           <div className="p-8 text-center text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
             No tenés publicaciones activas. ¡Publicá ofertas para destacar en la app!
           </div>
@@ -1024,7 +1134,7 @@ export const MerchantDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {promociones.map((p) => (
               <div key={p.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3 relative flex flex-col justify-between">
-                <button onClick={() => handleDeletePromo(p.id)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition">
+                <button onClick={() => handleDeletePromo(p.id)} aria-label={`Eliminar la publicación ${p.titulo}`} title="Eliminar publicación" className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition">
                   <Trash2 className="w-4 h-4" />
                 </button>
 
