@@ -1,10 +1,10 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
-import { Save, Store, Clock, Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Save, Store, Clock, Plus, Trash2, ArrowLeft, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { GestionGaleriaComercio } from '@/components/GestionGaleriaComercio';
 
 interface TurnoHorario {
   id?: string;
@@ -20,6 +20,9 @@ export const MerchantProfilePage: React.FC = () => {
 
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [horarios, setHorarios] = useState<TurnoHorario[]>([]);
+  const [mediosPago, setMediosPago] = useState<string[]>([]);
+  const [galeriaUrls, setGaleriaUrls] = useState<string[]>([]);
+
   const [fetching, setFetching] = useState(true);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -45,7 +48,6 @@ export const MerchantProfilePage: React.FC = () => {
     setError('');
 
     try {
-      // Primero buscamos el comercio vinculado al usuario.
       const { data: porPropietario, error: errorPropietario } =
         await supabase
           .from('comercios')
@@ -59,8 +61,6 @@ export const MerchantProfilePage: React.FC = () => {
 
       let comercioEncontrado = porPropietario;
 
-      // Si no está vinculado, intentamos encontrarlo por el correo
-      // comercial de la cuenta autenticada.
       if (!comercioEncontrado && user.email) {
         const { data: porEmail, error: errorEmail } = await supabase
           .from('comercios')
@@ -85,6 +85,8 @@ export const MerchantProfilePage: React.FC = () => {
       }
 
       setComercio(comercioEncontrado as Comercio);
+      setMediosPago(comercioEncontrado.medios_pago || []);
+      setGaleriaUrls(comercioEncontrado.galeria_urls || []);
 
       const { data: datosHorarios, error: errorHorarios } = await supabase
         .from('horarios_atencion')
@@ -110,6 +112,13 @@ export const MerchantProfilePage: React.FC = () => {
   useEffect(() => {
     void fetchComercioYHorarios();
   }, [fetchComercioYHorarios]);
+
+  const handleToggleMedioPago = (opcion: string) => {
+    setSuccess(false);
+    setMediosPago((prev) =>
+      prev.includes(opcion) ? prev.filter((m) => m !== opcion) : [...prev, opcion]
+    );
+  };
 
   const handleAddHorario = (diaIndex: number) => {
     setSuccess(false);
@@ -172,13 +181,15 @@ export const MerchantProfilePage: React.FC = () => {
     setError('');
 
     try {
-      // 1. Guardar los datos generales del comercio.
+      // 1. Guardar los datos generales del comercio (incluyendo medios_pago y galeria_urls).
       const { error: errorComercio } = await supabase
         .from('comercios')
         .update({
           descripcion_corta: comercio.descripcion_corta,
           direccion: comercio.direccion,
           whatsapp: comercio.whatsapp,
+          medios_pago: mediosPago,
+          galeria_urls: galeriaUrls,
         })
         .eq('id', comercio.id);
 
@@ -188,10 +199,7 @@ export const MerchantProfilePage: React.FC = () => {
 
       // 2. Guardar los horarios existentes y los nuevos.
       for (const horario of horarios) {
-        if (
-          !horario.hora_apertura ||
-          !horario.hora_cierre
-        ) {
+        if (!horario.hora_apertura || !horario.hora_cierre) {
           throw new Error('Completá la hora de apertura y cierre de cada turno.');
         }
 
@@ -299,7 +307,7 @@ export const MerchantProfilePage: React.FC = () => {
 
       {success && (
         <div className="p-3 bg-green-100 text-green-800 rounded-xl text-sm font-semibold">
-          ¡Información y horarios guardados correctamente!
+          ¡Información, fotos y horarios guardados correctamente!
         </div>
       )}
 
@@ -375,6 +383,53 @@ export const MerchantProfilePage: React.FC = () => {
           </div>
         </div>
 
+        {/* SECCIÓN MEDIOS DE PAGO (SOLO EFECTIVO Y TRANSFERENCIA) */}
+        <div className="pt-4 border-t dark:border-gray-700 space-y-3">
+          <label className="block text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+            <CreditCard className="w-4 h-4 text-emerald-600" /> Medios de Pago Aceptados
+          </label>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { id: 'efectivo', label: '💵 Efectivo' },
+              { id: 'transferencia', label: '🏦 Transferencia' },
+            ].map((m) => {
+              const estaSeleccionado = mediosPago.includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => handleToggleMedioPago(m.id)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    estaSeleccionado
+                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={estaSeleccionado}
+                    readOnly
+                    className="rounded text-emerald-600 focus:ring-0 pointer-events-none"
+                  />
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SECCIÓN GALERÍA DE FOTOS */}
+        <div className="pt-4 border-t dark:border-gray-700">
+          <GestionGaleriaComercio
+            galeriaUrls={galeriaUrls}
+            onChange={(nuevasFotos) => {
+              setSuccess(false);
+              setGaleriaUrls(nuevasFotos);
+            }}
+          />
+        </div>
+
+        {/* HORARIOS */}
         <div className="pt-4 border-t dark:border-gray-700 space-y-4">
           <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Clock className="w-5 h-5 text-brand-600" />

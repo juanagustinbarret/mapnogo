@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
+import { GestionGaleriaComercio } from '@/components/GestionGaleriaComercio';
 import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
@@ -55,7 +56,6 @@ export const MerchantDashboardPage: React.FC = () => {
   const [promociones, setPromociones] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [resenas, setResenas] = useState<any[]>([]);
-  // Próximo turno asignado (hoy o más adelante), o null
   const [proximoTurno, setProximoTurno] = useState<string | null>(null);
   const esFarmaciaDeTurno = proximoTurno !== null;
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
@@ -68,6 +68,10 @@ export const MerchantDashboardPage: React.FC = () => {
   const [metricasReales, setMetricasReales] = useState({ visitas: 0, whatsapp: 0, comoLlegar: 0 });
   const [metricasListas, setMetricasListas] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // ESTADO PARA LA GALERÍA DE FOTOS
+  const [galeriaUrls, setGaleriaUrls] = useState<string[]>([]);
+  const [guardandoGaleria, setGuardandoGaleria] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [savingPromo, setSavingPromo] = useState(false);
@@ -88,12 +92,9 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const fetchMerchantData = async () => {
     setLoading(true);
-    // El QR se baja aparte, en paralelo con los datos
     precargarQrResenas().catch(() => {});
 
     try {
-      // Si el dueño tiene más de un comercio, maybeSingle() daba error y el
-      // panel mostraba "Sin comercio asignado": ahora abre el primero.
       let { data: c } = await supabase
         .from('comercios')
         .select('*')
@@ -123,10 +124,8 @@ export const MerchantDashboardPage: React.FC = () => {
       if (c) {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
+        setGaleriaUrls(c.galeria_urls || []);
 
-        // Las métricas cuentan filas y pueden tardar (o reintentar si la red
-        // falla): se completan solas cuando llegan, sin frenar el panel.
-        // Si fallan, igual se carga la suscripción y lo demás.
         obtenerMetricasComercio(c.id)
           .then((m) => {
             setMetricasReales(m);
@@ -134,19 +133,13 @@ export const MerchantDashboardPage: React.FC = () => {
           })
           .catch((errorMetricas) => console.warn('[panel] No se pudieron leer las métricas:', errorMetricas));
 
-        // El resto se pide todo junto: antes eran 6 consultas una detrás de
-        // otra (en el celular, cada una suma la ida y vuelta a la base).
         const pedirPromociones = async () => {
-          // Los clics salen de interacciones_ofertas. Si esa tabla o su
-          // relación no existen, PostgREST da error y antes la lista de
-          // publicaciones quedaba vacía: ahora se cargan igual, sin clics.
           const consultaConClics = await supabase
             .from('promociones')
             .select('*, metricas_clics:interacciones_ofertas(count)')
             .eq('comercio_id', c.id)
             .order('created_at', { ascending: false });
           if (!consultaConClics.error) return consultaConClics.data;
-          console.warn('[promociones] Sin conteo de clics:', consultaConClics.error.message);
           const simple = await supabase
             .from('promociones')
             .select('*')
@@ -159,11 +152,7 @@ export const MerchantDashboardPage: React.FC = () => {
           supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle(),
           pedirPromociones(),
           supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
-          // Reseñas recibidas
           supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
-          // Próximo turno de farmacia (hoy o más adelante). Antes se usaba
-          // maybeSingle() sin filtrar la fecha: con dos o más turnos cargados
-          // daba error y el bloque no aparecía; con uno viejo, aparecía igual.
           supabase
             .from('farmacias_turno')
             .select('fecha')
@@ -176,8 +165,6 @@ export const MerchantDashboardPage: React.FC = () => {
         if (s) {
           setSuscripcion(s);
           if (s.proximo_vencimiento) {
-            // Días de calendario en Argentina: con horas y Math.ceil, el
-            // mismo día del vencimiento a la noche ya decía "vencida"
             setDiasParaVencer(diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)));
           }
         }
@@ -193,12 +180,31 @@ export const MerchantDashboardPage: React.FC = () => {
     }
   };
 
+  const handleGuardarGaleria = async (nuevasFotos: string[]) => {
+    if (!comercio) return;
+    setGuardandoGaleria(true);
+
+    const { error } = await supabase
+      .from('comercios')
+      .update({ galeria_urls: nuevasFotos })
+      .eq('id', comercio.id);
+
+    setGuardandoGaleria(false);
+
+    if (error) {
+      alert('Error al guardar la galería: ' + error.message);
+    } else {
+      setGaleriaUrls(nuevasFotos);
+      setComercio({ ...comercio, galeria_urls: nuevasFotos });
+      alert('✅ Galería de fotos actualizada correctamente.');
+    }
+  };
+
   const handleQuitarDeTurno = async () => {
     if (!comercio) return;
     if (!confirm('¿Seguro que querés quitar tus próximos turnos de farmacia (desde hoy)?')) return;
 
     try {
-      // Solo hoy y lo que viene: el historial de turnos pasados se conserva
       const { error } = await supabase
         .from('farmacias_turno')
         .delete()
@@ -206,7 +212,6 @@ export const MerchantDashboardPage: React.FC = () => {
         .gte('fecha', hoyArgentina());
 
       if (error) {
-        console.error('[farmacias_turno] Error al eliminar:', error);
         alert('Error al quitar la farmacia de turno: ' + error.message);
         return;
       }
@@ -222,9 +227,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const handlePausarDelivery = async (horas: number | 'hoy') => {
     if (!comercio) return;
     setPausandoDelivery(true);
-    // Siempre en hora argentina (antes "por hoy" usaba la medianoche del celular)
     const fechaHasta = finDePausa(horas);
-
     const isoFecha = fechaHasta.toISOString();
 
     const { error } = await supabase
@@ -385,7 +388,6 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!confirm('¿Deseás eliminar esta publicación?')) return;
     const { error } = await supabase.from('promociones').delete().eq('id', id);
     if (error) {
-      console.error('[promociones] No se pudo eliminar', error);
       alert('No se pudo eliminar la publicación: ' + error.message);
       return;
     }
@@ -395,9 +397,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const handleExportarReporte = async () => {
     if (!comercio) return;
     try {
-      // jsPDF se carga recién al pedir el reporte (no en la carga inicial del sitio)
       const { generarReportePDF } = await import('@/lib/generatePdfReport');
-      // Si las métricas todavía no habían llegado, se piden ahora
       const metricas = metricasListas ? metricasReales : await obtenerMetricasComercio(comercio.id).catch(() => metricasReales);
       generarReportePDF(comercio, metricas, suscripcion, promociones);
     } catch (err: any) {
@@ -415,7 +415,6 @@ export const MerchantDashboardPage: React.FC = () => {
       activo: true,
     });
     if (error) {
-      console.error('[horarios] No se pudo agregar el turno', error);
       alert('No se pudo agregar el turno: ' + error.message);
       return;
     }
@@ -450,7 +449,6 @@ export const MerchantDashboardPage: React.FC = () => {
   const handleDeleteHorario = async (id: string) => {
     const { error } = await supabase.from('horarios_atencion').delete().eq('id', id);
     if (error) {
-      console.error('[horarios] No se pudo eliminar el turno', error);
       alert('No se pudo eliminar el turno: ' + error.message);
       return;
     }
@@ -599,7 +597,18 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* BLOQUE GESTIÓN FARMACIA DE TURNO (MÓDULO DE EDICIÓN / BORRADO) */}
+      {/* GESTIÓN DE GALERÍA DE FOTOS */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm">
+        <GestionGaleriaComercio
+          galeriaUrls={galeriaUrls}
+          onChange={handleGuardarGaleria}
+        />
+        {guardandoGaleria && (
+          <p className="text-xs text-brand-600 font-bold mt-2 animate-pulse">Guardando fotos en Supabase...</p>
+        )}
+      </div>
+
+      {/* BLOQUE GESTIÓN FARMACIA DE TURNO */}
       {esFarmaciaDeTurno && (
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-red-200 dark:border-red-900/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -710,7 +719,6 @@ export const MerchantDashboardPage: React.FC = () => {
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-brand-600" /> Suscripción
             </h3>
-            {/* Antes siempre verde y "Activa", aunque estuviera vencida */}
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${estadoSuscripcion(suscripcion?.estado).clase}`}>
               {estadoSuscripcion(suscripcion?.estado).texto}
             </span>
