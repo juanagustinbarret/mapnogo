@@ -8,6 +8,40 @@ interface Props {
   maxFotos?: number;
 }
 
+// Función auxiliar para redimensionar y comprimir la imagen en el cliente
+const comprimirImagen = (file: File, maxWidth = 1000, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // Convierte a WebP liviano con calidad ajustada
+        const dataUrl = canvas.toDataURL('image/webp', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export const GestionGaleriaComercio: React.FC<Props> = ({
   galeriaUrls = [],
   onChange,
@@ -16,10 +50,11 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
   const [nuevaUrl, setNuevaUrl] = useState('');
   const [errorInput, setErrorInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [procesando, setProcesando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Procesar archivos seleccionados o arrastrados
-  const procesarArchivos = (files: FileList | null) => {
+  // Procesar y comprimir archivos seleccionados o arrastrados
+  const procesarArchivos = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     if (galeriaUrls.length >= maxFotos) {
@@ -29,27 +64,30 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
 
     const fotosDisponibles = maxFotos - galeriaUrls.length;
     const archivosAProcesar = Array.from(files).slice(0, fotosDisponibles);
-    const nuevasUrlsLocales: string[] = [];
 
-    archivosAProcesar.forEach((file) => {
-      if (!file.type.startsWith('image/')) {
-        setErrorInput('Solo se permiten archivos de imagen (JPG, PNG, WEBP, etc.).');
-        return;
-      }
+    // Validar tipo de archivo
+    const sonTodasImagenes = archivosAProcesar.every((f) => f.type.startsWith('image/'));
+    if (!sonTodasImagenes) {
+      setErrorInput('Solo se permiten archivos de imagen (JPG, PNG, WEBP, etc.).');
+      return;
+    }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        if (result) {
-          nuevasUrlsLocales.push(result);
-          if (nuevasUrlsLocales.length === archivosAProcesar.length) {
-            onChange([...galeriaUrls, ...nuevasUrlsLocales]);
-            setErrorInput('');
-          }
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    setProcesando(true);
+    setErrorInput('');
+
+    try {
+      // Comprimir imágenes en paralelo
+      const imagenesComprimidas = await Promise.all(
+        archivosAProcesar.map((file) => comprimirImagen(file))
+      );
+
+      onChange([...galeriaUrls, ...imagenesComprimidas]);
+    } catch (err) {
+      console.error('Error al procesar/comprimir imágenes:', err);
+      setErrorInput('Ocurrió un error al procesar las imágenes. Intentá con archivos más livianos.');
+    } finally {
+      setProcesando(false);
+    }
   };
 
   // Manejadores de Arrastrar y Soltar (Drag & Drop)
@@ -66,7 +104,7 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    procesarArchivos(e.dataTransfer.files);
+    void procesarArchivos(e.dataTransfer.files);
   };
 
   // Agregar por URL directa
@@ -122,19 +160,19 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !procesando && fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 ${
           isDragging
             ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20'
             : 'border-gray-300 dark:border-gray-700 hover:border-emerald-500 bg-white dark:bg-gray-800'
-        }`}
+        } ${procesando ? 'opacity-50 pointer-events-none' : ''}`}
       >
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
           multiple
-          onChange={(e) => procesarArchivos(e.target.files)}
+          onChange={(e) => void procesarArchivos(e.target.files)}
           className="hidden"
         />
         <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-full">
@@ -142,7 +180,13 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
         </div>
         <div>
           <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
-            Arrastrá y soltá tus imágenes acá, o <span className="text-emerald-600 underline">buscá en tu dispositivo</span>
+            {procesando ? (
+              'Optimizando e insertando fotos...'
+            ) : (
+              <>
+                Arrastrá y soltá tus imágenes acá, o <span className="text-emerald-600 underline">buscá en tu dispositivo</span>
+              </>
+            )}
           </p>
           <p className="text-[11px] text-gray-400 mt-0.5">Soporta JPG, PNG, WEBP (hasta {maxFotos} fotos)</p>
         </div>
@@ -161,13 +205,13 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
                 setNuevaUrl(e.target.value);
                 if (errorInput) setErrorInput('');
               }}
-              disabled={galeriaUrls.length >= maxFotos}
+              disabled={galeriaUrls.length >= maxFotos || procesando}
               className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50"
             />
           </div>
           <button
             type="submit"
-            disabled={!nuevaUrl.trim() || galeriaUrls.length >= maxFotos}
+            disabled={!nuevaUrl.trim() || galeriaUrls.length >= maxFotos || procesando}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition disabled:opacity-50 shrink-0"
           >
             Agregar Enlace
