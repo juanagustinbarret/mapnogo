@@ -41,7 +41,7 @@ const SECCIONES: SeccionLegal[] = [
         <Lista
           items={[
             'datos del comercio y de contacto (nombre, dirección, WhatsApp, email comercial, horarios, fotos, ofertas), que en su mayoría se publican en el mapa. El email y los datos de la cuenta no se publican;',
-            'email y contraseña para entrar al panel (la contraseña se guarda cifrada por nuestro proveedor de autenticación; nadie de NOGOMAP puede verla);',
+            'email y contraseña para entrar al panel (la contraseña se guarda cifrada por nuestro proveedor de autenticación; nadie de NOGOYORK puede verla);',
             'datos de la suscripción y de los pagos registrados, para administrar el servicio;',
             'las estadísticas de tu ficha.',
           ]}
@@ -85,7 +85,7 @@ const SECCIONES: SeccionLegal[] = [
         items={[
           'Notificaciones de ofertas: solo si las activás, y las podés desactivar cuando quieras desde el sitio o desde tu navegador.',
           'A los comercios: avisos de vencimiento, pagos y cambios del servicio por WhatsApp o email. Son parte del servicio contratado.',
-          'Nunca te mandamos publicidad de terceros. Si algún día mandamos novedades de NOGOMAP, cada mensaje va a decir cómo dejar de recibirlas.',
+          'Nunca te mandamos publicidad de terceros. Si algún día mandamos novedades de NOGOYORK, cada mensaje va a decir cómo dejar de recibirlas.',
         ]}
       />
     ),
@@ -96,7 +96,7 @@ const SECCIONES: SeccionLegal[] = [
     contenido: (
       <Lista
         items={[
-          'Estadísticas: mientras el comercio esté en NOGOMAP (se usan en forma agregada).',
+          'Estadísticas: mientras el comercio esté en NOGOYORK (se usan en forma agregada).',
           'Notificaciones: hasta que las desactives.',
           'Reseñas y reportes: hasta que se borren por pedido tuyo, del comercio o por moderación.',
           'Datos de comercios y pagos: mientras la cuenta esté activa y luego el tiempo que exijan las normas contables e impositivas.',
@@ -158,7 +158,7 @@ const SECCIONES: SeccionLegal[] = [
 export const PrivacidadPage: React.FC = () => (
   <LegalLayout
     titulo="Política de privacidad"
-    intro={<P>Qué datos usa NOGOMAP, para qué, con quién se comparten y cómo podés pedir verlos, corregirlos o borrarlos.</P>}
+    intro={<P>Qué datos usa NOGOYORK, para qué, con quién se comparten y cómo podés pedir verlos, corregirlos o borrarlos.</P>}
     secciones={SECCIONES}
   />
 );

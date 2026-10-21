@@ -1,6 +1,6 @@
 // src/lib/puntaje.ts
 //
-// Textos del puntaje de las reseñas de NOGOMAP: "★★★★☆ 4,6 (12)", con coma
+// Textos del puntaje de las reseñas de NOGOYORK: "★★★★☆ 4,6 (12)", con coma
 // decimal y una etiqueta para lectores de pantalla.
 
 import { formatearFecha } from './fechasArgentina';

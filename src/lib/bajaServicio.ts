@@ -31,10 +31,10 @@ export function mensajeSolicitud({ tipo, codigo, comercio, contacto, comentario 
   const titulo = tipo === 'baja' ? 'BOTÓN DE BAJA DE SERVICIO' : 'BOTÓN DE ARREPENTIMIENTO';
   const pedido =
     tipo === 'baja'
-      ? 'Pido la baja de la suscripción de mi comercio en NOGOMAP.'
-      : 'Me arrepiento de la contratación de la suscripción de mi comercio en NOGOMAP (art. 34 Ley 24.240 y art. 1110 CCyC).';
+      ? 'Pido la baja de la suscripción de mi comercio en NOGOYORK.'
+      : 'Me arrepiento de la contratación de la suscripción de mi comercio en NOGOYORK (art. 34 Ley 24.240 y art. 1110 CCyC).';
   return [
-    `${titulo} - NOGOMAP`,
+    `${titulo} - NOGOYORK`,
     '',
     pedido,
     `Comercio: ${comercio.trim()}`,

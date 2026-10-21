@@ -9,7 +9,7 @@ const Cargando: React.FC = () => (
   </div>
 );
 
-const CLAVE_RECARGA = 'nogomap-recarga-por-version';
+const CLAVE_RECARGA = 'nogoyork-recarga-por-version';
 
 /**
  * Si después de un deploy el navegador tiene la página vieja, el archivo de la

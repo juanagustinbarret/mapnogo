@@ -54,7 +54,7 @@ export function qrCanvas(slug: string, lado = 1024) {
   return c;
 }
 
-/** Cartel A6 (1240×1748 px, 300 ppp): nombre, "¡Dejanos tu reseña!", QR y logo de NOGOMAP. */
+/** Cartel A6 (1240×1748 px, 300 ppp): nombre, "¡Dejanos tu reseña!", QR y logo de NOGOYORK. */
 export function cartelCanvas(slug: string, nombre: string) {
   const { c, ctx } = lienzo(1240, 1748);
   ctx.fillStyle = '#ffffff';
@@ -67,7 +67,7 @@ export function cartelCanvas(slug: string, nombre: string) {
   if (logo) ctx.drawImage(logo, 620 - 70, 110, 140, 140);
   ctx.fillStyle = '#15803d';
   ctx.font = 'bold 56px sans-serif';
-  ctx.fillText('NOGOMAP', 620, 320);
+  ctx.fillText('NOGOYORK', 620, 320);
 
   ctx.fillStyle = '#111827';
   textoQueEntra(ctx, nombre, 620, 460, 1080, 84, 40);
@@ -105,7 +105,7 @@ export function storyCanvas(slug: string, nombre: string, direccion?: string | n
   ctx.textAlign = 'center';
   ctx.fillStyle = '#34d399';
   ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('NOGOMAP', 540, 220);
+  ctx.fillText('NOGOYORK', 540, 220);
 
   ctx.fillStyle = '#ffffff';
   textoQueEntra(ctx, nombre.toUpperCase(), 540, 360, 960, 76, 40);
@@ -148,7 +148,7 @@ const AVISOS: Record<ResultadoCompartir, string> = {
 };
 
 /**
- * QR del comercio hacia sus reseñas en NOGOMAP. Lo ven el dueño (en su panel,
+ * QR del comercio hacia sus reseñas en NOGOYORK. Lo ven el dueño (en su panel,
  * solo el de su comercio) y el admin. El destino es una página pública, así
  * que el QR no expone nada privado.
  */
@@ -193,7 +193,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
   return (
     <div className="flex flex-col items-center gap-3 w-full">
       {vistaPrevia && (
-        <img src={vistaPrevia} alt={`Código QR a las reseñas de ${nombre} en NOGOMAP`} className="w-36 h-36 bg-white rounded-xl border p-1 shadow-sm" />
+        <img src={vistaPrevia} alt={`Código QR a las reseñas de ${nombre} en NOGOYORK`} className="w-36 h-36 bg-white rounded-xl border p-1 shadow-sm" />
       )}
       <p className="text-[11px] text-gray-500 text-center break-all">{url.replace(/^https:\/\//, '')}</p>
       {tactil && <p className="text-[11px] text-gray-500 text-center -mt-2">También podés mantener apretado el QR para guardarlo.</p>}

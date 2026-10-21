@@ -1,9 +1,9 @@
 import React from 'react';
 
-// Logo de NOGOMAP: rana sobre un mapa. Versión simplificada (grilla de
+// Logo de NOGOYORK: rana sobre un mapa. Versión simplificada (grilla de
 // 32 px) para que se lea bien en tamaños chicos. El diseño completo está en
 // public/logo.svg.
-export const LogoNogomap: React.FC<{ className?: string }> = ({ className = 'w-8 h-8' }) => (
+export const LogoNogoyork: React.FC<{ className?: string }> = ({ className = 'w-8 h-8' }) => (
   <svg viewBox="0 0 32 32" className={className} role="img" aria-hidden="true" focusable="false">
     <rect width="32" height="32" rx="7" fill="#15803d" />
     <circle cx="10" cy="10" r="5" fill="#4ade80" />

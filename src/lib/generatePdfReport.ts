@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { Comercio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { estaVigente } from '@/lib/fechasArgentina';
+import { CONTACTO } from '@/lib/contacto';
 
 export const generarReportePDF = (
   comercio: Comercio,
@@ -20,7 +21,7 @@ export const generarReportePDF = (
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text('NOGOMAP', 14, 18);
+  doc.text('NOGOYORK', 14, 18);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -62,7 +63,7 @@ export const generarReportePDF = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
-  doc.text('Totales desde el alta del comercio en NOGOMAP.', 14, 95);
+  doc.text('Totales desde el alta del comercio en NOGOYORK.', 14, 95);
 
   // TABLA DE PROMOCIONES ACTIVAS
   doc.setFontSize(12);
@@ -100,7 +101,8 @@ export const generarReportePDF = (
   // PIE DE PÁGINA
   doc.setFontSize(8);
   doc.setTextColor(156, 163, 175);
-  doc.text('Generado automáticamente por la plataforma NOGOMAP - www.nogoyacerca.com.ar', 14, 285);
+  // Antes decía www.nogoyacerca.com.ar (dominio de la marca vieja)
+  doc.text(`Generado automáticamente por la plataforma NOGOYORK - ${CONTACTO.sitio.replace(/^https?:\/\//, '')}`, 14, 285);
 
-  doc.save(`Reporte_NOGOMAP_${comercio.slug}.pdf`);
+  doc.save(`Reporte_NOGOYORK_${comercio.slug}.pdf`);
 };

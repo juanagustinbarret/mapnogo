@@ -94,7 +94,7 @@ export const PromotionsPage: React.FC = () => {
               <a
                 href={buildWhatsAppUrl(
                   normalizeWhatsAppNumber(p.comercio?.whatsapp ?? '').normalized,
-                  `Hola, vi la promoción "${p.titulo}" en NOGOMAP y quiero consultar.`
+                  `Hola, vi la promoción "${p.titulo}" en NOGOYORK y quiero consultar.`
                 )}
                 target="_blank"
                 rel="noreferrer"

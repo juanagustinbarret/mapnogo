@@ -214,7 +214,7 @@ export const CommerceDetailPage: React.FC = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'whatsapp', { excluir: esPropioOAdmin(comercio) });
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi tu comercio en NOGOMAP y quisiera hacerles una consulta.`;
+    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi tu comercio en NOGOYORK y quisiera hacerles una consulta.`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
     window.open(url, '_blank');
   };
@@ -240,7 +240,7 @@ export const CommerceDetailPage: React.FC = () => {
     if (navigator.share) {
       navigator.share({
         title: comercio?.nombre,
-        text: `Mirá la ficha de ${comercio?.nombre} en NOGOMAP`,
+        text: `Mirá la ficha de ${comercio?.nombre} en NOGOYORK`,
         url: window.location.href,
       });
     } else {

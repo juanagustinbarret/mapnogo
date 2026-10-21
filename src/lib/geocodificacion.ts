@@ -24,7 +24,7 @@ const URL_NOMINATIM = 'https://nominatim.openstreetmap.org';
 // Rectángulo que encierra Nogoyá: oeste, norte, este, sur.
 const VIEWBOX_NOGOYA = '-59.8200,-32.3700,-59.7500,-32.4200';
 const SEPARACION_MS = 1100;
-const CLAVE_ALMACEN = 'nogomap:geocodificacion:v1';
+const CLAVE_ALMACEN = 'nogoyork:geocodificacion:v1';
 const VIGENCIA_MS = 30 * 24 * 60 * 60 * 1000;
 
 type Guardadas = Record<string, Coordenadas & { t: number }>;

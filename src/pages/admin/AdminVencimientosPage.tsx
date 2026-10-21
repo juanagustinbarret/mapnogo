@@ -132,7 +132,7 @@ export const AdminVencimientosPage: React.FC = () => {
       : '$10.000';
 
     const mensaje = encodeURIComponent(
-      `Hola! Te escribimos de NOGOMAP para recordarte que la cuota de tu comercio *${c.nombre}* ${estadoTexto}.\n\n` +
+      `Hola! Te escribimos de NOGOYORK para recordarte que la cuota de tu comercio *${c.nombre}* ${estadoTexto}.\n\n` +
       `Monto a abonar: *${montoTexto}*\n\n` +
       `Podés transferir al alias del servicio y enviarnos el comprobante por este medio para mantener la visibilidad activa en la plataforma. ¡Muchas gracias!`
     );

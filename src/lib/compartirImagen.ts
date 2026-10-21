@@ -2,7 +2,7 @@
 //
 // Compartir o guardar las imágenes del panel (QR, cartel, story).
 //
-// En iPhone, sobre todo con NOGOMAP agregada a la pantalla de inicio, un
+// En iPhone, sobre todo con NOGOYORK agregada a la pantalla de inicio, un
 // <a download> con una imagen generada no hace nada o abre una vista sin
 // salida. Antes "andaba" porque el QR era una imagen de api.qrserver.com y el
 // link abría esa página. Ahora, en celulares, se abre la hoja de compartir del

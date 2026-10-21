@@ -46,7 +46,7 @@ export const PuntajePopup: React.FC<{ comercioId: string; slug: string }> = ({ c
     <Link
       to={`/comercio/${slug}#resenas`}
       className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700 hover:underline"
-      aria-label={`${etiquetaPuntaje(dato.puntaje, dato.total)} en NOGOMAP. Ver reseñas`}
+      aria-label={`${etiquetaPuntaje(dato.puntaje, dato.total)} en NOGOYORK. Ver reseñas`}
     >
       {texto ? (
         <>

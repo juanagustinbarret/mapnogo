@@ -5,7 +5,7 @@ import { destinoQrFicha, elegirPorSlugLimpio, patronSlugLimpio, slugLimpio } fro
 
 test('el QR codifica una URL estable con el dominio público, no una de Google', () => {
   assert.equal(urlQrResenas('bien-criollo-pizzas'), 'https://mapnogo.vercel.app/n/bien-criollo-pizzas/resenas');
-  assert.equal(urlQrResenas('x', 'https://nogomap.com.ar/'), 'https://nogomap.com.ar/n/x/resenas');
+  assert.equal(urlQrResenas('x', 'https://nogoyork.com.ar/'), 'https://nogoyork.com.ar/n/x/resenas');
   assert.equal(rutaQrResenas('a b'), '/n/a-b/resenas');
   assert.equal(destinoQrResenas('bien-criollo-pizzas'), '/comercio/bien-criollo-pizzas#resenas');
   assert.doesNotMatch(urlQrResenas('x'), /google/);

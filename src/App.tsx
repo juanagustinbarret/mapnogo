@@ -35,7 +35,7 @@ export const App: React.FC = () => {
       navigator.serviceWorker
         .register('/sw.js')
         .then((reg) => {
-          console.log('Service Worker de NOGOMAP registrado con éxito:', reg.scope);
+          console.log('Service Worker de NOGOYORK registrado con éxito:', reg.scope);
         })
         .catch((err) => {
           console.error('Error al registrar el Service Worker:', err);

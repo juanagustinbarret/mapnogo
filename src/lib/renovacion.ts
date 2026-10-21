@@ -36,7 +36,7 @@ export const codigoComercio = (id: string) => id.replace(/[^0-9a-f]/gi, '').slic
 
 export function mensajeRenovacion(n: NegocioParaRenovar): string {
   return [
-    'Hola! Quiero renovar la suscripción de mi comercio en NOGOMAP.',
+    'Hola! Quiero renovar la suscripción de mi comercio en NOGOYORK.',
     '',
     `Comercio: ${n.nombre}${n.direccion ? ` (${n.direccion})` : ''}`,
     `Código: ${codigoComercio(n.id)}`,

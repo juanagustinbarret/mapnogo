@@ -1,4 +1,4 @@
-# Pasar NOGOMAP a Cloudflare Pages (gratis, permite uso comercial)
+# Pasar NOGOYORK a Cloudflare Pages (gratis, permite uso comercial)
 
 Vercel Hobby es solo para uso personal no comercial. Cloudflare Pages es gratis,
 permite uso comercial y no limita el ancho de banda del sitio estático.

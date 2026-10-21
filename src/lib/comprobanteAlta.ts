@@ -68,7 +68,7 @@ export function condicionesDelAlta(d: Pick<DatosAlta, 'precioMensual' | 'primerV
 }
 
 export function textoAceptacion(): string {
-  return `El titular leyó y acepta los Términos y condiciones (versión ${ACTUALIZACION_LEGALES}) y la Política de privacidad de NOGOMAP.`;
+  return `El titular leyó y acepta los Términos y condiciones (versión ${ACTUALIZACION_LEGALES}) y la Política de privacidad de NOGOYORK.`;
 }
 
 export function datosDelProveedor(): string {
@@ -78,7 +78,7 @@ export function datosDelProveedor(): string {
 /** Texto del comprobante para mandar por WhatsApp o email. */
 export function textoComprobante(d: DatosAlta): string {
   const lineas = [
-    '*COMPROBANTE DE ALTA - NOGOMAP*',
+    '*COMPROBANTE DE ALTA - NOGOYORK*',
     `N° ${numeroDeAlta(d.comercioId, d.fecha)} · ${formatearFechaHora(d.fecha.toISOString())}`,
     '',
     `Comercio: ${d.comercio}${d.rubro ? ` (${d.rubro})` : ''}`,

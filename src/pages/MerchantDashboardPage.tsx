@@ -750,7 +750,7 @@ export const MerchantDashboardPage: React.FC = () => {
               <QrCode className="w-5 h-5 text-brand-600" /> QR de reseñas
             </h3>
             <p className="text-xs text-gray-500 mt-2">
-              Lleva a las reseñas de tu comercio en NOGOMAP. Imprimilo o generá una story para Instagram.
+              Lleva a las reseñas de tu comercio en NOGOYORK. Imprimilo o generá una story para Instagram.
             </p>
           </div>
 
