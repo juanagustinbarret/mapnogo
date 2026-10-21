@@ -7,7 +7,10 @@ import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2 } from 'lucide-react';
+import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
+import { formatearPuntaje } from '@/lib/puntaje';
+import type { PuntajePropio } from '@/lib/puntajePropio';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -30,7 +33,7 @@ import {
 } from '@/lib/pushNotifications';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
-import { filtrarComerciosMapa, type FiltrosMapa } from '@/lib/filtrosAvanzados';
+import { filtrarComerciosMapa, esNuevo, DIAS_NUEVO, PUNTAJE_MINIMO, RESENAS_MINIMAS, type FiltrosMapa } from '@/lib/filtrosAvanzados';
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -61,6 +64,14 @@ export const HomeExplorerPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
   const [medioPago, setMedioPago] = useState<string>('');
+  // Filtros extra: los datos se piden recién al activarlos
+  const [soloConOfertas, setSoloConOfertas] = useState(false);
+  const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
+  const [soloNuevos, setSoloNuevos] = useState(false);
+  const [conOfertas, setConOfertas] = useState<Set<string> | null>(null);
+  const [puntajes, setPuntajes] = useState<Record<string, PuntajePropio> | null>(null);
+  const [cargandoExtra, setCargandoExtra] = useState<'ofertas' | 'puntaje' | null>(null);
+  const [errorExtra, setErrorExtra] = useState('');
   
   // Farmacia de Turno Hoy
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
@@ -284,6 +295,42 @@ export const HomeExplorerPage: React.FC = () => {
     soloFarmaciasTurno,
     conMomentoDelivery: momentoDelivery !== null,
     medioPago,
+    // Mientras llegan los datos, el filtro todavía no se aplica
+    soloConOfertas: soloConOfertas && conOfertas !== null,
+    soloMejorPuntaje: soloMejorPuntaje && puntajes !== null,
+    soloNuevos,
+  };
+
+  const activarOfertas = async () => {
+    const nuevo = !soloConOfertas;
+    setSoloConOfertas(nuevo);
+    if (!nuevo || conOfertas) return;
+    setCargandoExtra('ofertas');
+    setErrorExtra('');
+    try {
+      setConOfertas(await pedirComerciosConOfertas());
+    } catch {
+      setSoloConOfertas(false);
+      setErrorExtra('No se pudieron cargar las ofertas. Probá de nuevo.');
+    } finally {
+      setCargandoExtra(null);
+    }
+  };
+
+  const activarPuntaje = async () => {
+    const nuevo = !soloMejorPuntaje;
+    setSoloMejorPuntaje(nuevo);
+    if (!nuevo || puntajes) return;
+    setCargandoExtra('puntaje');
+    setErrorExtra('');
+    try {
+      setPuntajes(await pedirPuntajes());
+    } catch {
+      setSoloMejorPuntaje(false);
+      setErrorExtra('No se pudieron cargar los puntajes. Probá de nuevo.');
+    } finally {
+      setCargandoExtra(null);
+    }
   };
 
   const farmaciasTurnoIds = farmaciaDeTurno ? [farmaciaDeTurno.id] : [];
@@ -298,8 +345,20 @@ export const HomeExplorerPage: React.FC = () => {
         : null;
     const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || [], ahora);
     const estadoDelivery = estadoDeliveryDelComercio(c, delivery[c.id], horarios[c.id], momentoDelivery?.instante ?? ahora);
-    return { ...c, distancia, estadoAtencion, estadoDelivery, horarios: horarios[c.id] || [] };
+    return {
+      ...c,
+      distancia,
+      estadoAtencion,
+      estadoDelivery,
+      horarios: horarios[c.id] || [],
+      tieneOfertas: conOfertas?.has(c.id) ?? false,
+      puntajeNogoyork: puntajes?.[c.id] ?? null,
+    };
   });
+
+  // Etiqueta "Nuevo": si más de la mitad son nuevos (sitio recién lanzado),
+  // la etiqueta no dice nada y solo agrega ruido; el filtro sigue andando.
+  const mostrarInsigniaNuevo = comercios.filter((c) => esNuevo(c.created_at, ahora)).length <= comercios.length / 2;
 
   const filteredComercios = filtrarComerciosMapa(comerciosProcesados, filtrosActuales, farmaciasTurnoIds, ahora)
     .filter((c) => {
@@ -573,6 +632,32 @@ export const HomeExplorerPage: React.FC = () => {
               </div>
             </div>
 
+            {/* FILA 3b: MÁS FILTROS (ofertas vigentes, mejor puntaje, nuevos) */}
+            <div className="space-y-1 pt-1">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Más filtros:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { activo: soloConOfertas, alTocar: activarOfertas, Icono: Tag, texto: cargandoExtra === 'ofertas' ? 'Buscando ofertas…' : 'Con ofertas', clase: 'bg-amber-500 ring-amber-300', titulo: 'Comercios con ofertas o novedades vigentes hoy' },
+                  { activo: soloMejorPuntaje, alTocar: activarPuntaje, Icono: Star, texto: cargandoExtra === 'puntaje' ? 'Calculando…' : `${PUNTAJE_MINIMO}★ o más`, clase: 'bg-yellow-500 ring-yellow-300', titulo: `Puntaje de ${PUNTAJE_MINIMO} estrellas o más, con al menos ${RESENAS_MINIMAS} reseñas` },
+                  { activo: soloNuevos, alTocar: () => setSoloNuevos(!soloNuevos), Icono: Sparkles, texto: 'Nuevos', clase: 'bg-violet-600 ring-violet-300', titulo: `Se sumaron a NOGOYORK en los últimos ${DIAS_NUEVO} días` },
+                ].map(({ activo, alTocar, Icono, texto, clase, titulo }) => (
+                  <button
+                    key={titulo}
+                    type="button"
+                    onClick={() => void alTocar()}
+                    aria-pressed={activo}
+                    title={titulo}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                      activo ? `${clase} text-white shadow-sm ring-2` : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <Icono className="w-3.5 h-3.5" aria-hidden="true" /> {texto}
+                  </button>
+                ))}
+              </div>
+              {errorExtra && <p role="alert" className="text-[11px] font-semibold text-red-600 dark:text-red-400">{errorExtra}</p>}
+            </div>
+
             {/* FILA 4: FARMACIA DE TURNO Y RUBROS */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
@@ -644,6 +729,12 @@ export const HomeExplorerPage: React.FC = () => {
                   ? 'No hay comercios con delivery disponible (o lo pausaron por ahora)'
                   : soloFarmaciasTurno
                   ? 'No hay farmacias de turno registradas para hoy'
+                  : soloConOfertas && conOfertas
+                  ? 'Ningún comercio con esos filtros tiene ofertas vigentes hoy'
+                  : soloMejorPuntaje && puntajes
+                  ? `Ningún comercio con esos filtros tiene ${PUNTAJE_MINIMO}★ o más (con al menos ${RESENAS_MINIMAS} reseñas)`
+                  : soloNuevos
+                  ? `No se sumaron comercios con esos filtros en los últimos ${DIAS_NUEVO} días`
                   : 'No se encontraron negocios con esos filtros'}
               </p>
             </div>
@@ -658,9 +749,16 @@ export const HomeExplorerPage: React.FC = () => {
                         <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       </span>
                     </h3>
-                    <span className="text-[11px] font-bold text-brand-600 inline-flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-brand-600 inline-flex items-center gap-1.5 flex-wrap">
                       <InsigniaRubro rubro={comercio.rubro} />
                       {comercio.rubro?.nombre || 'General'}
+                      {comercio.puntajeNogoyork?.puntaje != null && (
+                        <span className="text-amber-600 dark:text-amber-400" title={`${comercio.puntajeNogoyork.total} reseñas`}>
+                          ★ {formatearPuntaje(comercio.puntajeNogoyork.puntaje)} ({comercio.puntajeNogoyork.total})
+                        </span>
+                      )}
+                      {comercio.tieneOfertas && <span className="px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Oferta</span>}
+                      {mostrarInsigniaNuevo && esNuevo(comercio.created_at, ahora) && <span className="px-1.5 rounded bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">Nuevo</span>}
                     </span>
                   </div>
 
