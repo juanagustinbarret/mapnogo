@@ -9,18 +9,46 @@ import {
 } from '@/lib/delivery';
 import { hoyArgentina, sumarDias } from '@/lib/fechasArgentina';
 
-interface FiltroDeliveryProps {
+interface FiltroDeliveryPrincipalProps {
   activo: boolean;
   onCambiarActivo: (activo: boolean) => void;
-  /** null = sin día y hora elegidos */
+  elegido: MomentoElegido | null;
+}
+
+export const FiltroDeliveryBotonPrincipal: React.FC<FiltroDeliveryPrincipalProps> = ({
+  activo,
+  onCambiarActivo,
+  elegido,
+}) => {
+  const hoy = hoyArgentina();
+  const etiqueta = elegido ? `Delivery ${textoMomentoElegido(elegido, hoy)}` : 'Con Delivery';
+
+  return (
+    <button
+      type="button"
+      aria-pressed={activo}
+      onClick={() => onCambiarActivo(!activo)}
+      className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+        activo
+          ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
+          : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+      }`}
+    >
+      <Bike className="w-3.5 h-3.5" aria-hidden="true" />
+      <span>{etiqueta}</span>
+    </button>
+  );
+};
+
+interface FiltroDeliveryConsultaProps {
+  activo: boolean;
+  onCambiarActivo: (activo: boolean) => void;
   elegido: MomentoElegido | null;
   onElegir: (elegido: MomentoElegido | null) => void;
-  /** Minuto actual del día en Argentina, para proponer la hora */
   minutosAhora: number;
 }
 
-export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({
-  activo,
+export const FiltroDeliveryBotonConsulta: React.FC<FiltroDeliveryConsultaProps> = ({
   onCambiarActivo,
   elegido,
   onElegir,
@@ -33,46 +61,24 @@ export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({
 
   const candidato = momentoDesdeFechaHora(fecha, hora);
 
-  const etiqueta = elegido
-    ? `Delivery ${textoMomentoElegido(elegido, hoy)}`
-    : 'Con Delivery';
-
   const campoClase =
     'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500';
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        {/* BOTÓN 1: CON DELIVERY */}
-        <button
-          type="button"
-          aria-pressed={activo}
-          onClick={() => onCambiarActivo(!activo)}
-          className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-            activo
-              ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-              : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
-        >
-          <Bike className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>{etiqueta}</span>
-        </button>
-
-        {/* BOTÓN 2: CONSULTAR HORARIO DELIVERY */}
+      <div className="flex items-center gap-2 w-full sm:w-auto">
         <button
           type="button"
           onClick={() => setAbierto(true)}
           aria-expanded={abierto}
-          aria-label="Elegir fecha y hora del delivery"
-          title="¿Delivery otro día u hora?"
-          className={`px-3.5 py-1.5 text-xs font-extrabold tracking-tight rounded-xl transition flex items-center gap-1.5 shrink-0 uppercase ${
+          className={`w-full sm:w-auto px-3.5 py-1.5 text-xs font-extrabold tracking-tight rounded-xl transition flex items-center justify-center gap-1.5 shrink-0 uppercase ${
             elegido
               ? 'bg-emerald-700 text-white shadow-sm'
               : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
         >
-          <Clock className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" aria-hidden="true" />
-          <span>Consultar horario delivery</span>
+          <Clock className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+          <span className="truncate">Consultar horario delivery</span>
         </button>
 
         {elegido && (
@@ -83,7 +89,7 @@ export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({
               setFecha(hoy);
               setHora(aHora(minutosAhora));
             }}
-            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition shrink-0"
             title="Volver a la hora actual"
           >
             <X className="w-3.5 h-3.5" />
@@ -91,7 +97,7 @@ export const FiltroDelivery: React.FC<FiltroDeliveryProps> = ({
         )}
       </div>
 
-      {/* MODAL RESPONSIVE CENTRADO (Z-INDEX 2000 PARA PWA Y MÓVILES) */}
+      {/* MODAL CENTRADO EN PANTALLA */}
       {abierto && (
         <div
           role="dialog"
