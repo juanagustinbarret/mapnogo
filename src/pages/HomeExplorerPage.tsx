@@ -1,3 +1,4 @@
+// src/pages/HomeExplorerPage.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
@@ -18,7 +19,7 @@ import {
   type MomentoElegido,
   type RangoDelivery,
 } from '@/lib/delivery';
-import { FiltroDelivery } from '@/components/FiltroDelivery';
+import { FiltroDeliveryBotonPrincipal, FiltroDeliveryBotonConsulta } from '@/components/FiltroDelivery';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 import {
@@ -123,8 +124,6 @@ export const HomeExplorerPage: React.FC = () => {
 
   const fetchData = async () => {
     const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
-    // Sin el email de los comercios (ver src/lib/columnasPublicas.ts)
-    // ("as '*'" es solo para TypeScript: el cliente no tiene los tipos de la base)
     const pedirComercios = (columnas: string) =>
       supabase
         .from('comercios')
@@ -136,7 +135,6 @@ export const HomeExplorerPage: React.FC = () => {
 
     const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
 
-    // Cargar Farmacia de Turno para la fecha de hoy en Argentina
     const fechaHoy = hoyArgentina();
     const pedirTurno = (columnas: string) =>
       supabase
@@ -287,8 +285,6 @@ export const HomeExplorerPage: React.FC = () => {
   };
 
   const farmaciasTurnoIds = farmaciaDeTurno ? [farmaciaDeTurno.id] : [];
-  // El número se normaliza (549…) como en la ficha: antes iba crudo y un
-  // "343 4…" abría un chat con otro país
   const whatsappFarmacia = normalizeWhatsAppNumber(farmaciaDeTurno?.whatsapp ?? '');
 
   // LÓGICA COMPLETA DE FILTRADO Y PROCESAMIENTO DINÁMICO
@@ -299,9 +295,6 @@ export const HomeExplorerPage: React.FC = () => {
         ? calcularDistanciaKm(userLocation.lat, userLocation.lng, posicion.lat, posicion.lng)
         : null;
     const estadoAtencion = evaluarEstadoHorario(horarios[c.id] || [], ahora);
-    // Sin rangos propios se usan los de atención (como muestra la ficha), y
-    // una pausa vigente se muestra como "Delivery pausado hasta las …"
-    // En el día y hora elegidos (o ahora): la pausa cuenta solo si sigue vigente en ese momento
     const estadoDelivery = estadoDeliveryDelComercio(c, delivery[c.id], horarios[c.id], momentoDelivery?.instante ?? ahora);
     return { ...c, distancia, estadoAtencion, estadoDelivery, horarios: horarios[c.id] || [] };
   });
@@ -382,19 +375,16 @@ export const HomeExplorerPage: React.FC = () => {
       {/* TARJETA DE BIENVENIDA, CLIMA Y EMERGENCIAS */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
-          {/* 1. BADGE DE CATEGORÍA */}
           <div>
             <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Directorio Comercial Inteligente
             </div>
           </div>
 
-          {/* 2. WIDGET DEL CLIMA LOCAL EN TIEMPO REAL (ENTRE MEDIO) */}
           <div className="py-0.5">
             <WidgetClima />
           </div>
 
-          {/* 3. TÍTULO PRINCIPAL Y UBICACIÓN */}
           <h1 className="text-2xl font-black">Explorá Comercios en Nogoyá</h1>
           <p className="text-xs text-brand-100 flex items-center gap-1">
             <LocateFixed className="w-3.5 h-3.5" /> Ubicación: <strong className="text-white">{userAddress}</strong>
@@ -402,7 +392,6 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
-          {/* BOTÓN DE EMERGENCIAS RÁPIDAS */}
           <button
             onClick={() => setModalEmergenciasOpen(true)}
             className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 active:scale-95 border border-red-400/30"
@@ -513,69 +502,84 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         )}
 
-        {/* CHIPS DE FILTRADO AVANZADO RÁPIDO */}
+        {/* CHIPS DE FILTRADO AVANZADO RÁPIDO - ORGANIZADOS EN FILAS RESPONSIVAS */}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full">
-          <div className="px-4 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setSoloAbiertos(!soloAbiertos)}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                soloAbiertos
-                  ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" /> Abierto Ahora
-            </button>
-
-            <FiltroDelivery
-              activo={soloDelivery}
-              onCambiarActivo={(activo) => {
-                setSoloDelivery(activo);
-                if (!activo) setMomentoDelivery(null);
-              }}
-              elegido={momentoDelivery}
-              onElegir={setMomentoDelivery}
-              minutosAhora={momentoAhora.minutos}
-            />
-
-            <button
-              onClick={() => setSoloFarmaciasTurno(!soloFarmaciasTurno)}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                soloFarmaciasTurno
-                  ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              <HeartPulse className="w-3.5 h-3.5" /> Farmacia de Turno
-            </button>
-
-            <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-700 shrink-0 mx-0.5 hidden sm:block" />
-
-            <button
-              onClick={() => setSelectedRubro('')}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
-                selectedRubro === ''
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              Todos los Rubros
-            </button>
-
-            {rubrosEnUso.map((r) => (
+          <div className="px-4 space-y-2">
+            
+            {/* FILA 1: ABIERTO AHORA + CON DELIVERY */}
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                key={r.id}
-                onClick={() => setSelectedRubro(r.id)}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 ${
-                  selectedRubro === r.id
+                onClick={() => setSoloAbiertos(!soloAbiertos)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                  soloAbiertos
+                    ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
+                    : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" /> Abierto Ahora
+              </button>
+
+              <FiltroDeliveryBotonPrincipal
+                activo={soloDelivery}
+                onCambiarActivo={(activo) => {
+                  setSoloDelivery(activo);
+                  if (!activo) setMomentoDelivery(null);
+                }}
+                elegido={momentoDelivery}
+              />
+            </div>
+
+            {/* FILA 2: CONSULTAR HORARIO DELIVERY (RESPONSIVE EN SU PROPIA LÍNEA) */}
+            <div>
+              <FiltroDeliveryBotonConsulta
+                activo={soloDelivery}
+                onCambiarActivo={setSoloDelivery}
+                elegido={momentoDelivery}
+                onElegir={setMomentoDelivery}
+                minutosAhora={momentoAhora.minutos}
+              />
+            </div>
+
+            {/* FILA 3: FARMACIA DE TURNO Y RUBROS */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                onClick={() => setSoloFarmaciasTurno(!soloFarmaciasTurno)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                  soloFarmaciasTurno
+                    ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
+                    : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <HeartPulse className="w-3.5 h-3.5" /> Farmacia de Turno
+              </button>
+
+              <button
+                onClick={() => setSelectedRubro('')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
+                  selectedRubro === ''
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
-                <InsigniaRubro rubro={r} className={selectedRubro === r.id ? 'ring-2 ring-white/70' : ''} />
-                {r.nombre}
+                Todos los Rubros
               </button>
-            ))}
+
+              {rubrosEnUso.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedRubro(r.id)}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 ${
+                    selectedRubro === r.id
+                      ? 'bg-brand-600 text-white shadow-sm'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <InsigniaRubro rubro={r} className={selectedRubro === r.id ? 'ring-2 ring-white/70' : ''} />
+                  {r.nombre}
+                </button>
+              ))}
+            </div>
+
           </div>
         </div>
 
