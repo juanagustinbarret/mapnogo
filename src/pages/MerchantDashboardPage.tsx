@@ -15,6 +15,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
+import { pedirAvisoDePublicaciones } from '@/lib/avisosPromociones';
 import {
   REVALIDAR_AL_ENTRAR_MS,
   avisarCambioPanel,
@@ -478,6 +479,8 @@ export const MerchantDashboardPage: React.FC = () => {
       setPromoForm({ titulo: '', descripcion: '', tipo: 'promocion', precio_anterior: '', precio_promocional: '', fecha_fin: '' });
       setIsModalOpen(false);
       void refrescar();
+      // Aviso a los vecinos suscriptos (lo decide y lo envía el servidor)
+      void pedirAvisoDePublicaciones();
     }
     setSavingPromo(false);
   };
@@ -1250,6 +1253,10 @@ export const MerchantDashboardPage: React.FC = () => {
                 />
                 <span className="text-[10px] text-gray-400">Si se deja vacío, durará 30 días automáticamente.</span>
               </div>
+
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Al publicar, se avisa con una notificación a los vecinos que activaron "Recibir Ofertas" (como máximo un aviso por día por comercio).
+              </p>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs font-bold">Cancelar</button>

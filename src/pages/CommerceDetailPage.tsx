@@ -100,12 +100,15 @@ export const CommerceDetailPage: React.FC = () => {
     if (slug) fetchComercio();
   }, [slug]);
 
-  // Links con #resenas (QR, popup del mapa): bajar a la sección cuando cargó la ficha
+  // Links con #resenas (QR, popup del mapa) o #promociones (notificaciones):
+  // bajar a la sección cuando cargó. Las publicaciones llegan después de la
+  // ficha, por eso también depende de cuántas hay.
   useEffect(() => {
-    if (!comercio || hash !== '#resenas') return;
-    const t = setTimeout(() => document.getElementById('resenas')?.scrollIntoView({ block: 'start' }), 80);
+    const destino = hash === '#resenas' || hash === '#promociones' ? hash.slice(1) : null;
+    if (!comercio || !destino) return;
+    const t = setTimeout(() => document.getElementById(destino)?.scrollIntoView({ block: 'start' }), 80);
     return () => clearTimeout(t);
-  }, [comercio, hash]);
+  }, [comercio, hash, promociones.length]);
 
   const fetchComercio = async () => {
     const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
@@ -459,9 +462,9 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PROMOCIONES */}
+      {/* PROMOCIONES (las notificaciones abren #promociones) */}
       {promociones.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+        <div id="promociones" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
             <Tag className="w-5 h-5 text-amber-500" /> Ofertas y Novedades Vigentes
           </h3>
