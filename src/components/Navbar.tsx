@@ -52,18 +52,18 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* LOGO */}
-          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-brand-600 font-bold text-xl" aria-label="NOGOMAP, ir al inicio">
+          {/* LOGO CON NOGOYORK Y DETALLE EN ROJO */}
+          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight" aria-label="NOGOYORK, ir al inicio">
             <LogoNogoyork className="w-8 h-8 shrink-0" />
-            <span>NOGO<span className="text-gray-900 dark:text-white">MAP</span></span>
+            <span>NOGO<span className="text-red-600 dark:text-red-500">YORK</span></span>
           </button>
 
           {/* NAVEGACIÓN ESCRITORIO */}
           <div className="hidden md:flex items-center gap-3">
-            <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-brand-600 flex items-center gap-1">
+            <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-emerald-600 flex items-center gap-1">
               <Home className="w-3.5 h-3.5" /> Mapa Público
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg">
@@ -73,6 +73,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+              aria-label="Cambiar tema"
             >
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-400" />}
             </button>
@@ -86,7 +87,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => handleNavigation('/admin')}
                       className="px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center gap-1"
                     >
-                      <LayoutDashboard className="w-3.5 h-3.5 text-brand-600" /> Admin
+                      <LayoutDashboard className="w-3.5 h-3.5 text-emerald-600" /> Admin
                     </button>
                     <button
                       onClick={() => handleNavigation('/panel')}
@@ -98,7 +99,7 @@ export const Navbar: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => handleNavigation('/panel')}
-                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl flex items-center gap-1 shadow-sm"
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center gap-1 shadow-sm"
                   >
                     <Store className="w-3.5 h-3.5" /> Mi Negocio
                   </button>
@@ -112,7 +113,7 @@ export const Navbar: React.FC = () => {
               <div className="flex items-center gap-2 ml-2 pl-3 border-l border-gray-200 dark:border-gray-700">
                 <Link
                   to="/login"
-                  className="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
                 >
                   <Store className="w-3.5 h-3.5" /> Panel Comercio
                 </Link>
@@ -120,7 +121,7 @@ export const Navbar: React.FC = () => {
                   to="/admin/login"
                   className="px-3 py-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl text-xs font-bold inline-flex items-center gap-1 transition"
                 >
-                  <Shield className="w-3.5 h-3.5 text-brand-600" /> Admin
+                  <Shield className="w-3.5 h-3.5 text-emerald-600" /> Admin
                 </Link>
               </div>
             )}
@@ -128,10 +129,10 @@ export const Navbar: React.FC = () => {
 
           {/* MENÚ MÓVIL */}
           <div className="flex items-center gap-2 md:hidden">
-            <button onClick={toggleTheme} className="p-2 text-gray-500">
+            <button onClick={toggleTheme} className="p-2 text-gray-500" aria-label="Cambiar tema">
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-400" />}
             </button>
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-700 dark:text-gray-200">
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-700 dark:text-gray-200" aria-label="Abrir menú">
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
@@ -139,21 +140,64 @@ export const Navbar: React.FC = () => {
 
         {/* DESPLEGABLE MÓVIL */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-white dark:bg-gray-900 border-b px-4 pt-2 pb-6 space-y-3">
-            <button onClick={() => handleNavigation('/')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium">
-              <Home className="w-4 h-4 text-brand-600" /> Mapa Público
+          <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 pt-2 pb-6 space-y-3">
+            <button onClick={() => handleNavigation('/')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+              <Home className="w-4 h-4 text-emerald-600" /> Mapa Público
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-amber-600">
               <Tag className="w-4 h-4" /> Ofertas & Promociones
             </button>
 
-            <div className="pt-2 border-t dark:border-gray-800 space-y-2">
-              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="w-full py-2 bg-brand-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2">
-                <Store className="w-4 h-4" /> Panel de mi Comercio
-              </Link>
-              <Link to="/admin/login" onClick={() => setMobileMenuOpen(false)} className="w-full py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold text-xs rounded-xl flex items-center justify-center gap-2">
-                <Shield className="w-4 h-4 text-brand-600" /> Acceso Administrador
-              </Link>
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+              {user ? (
+                <>
+                  {profile?.rol === 'admin' ? (
+                    <>
+                      <button
+                        onClick={() => handleNavigation('/admin')}
+                        className="w-full py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-emerald-600" /> Panel Administración
+                      </button>
+                      <button
+                        onClick={() => handleNavigation('/panel')}
+                        className="w-full py-2.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+                      >
+                        <Store className="w-4 h-4" /> Panel de mi Comercio
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleNavigation('/panel')}
+                      className="w-full py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <Store className="w-4 h-4" /> Panel de mi Comercio
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full py-2.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" /> Cerrar Sesión
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleNavigation('/login')}
+                    className="w-full py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+                  >
+                    <Store className="w-4 h-4" /> Panel Comercio
+                  </button>
+                  <button
+                    onClick={() => handleNavigation('/admin/login')}
+                    className="w-full py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+                  >
+                    <Shield className="w-4 h-4 text-emerald-600" /> Acceso Administrador
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -178,7 +222,7 @@ export const Navbar: React.FC = () => {
               </button>
               <button
                 onClick={confirmAndNavigate}
-                className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold"
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold"
               >
                 Ir al Sitio
               </button>
