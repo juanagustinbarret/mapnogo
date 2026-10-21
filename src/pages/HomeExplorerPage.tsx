@@ -7,7 +7,7 @@ import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
 import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -542,29 +542,35 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* FILA 3: FILTRO DE MEDIOS DE PAGO (SOLO EFECTIVO Y TRANSFERENCIA) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mr-1 shrink-0">
+            {/* FILA 3: FILTRO DE MEDIOS DE PAGO (TOTALMENTE RESPONSIVE CON DESPLAZAMIENTO) */}
+            <div className="space-y-1 pt-1">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">
                 Medio de Pago:
               </span>
-              {[
-                { id: '', label: 'Todos' },
-                { id: 'efectivo', label: '💵 Efectivo' },
-                { id: 'transferencia', label: '🏦 Transferencia' },
-              ].map((mp) => (
-                <button
-                  key={mp.id}
-                  type="button"
-                  onClick={() => setMedioPago(mp.id)}
-                  className={`px-3 py-1 text-xs font-bold rounded-xl transition shrink-0 ${
-                    medioPago === mp.id
-                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {mp.label}
-                </button>
-              ))}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 w-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {[
+                  { id: '', label: 'Todos', icon: null },
+                  { id: 'efectivo', label: 'Efectivo', icon: Banknote },
+                  { id: 'transferencia', label: 'Transferencia', icon: Building2 },
+                ].map((mp) => {
+                  const Icon = mp.icon;
+                  return (
+                    <button
+                      key={mp.id}
+                      type="button"
+                      onClick={() => setMedioPago(mp.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 border ${
+                        medioPago === mp.id
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-400/50'
+                          : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                      {mp.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* FILA 4: FARMACIA DE TURNO Y RUBROS */}
