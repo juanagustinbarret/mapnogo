@@ -38,3 +38,14 @@ export const COLUMNAS_PUBLICAS_COMERCIO = [
   'tiene_delivery',
   'delivery_pausado_hasta',
 ].join(', ');
+
+/**
+ * Para los listados (inicio, mapa, ofertas): lo mismo SIN las fotos de la
+ * galería ni la descripción larga, que solo usa la ficha. Las fotos viejas se
+ * guardaban como texto (base64) dentro de la fila: con 6 fotos, cada comercio
+ * sumaba ~600 KB a la carga del inicio aunque no se mostraban.
+ */
+export const COLUMNAS_LISTADO_COMERCIO = COLUMNAS_PUBLICAS_COMERCIO.split(', ')
+  .filter((c) => c !== 'galeria_urls' && c !== 'descripcion_completa')
+  .join(', ');
+

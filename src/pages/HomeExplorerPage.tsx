@@ -6,7 +6,7 @@ import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveM
 import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
-import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
+import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -131,7 +131,7 @@ export const HomeExplorerPage: React.FC = () => {
         .select(`${columnas}, rubro:rubros(*)` as '*')
         .eq('aprobado', true)
         .eq('habilitado_admin', true);
-    let { data: comerciosData, error: errorComercios } = await pedirComercios(COLUMNAS_PUBLICAS_COMERCIO);
+    let { data: comerciosData, error: errorComercios } = await pedirComercios(COLUMNAS_LISTADO_COMERCIO);
     if (errorComercios) ({ data: comerciosData } = await pedirComercios('*'));
 
     const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
@@ -143,7 +143,7 @@ export const HomeExplorerPage: React.FC = () => {
         .select(`comercio_id, comercio:comercios(${columnas}, rubro:rubros(*))` as '*')
         .eq('fecha', fechaHoy)
         .maybeSingle();
-    let { data: turnoData, error: errorTurno } = await pedirTurno(COLUMNAS_PUBLICAS_COMERCIO);
+    let { data: turnoData, error: errorTurno } = await pedirTurno(COLUMNAS_LISTADO_COMERCIO);
     if (errorTurno) ({ data: turnoData } = await pedirTurno('*'));
 
     if (turnoData?.comercio) {

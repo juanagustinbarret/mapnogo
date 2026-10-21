@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
-import { GestionGaleriaComercio } from '@/components/GestionGaleriaComercio';
+import { GaleriaModerada } from '@/components/GaleriaModerada';
 import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
@@ -700,10 +700,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
       {/* GESTIÓN DE GALERÍA DE FOTOS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm">
-        <GestionGaleriaComercio
-          galeriaUrls={galeriaUrls}
-          onChange={handleGuardarGaleria}
-        />
+        <GaleriaModerada comercioId={comercio.id} galeriaVieja={galeriaUrls} onGuardarGaleriaVieja={handleGuardarGaleria} />
         {guardandoGaleria && (
           <p className="text-xs text-brand-600 font-bold mt-2 animate-pulse">Guardando fotos en Supabase...</p>
         )}

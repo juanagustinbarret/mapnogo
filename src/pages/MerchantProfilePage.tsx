@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { Save, Store, Clock, Plus, Trash2, ArrowLeft, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { GestionGaleriaComercio } from '@/components/GestionGaleriaComercio';
 import { avisarCambioPanel, useCambiosDeOtraSeccion, useRevalidarAlVolver } from '@/lib/datosPanel';
 
 interface TurnoHorario {
@@ -224,7 +223,7 @@ export const MerchantProfilePage: React.FC = () => {
     setError('');
 
     try {
-      // 1. Guardar los datos generales del comercio (incluyendo medios_pago y galeria_urls).
+      // 1. Guardar los datos generales del comercio (incluyendo medios_pago).
       const { error: errorComercio } = await supabase
         .from('comercios')
         .update({
@@ -232,7 +231,7 @@ export const MerchantProfilePage: React.FC = () => {
           direccion: comercio.direccion,
           whatsapp: comercio.whatsapp,
           medios_pago: mediosPago,
-          galeria_urls: galeriaUrls,
+          // Las fotos ya no se guardan desde acá (ver GaleriaModerada en el panel)
         })
         .eq('id', comercio.id);
 
@@ -462,15 +461,15 @@ export const MerchantProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* SECCIÓN GALERÍA DE FOTOS */}
+        {/* FOTOS: se manejan solo desde el panel (antes había dos editores que se pisaban) */}
         <div className="pt-4 border-t dark:border-gray-700">
-          <GestionGaleriaComercio
-            galeriaUrls={galeriaUrls}
-            onChange={(nuevasFotos) => {
-              setSuccess(false);
-              setGaleriaUrls(nuevasFotos);
-            }}
-          />
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            Las fotos del local se suben desde el{' '}
+            <Link to="/panel" className="font-bold text-brand-600 underline">
+              panel
+            </Link>
+            : cada foto se revisa antes de mostrarse en tu ficha.
+          </p>
         </div>
 
         {/* HORARIOS */}

@@ -25,6 +25,7 @@ const AdminNewCommercePage = diferida(() => import('@/pages/AdminNewCommercePage
 const AdminPaymentsPage = diferida(() => import('@/pages/AdminPaymentsPage'), 'AdminPaymentsPage');
 const AdminExpirationsPage = diferida(() => import('@/pages/AdminExpirationsPage'), 'AdminExpirationsPage');
 const AdminSettingsPage = diferida(() => import('@/pages/AdminSettingsPage'), 'AdminSettingsPage');
+const AdminModeracionPage = diferida(() => import('@/pages/AdminModeracionPage'), 'AdminModeracionPage');
 const TerminosPage = diferida(() => import('@/pages/TerminosPage'), 'TerminosPage');
 const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'PrivacidadPage');
 const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
@@ -118,6 +119,14 @@ export const App: React.FC = () => {
                   element={
                     <ProtectedRoute allowedRoles={['admin']}>
                       <AdminSolicitudesPasswordPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/moderacion"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <AdminModeracionPage />
                     </ProtectedRoute>
                   }
                 />
