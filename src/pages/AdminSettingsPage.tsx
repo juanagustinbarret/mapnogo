@@ -11,6 +11,7 @@ import {
   validarPlantilla,
   type TipoPlantilla,
 } from '@/lib/plantillasMensajes';
+import { PruebaNotificaciones } from '@/components/PruebaNotificaciones';
 
 const TIPOS: TipoPlantilla[] = ['recordatorio_pago', 'invitacion_suscripcion', 'metricas'];
 
@@ -192,6 +193,8 @@ export const AdminSettingsPage: React.FC = () => {
           <Save className="w-4 h-4" /> {loading ? 'Guardando...' : hayErrores ? 'Corregí los errores para guardar' : 'Guardar Plantillas'}
         </button>
       </form>
+
+      <PruebaNotificaciones />
     </div>
   );
 };

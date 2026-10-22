@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, CreditCard, KeyRound, LayoutDashboard, PlusCircle, type LucideIcon } from 'lucide-react';
+import { Calendar, Clock, CreditCard, KeyRound, LayoutDashboard, PlusCircle, ShieldAlert, type LucideIcon } from 'lucide-react';
 import { AdminEventosModal } from '@/components/AdminEventosModal';
 
 // Pestañas del panel de administración. Antes estaban copiadas en cada página
@@ -11,6 +11,7 @@ const PESTANAS: Array<{ ruta: string; texto: string; Icono: LucideIcon; activa: 
   { ruta: '/admin/vencimientos', texto: 'Vencimientos', Icono: Clock, activa: 'bg-amber-600' },
   { ruta: '/admin/solicitudes-password', texto: 'Solicitudes', Icono: KeyRound, activa: 'bg-amber-600' },
   { ruta: '/admin/comercios/nuevo', texto: 'Alta comercio', Icono: PlusCircle, activa: 'bg-emerald-600' },
+  { ruta: '/admin/moderacion', texto: 'Moderación', Icono: ShieldAlert, activa: 'bg-red-600' },
 ];
 
 const BASE = 'px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition min-w-0';
@@ -37,7 +38,7 @@ export const AdminNav: React.FC = () => {
 
   return (
     <>
-      <nav aria-label="Secciones del panel de administración" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 border-t dark:border-gray-700 pt-4">
+      <nav aria-label="Secciones del panel de administración" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 border-t dark:border-gray-700 pt-4">
         {PESTANAS.slice(0, 3).map(pestana)}
         <button
           type="button"

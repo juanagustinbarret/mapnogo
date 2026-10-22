@@ -7,7 +7,7 @@ import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
 import { CalendarDays, Tag, MessageCircle, Store } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
+import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 
 export const PromotionsPage: React.FC = () => {
   const [promociones, setPromociones] = useState<Promocion[]>([]);
@@ -31,7 +31,7 @@ export const PromotionsPage: React.FC = () => {
         .eq('comercio.habilitado_admin', true)
         .order('fecha_fin', { ascending: true });
     (async () => {
-      let { data, error } = await pedir(COLUMNAS_PUBLICAS_COMERCIO);
+      let { data, error } = await pedir(COLUMNAS_LISTADO_COMERCIO);
       if (error) ({ data, error } = await pedir('*'));
       if (error) console.error('[promociones] No se pudieron cargar', error);
       if (data) setPromociones(data);

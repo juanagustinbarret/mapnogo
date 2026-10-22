@@ -44,6 +44,8 @@ import { calcularPuntaje } from '@/lib/puntajePropio';
 import { etiquetaPuntaje, fechaResena, textoPuntaje } from '@/lib/puntaje';
 import { Estrellas } from '@/components/Estrellas';
 import { CarruselFotosComercio } from '@/components/CarruselFotosComercio';
+import { ReportarFoto } from '@/components/ReportarFoto';
+import { cargarFotosComercio, fotosParaMostrar, type FotoComercio } from '@/lib/fotosComercio';
 
 interface HorarioDelivery {
   id: string;
@@ -65,6 +67,9 @@ export const CommerceDetailPage: React.FC = () => {
   const { hash } = useLocation();
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
+  // Fotos nuevas aprobadas (fotos_comercio); las viejas siguen en galeria_urls
+  const [fotosAprobadas, setFotosAprobadas] = useState<FotoComercio[]>([]);
+  const [fotoAReportar, setFotoAReportar] = useState<{ url: string; fotoId?: string; indiceGaleria?: number } | null>(null);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
@@ -100,12 +105,15 @@ export const CommerceDetailPage: React.FC = () => {
     if (slug) fetchComercio();
   }, [slug]);
 
-  // Links con #resenas (QR, popup del mapa): bajar a la sección cuando cargó la ficha
+  // Links con #resenas (QR, popup del mapa) o #promociones (notificaciones):
+  // bajar a la sección cuando cargó. Las publicaciones llegan después de la
+  // ficha, por eso también depende de cuántas hay.
   useEffect(() => {
-    if (!comercio || hash !== '#resenas') return;
-    const t = setTimeout(() => document.getElementById('resenas')?.scrollIntoView({ block: 'start' }), 80);
+    const destino = hash === '#resenas' || hash === '#promociones' ? hash.slice(1) : null;
+    if (!comercio || !destino) return;
+    const t = setTimeout(() => document.getElementById(destino)?.scrollIntoView({ block: 'start' }), 80);
     return () => clearTimeout(t);
-  }, [comercio, hash]);
+  }, [comercio, hash, promociones.length]);
 
   const fetchComercio = async () => {
     const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
@@ -136,6 +144,7 @@ export const CommerceDetailPage: React.FC = () => {
         : Promise.resolve({ data: null }),
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
       fetchResenas(c.id),
+      cargarFotosComercio(c.id).then((r) => setFotosAprobadas(r.fotos)),
     ]);
     if (h) setHorarios(h);
     if (hd) setHorariosDelivery(hd);
@@ -252,6 +261,7 @@ export const CommerceDetailPage: React.FC = () => {
     );
   }
   if (!comercio) return <div className="p-8 text-center text-gray-500 font-semibold">Cargando ficha del comercio...</div>;
+  const fotosFicha = fotosParaMostrar(fotosAprobadas, comercio.galeria_urls);
 
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
 
@@ -289,13 +299,15 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* CARRUSEL DE FOTOS DEL LOCAL */}
-      {comercio.galeria_urls && comercio.galeria_urls.length > 0 && (
+      {/* CARRUSEL DE FOTOS DEL LOCAL (aprobadas + las cargadas antes) */}
+      {fotosFicha.length > 0 && (
         <CarruselFotosComercio
-          fotos={comercio.galeria_urls}
+          fotos={fotosFicha.map((f) => f.url)}
           nombreComercio={comercio.nombre}
+          alReportar={(i) => setFotoAReportar(fotosFicha[i] ?? null)}
         />
       )}
+      {fotoAReportar && <ReportarFoto comercioId={comercio.id} foto={fotoAReportar} onCerrar={() => setFotoAReportar(null)} />}
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex justify-between items-start flex-wrap gap-2">
@@ -459,9 +471,9 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PROMOCIONES */}
+      {/* PROMOCIONES (las notificaciones abren #promociones) */}
       {promociones.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+        <div id="promociones" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
             <Tag className="w-5 h-5 text-amber-500" /> Ofertas y Novedades Vigentes
           </h3>

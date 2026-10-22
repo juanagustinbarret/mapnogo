@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { Save, Store, Clock, Plus, Trash2, ArrowLeft, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { GestionGaleriaComercio } from '@/components/GestionGaleriaComercio';
+import { avisarCambioPanel, useCambiosDeOtraSeccion, useRevalidarAlVolver } from '@/lib/datosPanel';
 
 interface TurnoHorario {
   id?: string;
@@ -14,6 +14,15 @@ interface TurnoHorario {
   hora_cierre: string;
   activo: boolean;
 }
+
+// Lo que se puede editar en esta pantalla, para saber si hay cambios sin guardar
+const fotoEditable = (c: Comercio | null, horarios: TurnoHorario[], medios: string[], galeria: string[]) =>
+  JSON.stringify([
+    c ? [c.descripcion_corta, c.direccion, c.whatsapp] : null,
+    horarios.map((h) => [h.id ?? null, h.dia_semana, h.hora_apertura, h.hora_cierre, h.activo]),
+    medios,
+    galeria,
+  ]);
 
 export const MerchantProfilePage: React.FC = () => {
   const { user } = useAuth();
@@ -38,13 +47,21 @@ export const MerchantProfilePage: React.FC = () => {
     'Domingo',
   ];
 
-  const fetchComercioYHorarios = useCallback(async () => {
+  // Foto de lo último que vino de la base y cuándo
+  const cargado = useRef('');
+  const cargadoEn = useRef<number | null>(null);
+  const sucio = comercio !== null && fotoEditable(comercio, horarios, mediosPago, galeriaUrls) !== cargado.current;
+  const sucioRef = useRef(sucio);
+  sucioRef.current = sucio;
+
+  // `silencioso`: actualizar por detrás sin la pantalla "Cargando perfil…"
+  const fetchComercioYHorarios = useCallback(async ({ silencioso = false }: { silencioso?: boolean } = {}) => {
     if (!user) {
       setFetching(false);
       return;
     }
 
-    setFetching(true);
+    if (!silencioso) setFetching(true);
     setError('');
 
     try {
@@ -53,6 +70,9 @@ export const MerchantProfilePage: React.FC = () => {
           .from('comercios')
           .select('*')
           .eq('propietario_id', user.id)
+          // Mismo comercio que el panel si el dueño tiene más de uno (antes maybeSingle daba error)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle();
 
       if (errorPropietario) {
@@ -99,6 +119,13 @@ export const MerchantProfilePage: React.FC = () => {
       }
 
       setHorarios((datosHorarios ?? []) as TurnoHorario[]);
+      cargado.current = fotoEditable(
+        comercioEncontrado as Comercio,
+        (datosHorarios ?? []) as TurnoHorario[],
+        comercioEncontrado.medios_pago || [],
+        comercioEncontrado.galeria_urls || [],
+      );
+      cargadoEn.current = Date.now();
     } catch (err) {
       console.error('Error cargando el perfil comercial:', err);
       setError(
@@ -107,11 +134,21 @@ export const MerchantProfilePage: React.FC = () => {
     } finally {
       setFetching(false);
     }
-  }, [user]);
+    // Solo cambia si cambia la persona (ver AuthContext): volver a la pestaña
+    // ya no recarga ni pisa lo que se está editando.
+  }, [user?.id, user?.email]);
 
   useEffect(() => {
     void fetchComercioYHorarios();
   }, [fetchComercioYHorarios]);
+
+  // Actualizar por detrás (al volver a la pestaña tras un rato, o si se guardó
+  // algo en el panel), pero nunca encima de cambios sin guardar.
+  const revalidarSiNoHayCambios = () => {
+    if (!sucioRef.current) void fetchComercioYHorarios({ silencioso: true });
+  };
+  useRevalidarAlVolver(() => cargadoEn.current, revalidarSiNoHayCambios);
+  useCambiosDeOtraSeccion('perfil', revalidarSiNoHayCambios);
 
   const handleToggleMedioPago = (opcion: string) => {
     setSuccess(false);
@@ -169,6 +206,11 @@ export const MerchantProfilePage: React.FC = () => {
     }
 
     setHorarios((actuales) => actuales.filter((_, i) => i !== index));
+    if (id) {
+      // Ya se borró en la base: que la foto "cargada" tampoco lo tenga
+      cargado.current = fotoEditable(comercio, horarios.filter((_, i) => i !== index), mediosPago, galeriaUrls);
+      avisarCambioPanel('perfil');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -181,7 +223,7 @@ export const MerchantProfilePage: React.FC = () => {
     setError('');
 
     try {
-      // 1. Guardar los datos generales del comercio (incluyendo medios_pago y galeria_urls).
+      // 1. Guardar los datos generales del comercio (incluyendo medios_pago).
       const { error: errorComercio } = await supabase
         .from('comercios')
         .update({
@@ -189,7 +231,7 @@ export const MerchantProfilePage: React.FC = () => {
           direccion: comercio.direccion,
           whatsapp: comercio.whatsapp,
           medios_pago: mediosPago,
-          galeria_urls: galeriaUrls,
+          // Las fotos ya no se guardan desde acá (ver GaleriaModerada en el panel)
         })
         .eq('id', comercio.id);
 
@@ -240,7 +282,8 @@ export const MerchantProfilePage: React.FC = () => {
         }
       }
 
-      await fetchComercioYHorarios();
+      await fetchComercioYHorarios({ silencioso: true });
+      avisarCambioPanel('perfil');
       setSuccess(true);
     } catch (err) {
       console.error('Error guardando el perfil comercial:', err);
@@ -418,15 +461,15 @@ export const MerchantProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* SECCIÓN GALERÍA DE FOTOS */}
+        {/* FOTOS: se manejan solo desde el panel (antes había dos editores que se pisaban) */}
         <div className="pt-4 border-t dark:border-gray-700">
-          <GestionGaleriaComercio
-            galeriaUrls={galeriaUrls}
-            onChange={(nuevasFotos) => {
-              setSuccess(false);
-              setGaleriaUrls(nuevasFotos);
-            }}
-          />
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            Las fotos del local se suben desde el{' '}
+            <Link to="/panel" className="font-bold text-brand-600 underline">
+              panel
+            </Link>
+            : cada foto se revisa antes de mostrarse en tu ficha.
+          </p>
         </div>
 
         {/* HORARIOS */}
