@@ -8,9 +8,9 @@
 // de ahí y filtra por vigencia. La lectura del CAP está en
 // supabase/functions/_shared/capSmn.ts.
 
-import { vigentes, type AlertaSmn } from '../../supabase/functions/_shared/capSmn.ts';
+import { vigentes, type AlertaSmn } from '../../supabase/functions/_shared/capSmn';
 
-export { HORAS_PROXIMAS_ALERTAS, filtrarAlertas, type AlertaSmn, type NivelAlerta } from '../../supabase/functions/_shared/capSmn.ts';
+export { HORAS_PROXIMAS_ALERTAS, filtrarAlertas, type AlertaSmn, type NivelAlerta } from '../../supabase/functions/_shared/capSmn';
 
 export const URL_ALERTAS_SMN = 'https://www.smn.gob.ar/alertas';
 export const ENDPOINT_ALERTAS = '/api/alertas';
