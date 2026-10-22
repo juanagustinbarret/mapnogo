@@ -70,7 +70,7 @@ export function inicioDelDiaArgentina(momento: Date): string {
 
 /** Día (Argentina) de una fecha guardada como "YYYY-MM-DD" o como timestamp. */
 function diaDe(valor: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor) || /^\d{4}-\d{2}-\d{2}[T ]00:00:00(\.0+)?(Z|\+00(:?00)?)$/.test(valor)) return valor.slice(0, 10);
   const d = new Date(valor);
   return Number.isNaN(d.getTime()) ? valor.slice(0, 10) : fechaArgentina(d);
 }
