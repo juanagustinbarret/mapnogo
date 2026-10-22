@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   MessageSquare,
   X,
-  Send
+  Send,
+  Heart
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
@@ -67,13 +68,15 @@ export const CommerceDetailPage: React.FC = () => {
   const { hash } = useLocation();
   const [comercio, setComercio] = useState<Comercio | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
-  // Fotos nuevas aprobadas (fotos_comercio); las viejas siguen en galeria_urls
   const [fotosAprobadas, setFotosAprobadas] = useState<FotoComercio[]>([]);
   const [fotoAReportar, setFotoAReportar] = useState<{ url: string; fotoId?: string; indiceGaleria?: number } | null>(null);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
   
+  // Estado de Favoritos con localStorage
+  const [esFavorito, setEsFavorito] = useState(false);
+
   // Reseñas y Reportes
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [modalReporteOpen, setModalReporteOpen] = useState(false);
@@ -97,7 +100,33 @@ export const CommerceDetailPage: React.FC = () => {
     if (!comercio || cargandoSesion || visitaRegistrada.current === comercio.id) return;
     visitaRegistrada.current = comercio.id;
     void registrarInteraccion(comercio.id, 'visita', { excluir: esPropioOAdmin(comercio) });
+    
+    // Chequear si ya está en favoritos en localStorage
+    try {
+      const favs: string[] = JSON.parse(localStorage.getItem('nogoyork_favoritos') || '[]');
+      setEsFavorito(favs.includes(comercio.id));
+    } catch {
+      // Ignorar errores de parsing
+    }
   }, [comercio, cargandoSesion]);
+
+  const toggleFavorito = () => {
+    if (!comercio) return;
+    try {
+      const favs: string[] = JSON.parse(localStorage.getItem('nogoyork_favoritos') || '[]');
+      let nuevosFavs: string[];
+      if (esFavorito) {
+        nuevosFavs = favs.filter(id => id !== comercio.id);
+        setEsFavorito(false);
+      } else {
+        nuevosFavs = [...favs, comercio.id];
+        setEsFavorito(true);
+      }
+      localStorage.setItem('nogoyork_favoritos', JSON.stringify(nuevosFavs));
+    } catch {
+      // Ignorar
+    }
+  };
 
   const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -105,9 +134,6 @@ export const CommerceDetailPage: React.FC = () => {
     if (slug) fetchComercio();
   }, [slug]);
 
-  // Links con #resenas (QR, popup del mapa) o #promociones (notificaciones):
-  // bajar a la sección cuando cargó. Las publicaciones llegan después de la
-  // ficha, por eso también depende de cuántas hay.
   useEffect(() => {
     const destino = hash === '#resenas' || hash === '#promociones' ? hash.slice(1) : null;
     if (!comercio || !destino) return;
@@ -217,7 +243,8 @@ export const CommerceDetailPage: React.FC = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'whatsapp', { excluir: esPropioOAdmin(comercio) });
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi tu comercio en NOGOYORK y quisiera hacerles una consulta.`;
+    // Mensaje dinámico prearmado optimizado
+    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi su comercio en NOGOYORK y quisiera hacerles una consulta.`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
     window.open(url, '_blank');
   };
@@ -282,6 +309,20 @@ export const CommerceDetailPage: React.FC = () => {
           <ArrowLeft className="w-4 h-4" /> Volver al mapa público
         </Link>
         <div className="flex items-center gap-2">
+          {/* BOTÓN DE FAVORITOS (localStorage) */}
+          <button
+            onClick={toggleFavorito}
+            className={`p-2 rounded-xl transition text-xs font-bold inline-flex items-center gap-1.5 ${
+              esFavorito 
+                ? 'bg-rose-500 text-white shadow-sm' 
+                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200'
+            }`}
+            title={esFavorito ? "Quitar de favoritos" : "Guardar en favoritos"}
+          >
+            <Heart className={`w-4 h-4 ${esFavorito ? 'fill-white' : ''}`} />
+            <span className="hidden sm:inline">{esFavorito ? 'Guardado' : 'Favorito'}</span>
+          </button>
+
           <button
             onClick={() => setModalReporteOpen(true)}
             className="p-2 bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
@@ -299,7 +340,6 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* CARRUSEL DE FOTOS DEL LOCAL (aprobadas + las cargadas antes) */}
       {fotosFicha.length > 0 && (
         <CarruselFotosComercio
           fotos={fotosFicha.map((f) => f.url)}
@@ -471,7 +511,6 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PROMOCIONES (las notificaciones abren #promociones) */}
       {promociones.length > 0 && (
         <div id="promociones" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
@@ -514,7 +553,6 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* SECCIÓN DE RESEÑAS */}
       <section id="resenas" aria-labelledby="titulo-resenas" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="titulo-resenas" className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
@@ -607,7 +645,6 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </section>
 
-      {/* MODAL PARA REPORTAR INFORMACIÓN INCORRECTA */}
       {modalReporteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
