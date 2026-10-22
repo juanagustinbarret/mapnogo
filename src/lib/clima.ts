@@ -16,16 +16,22 @@
 export const COORDENADAS_NOGOYA = { lat: -32.3942, lon: -59.7881 }; // MET Norway pide 4 decimales como máximo
 export const URL_MET_NOGOYA =
   `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${COORDENADAS_NOGOYA.lat}&lon=${COORDENADAS_NOGOYA.lon}`;
-export const USER_AGENT_CLIMA = 'NOGOYORK/1.0 (+https://mapnogo.vercel.app)';
+export const USER_AGENT_CLIMA = 'NOGOYORK/1.0 (+https://mapnogo.vercel.app; juanagustinbarret@gmail.com)';
 export const ENDPOINT_CLIMA = '/api/clima';
 export const LICENCIA_MET = 'https://api.met.no/doc/License';
+// Aviso de viento fuerte: velocidad media prevista desde este valor en las
+// próximas horas. 50 km/h es el comienzo de la fuerza 7 de Beaufort ("viento
+// fuerte", 50-61 km/h). MET Norway no trae ráfagas para Argentina.
+export const UMBRAL_VIENTO_KMH = 50;
+export const HORAS_AVISO_VIENTO = 12;
 
 export interface ClimaData {
   temp: number;
   sensacion: number;
   humedad: number;
   vientoVelocidad: number; // km/h
-  rafagas: number; // km/h
+  direccionViento: string; // de dónde viene: N, NE, E, SE, S, SO, O, NO ('' si no viene)
+  vientoMaximo: number; // km/h, velocidad máxima prevista en las próximas HORAS_AVISO_VIENTO horas
   lluvia: number; // mm en la próxima hora
   esLluvia: boolean;
   alertaViento: boolean;
@@ -34,6 +40,12 @@ export interface ClimaData {
 }
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+const PUNTOS_CARDINALES = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+/** Grados (de dónde viene el viento) a punto cardinal. */
+export function puntoCardinal(grados: number | null): string {
+  return grados === null ? '' : PUNTOS_CARDINALES[Math.round((((grados % 360) + 360) % 360) / 45) % 8];
+}
 
 /**
  * Sensación térmica ("temperatura aparente" de Steadman, la que usa el
@@ -70,17 +82,23 @@ export function interpretarMetNorway(respuesta: unknown, ahora: Date = new Date(
   if (t === null) return null;
 
   const humedad = num(detalles.relative_humidity) ?? 0;
-  const vientoMs = num(detalles.wind_speed) ?? 0;
-  const rafagaMs = num(detalles.wind_speed_of_gust) ?? vientoMs;
+  const vientoMs = num(detalles.wind_speed) ?? 0; // m/s
   const proxima = paso.data?.next_1_hours;
   const simbolo = proxima?.summary?.symbol_code ?? '';
   const lluvia = num(proxima?.details?.precipitation_amount) ?? 0;
   const probTormenta = num(proxima?.details?.probability_of_thunder) ?? 0;
 
   const vientoVelocidad = Math.round(vientoMs * 3.6);
-  const rafagas = Math.round(rafagaMs * 3.6);
+  // Velocidad máxima prevista desde el paso actual hasta HORAS_AVISO_VIENTO horas después
+  const inicio = paso.time ? new Date(paso.time).getTime() : ahora.getTime();
+  const fin = inicio + HORAS_AVISO_VIENTO * 3600_000;
+  const vientoMaximo = pasos.reduce((max, p) => {
+    const t = p.time ? new Date(p.time).getTime() : NaN;
+    if (!(t >= inicio && t < fin)) return max;
+    return Math.max(max, Math.round((num(p.data?.instant?.details?.wind_speed) ?? 0) * 3.6));
+  }, vientoVelocidad);
   const alertaTormenta = simbolo.includes('thunder') || probTormenta >= 50 || lluvia >= 5 || (lluvia > 0 && vientoVelocidad >= 30);
-  const alertaViento = vientoVelocidad >= 35 || rafagas >= 60;
+  const alertaViento = vientoMaximo >= UMBRAL_VIENTO_KMH;
 
   return {
     temp: Math.round(t),
@@ -88,7 +106,8 @@ export function interpretarMetNorway(respuesta: unknown, ahora: Date = new Date(
     sensacion: Math.round(num(detalles.apparent_air_temperature) ?? sensacionTermica(t, humedad, vientoMs)),
     humedad: Math.round(humedad),
     vientoVelocidad,
-    rafagas,
+    direccionViento: puntoCardinal(num(detalles.wind_from_direction)),
+    vientoMaximo,
     lluvia,
     esLluvia: lluvia > 0 || /rain|sleet|showers/.test(simbolo),
     alertaViento,
@@ -97,12 +116,19 @@ export function interpretarMetNorway(respuesta: unknown, ahora: Date = new Date(
   };
 }
 
-/** Segundos que se puede guardar la respuesta: lo que diga Expires, entre 5 y 30 minutos. */
+/**
+ * Segundos que se puede guardar la respuesta: hasta lo que diga Expires (MET
+ * Norway pide no volver a consultar antes), como mínimo 5 minutos.
+ */
 export function segundosDeCache(expires: string | null, ahora: Date = new Date()): number {
   const vence = expires ? Date.parse(expires) : NaN;
   const segundos = Number.isNaN(vence) ? 900 : Math.round((vence - ahora.getTime()) / 1000);
-  return Math.min(1800, Math.max(300, segundos));
+  return Math.max(300, segundos);
 }
+
+// Última respuesta de MET Norway (mientras la función siga viva): no se vuelve
+// a consultar antes de Expires, y después se pregunta con If-Modified-Since.
+let ultimaMet: { datos: unknown; lastModified: string | null; expires: string | null } | null = null;
 
 /**
  * Lo que hace la función /api/clima en el servidor (igual en Cloudflare y en
@@ -112,11 +138,21 @@ export function segundosDeCache(expires: string | null, ahora: Date = new Date()
 export async function responderClima(pedirFetch: typeof fetch = fetch, ahora: Date = new Date()): Promise<Response> {
   const cabeceras = { 'Content-Type': 'application/json; charset=utf-8' };
   try {
-    const r = await pedirFetch(URL_MET_NOGOYA, { headers: { 'User-Agent': USER_AGENT_CLIMA, Accept: 'application/json' } });
-    if (!r.ok) throw new Error(`MET Norway respondió ${r.status}`);
-    const clima = interpretarMetNorway(await r.json(), ahora);
+    const vigente = ultimaMet?.expires && Date.parse(ultimaMet.expires) > ahora.getTime();
+    if (!vigente) {
+      const pedido: Record<string, string> = { 'User-Agent': USER_AGENT_CLIMA, Accept: 'application/json' };
+      if (ultimaMet?.lastModified) pedido['If-Modified-Since'] = ultimaMet.lastModified;
+      const r = await pedirFetch(URL_MET_NOGOYA, { headers: pedido });
+      if (r.status === 304 && ultimaMet) {
+        ultimaMet.expires = r.headers.get('Expires');
+      } else {
+        if (!r.ok) throw new Error(`MET Norway respondió ${r.status}`);
+        ultimaMet = { datos: await r.json(), lastModified: r.headers.get('Last-Modified'), expires: r.headers.get('Expires') };
+      }
+    }
+    const clima = interpretarMetNorway(ultimaMet!.datos, ahora);
     if (!clima) throw new Error('Respuesta de MET Norway sin datos');
-    const segundos = segundosDeCache(r.headers.get('Expires'), ahora);
+    const segundos = segundosDeCache(ultimaMet!.expires, ahora);
     return new Response(JSON.stringify(clima), {
       headers: { ...cabeceras, 'Cache-Control': `public, max-age=${segundos}, s-maxage=${segundos}, stale-while-revalidate=600` },
     });
