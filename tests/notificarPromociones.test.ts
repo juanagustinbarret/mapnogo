@@ -35,6 +35,8 @@ test('regla: se avisa una vez, vigente hoy, comercio público y dentro de los l�
   assert.deepEqual(decidir(promo({ fecha_fin: '2026-10-21' }), ctx({ ahora: new Date('2026-10-22T01:30:00Z') })), { accion: 'enviar' });
   // fecha_inicio guardada como timestamp (medianoche UTC = 21 h del día anterior en AR)
   assert.deepEqual(decidir(promo({ fecha_inicio: '2026-10-21T00:00:00+00:00' }), ctx()), { accion: 'enviar' });
+  // fecha_fin = hoy guardada como timestamp: sigue vigente, no "vencida"
+  assert.deepEqual(decidir(promo({ fecha_fin: '2026-10-21T00:00:00+00:00' }), ctx()), { accion: 'enviar' });
 });
 
 test('límites configurables por variables de entorno', () => {
