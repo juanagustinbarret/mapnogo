@@ -63,6 +63,7 @@ interface Resena {
   comentario: string;
   created_at: string;
   respuesta_comercio?: string | null;
+  estado?: string | null;
 }
 
 export const CommerceDetailPage: React.FC = () => {
@@ -175,16 +176,18 @@ export const CommerceDetailPage: React.FC = () => {
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
       supabase
         .from('resenas')
-        .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio')
+        .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
         .eq('comercio_id', c.id)
-        .or('estado.eq.aprobado,estado.is.null')
         .order('created_at', { ascending: false }),
       cargarFotosComercio(c.id),
     ]).then(([{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes]) => {
       if (h) setHorarios(h);
       if (hd) setHorariosDelivery(hd);
       if (p) setPromociones(p);
-      if (r) setResenas(r as any);
+      if (r) {
+        const aprobadas = r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado);
+        setResenas(aprobadas as any);
+      }
       if (fotosRes) setFotosAprobadas(fotosRes.fotos);
     }).catch((err) => console.error('Error cargando detalles secundarios:', err));
   };
@@ -192,15 +195,15 @@ export const CommerceDetailPage: React.FC = () => {
   const fetchResenas = async (comercioId: string) => {
     const { data: r, error } = await supabase
       .from('resenas')
-      .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio')
+      .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
       .eq('comercio_id', comercioId)
-      .or('estado.eq.aprobado,estado.is.null')
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error al traer reseñas:', error);
     } else if (r) {
-      setResenas(r as any);
+      const aprobadas = r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado);
+      setResenas(aprobadas as any);
     }
   };
 
