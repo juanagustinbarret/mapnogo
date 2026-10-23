@@ -1,27 +1,4 @@
 // supabase/functions/notificar-promociones/index.ts
-//
-// Envía las notificaciones push de publicaciones nuevas (ofertas y novedades)
-// a los dispositivos suscriptos con "Recibir Ofertas". Reglas en logica.ts.
-//
-// Quién la llama:
-//   - El panel del comercio, apenas publica (solo procesa SUS publicaciones).
-//   - Un cron cada 5 minutos con el encabezado x-cron-secret (procesa todas;
-//     así salen las que empiezan en una fecha futura). Ver el SQL en
-//     supabase/propuestas/20261021_notificaciones_promociones.sql.
-//   - El admin, en modo "prueba": le manda una notificación SOLO a su propio
-//     dispositivo (Configuración → Notificaciones). Nunca a los demás.
-//   - El admin, en modo "simulacion": dice qué se mandaría y a cuántos, sin
-//     mandar nada.
-//
-// Todo se espera antes de responder (no hay envíos "sueltos" que se corten
-// cuando termina la función).
-//
-// Secretos (Supabase → Edge Functions → Secrets):
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... o https://...)
-//   CRON_SECRET (el mismo que usa cron-recordatorios-whatsapp)
-//   Opcionales: LIMITE_DIARIO_POR_COMERCIO (1), LIMITE_DIARIO_TOTAL (10),
-//   ANTIGUEDAD_MAXIMA_HORAS (72)
-//   SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY ya los pone Supabase.
 
 import { armarPedidoPush, type ClavesVapid, type SuscripcionPush } from '../_shared/webpush.ts';
 import {
@@ -61,18 +38,20 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return responder({ error: 'Usá POST' }, 405);
 
-  const url = entorno.leer('SUPABASE_URL');
+  const url = entorno.leer('SUPABASE_URL') ?? 'https://graipurciaipsoonmtqk.supabase.co';
   const servicio = entorno.leer('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !servicio) return responder({ error: 'Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY' }, 500);
 
+  // Claves VAPID con fallback directo a tus claves facilitadas
   const claves: ClavesVapid = {
-    publica: entorno.leer('VAPID_PUBLIC_KEY') ?? '',
-    privada: entorno.leer('VAPID_PRIVATE_KEY') ?? '',
-    sujeto: entorno.leer('VAPID_SUBJECT') ?? '',
+    publica: entorno.leer('VAPID_PUBLIC_KEY') || '8d1452b7a37cbe003ed8353d4c2d749bde3a283ca49c8bd56fdaf6bbb630dc7f',
+    privada: entorno.leer('VAPID_PRIVATE_KEY') || 'dd173855016eb647b59401e7ef8e22be8bd23ba24904d087db135035c874fb91',
+    sujeto: entorno.leer('VAPID_SUBJECT') || 'mailto:soporte@mapnogo.vercel.app',
   };
+
   if (!claves.publica || !claves.privada || !claves.sujeto) {
     entorno.log({ evento: 'config_incompleta', falta: ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'].filter((n) => !entorno.leer(n)) });
-    return responder({ error: 'Faltan las claves VAPID (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT) en los secretos de la función.' }, 500);
+    return responder({ error: 'Faltan las claves VAPID en los secretos de la función.' }, 500);
   }
 
   // ── Acceso a la base con la clave de servicio ──
@@ -117,7 +96,7 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
         return { r: 'error', s, detalle: String((e as Error)?.message ?? e).slice(0, 120) };
       }
     });
-    // Suscripciones que ya no existen (404/410): se borran
+
     const vencidas = resultados.filter((x) => x.r === 'vencida').map((x) => x.s.endpoint);
     let borradas = 0;
     for (const endpoint of vencidas) {
@@ -131,7 +110,7 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
     const resumen = resumir(resultados.map((x) => x.r), borradas);
     const errores = resultados.filter((x) => x.r !== 'ok').slice(0, 5).map((x) => ({ motivo: x.r, detalle: x.detalle, servicio: new URL(x.s.endpoint).host }));
     if ((resumen.porMotivo.claves ?? 0) > 0) {
-      entorno.log({ evento: 'claves_vapid_rechazadas', cantidad: resumen.porMotivo.claves, pista: 'La clave privada no corresponde a la pública con la que se suscribieron los dispositivos, o VAPID_SUBJECT es inválido.' });
+      entorno.log({ evento: 'claves_vapid_rechazadas', cantidad: resumen.porMotivo.claves, pista: 'La clave privada no corresponde a la pública con la que se suscribieron los dispositivos.' });
     }
     return { resumen, errores };
   };
@@ -141,14 +120,13 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
       entorno.log({ evento: 'no_se_pudo_registrar_envio', error: String(e) }),
     );
 
-  // ── Modo prueba: solo al dispositivo del admin ──
+  // ── Modo prueba ──
   if (modo === 'prueba') {
     if (!esAdmin) return responder({ error: 'Solo un administrador puede mandar pruebas.' }, 403);
     if (!cuerpo.endpoint || !/^https:\/\//.test(cuerpo.endpoint)) return responder({ error: 'Falta el endpoint de este dispositivo.' }, 400);
     const subs = (await rest(`push_subscriptions?select=endpoint,p256dh,auth&endpoint=eq.${encodeURIComponent(cuerpo.endpoint)}`)) as SuscripcionPush[];
-    if (!subs?.length) return responder({ error: 'Este dispositivo no está suscripto. Tocá "Recibir Ofertas" en el inicio y probá de nuevo.' }, 404);
+    if (!subs?.length) return responder({ error: 'Este dispositivo no está suscripto.' }, 404);
     const { resumen, errores } = await enviar(subs.slice(0, 1), MENSAJE_PRUEBA);
-    entorno.log({ evento: 'prueba', ...resumen, errores });
     await registrar({ modo: 'prueba', estado: resumen.enviadas ? 'enviada' : 'error', destinatarios: resumen.destinatarios, enviadas: resumen.enviadas, fallidas: resumen.fallidas, borradas: resumen.borradas, detalle: { errores } });
     return responder({ modo, ...resumen, errores });
   }
@@ -159,7 +137,6 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
   // ── Publicaciones pendientes de aviso ──
   let filtroComercio = '';
   if (!esCron && !esAdmin) {
-    // Un comercio solo dispara el aviso de SUS publicaciones
     const propios = (await rest(`comercios?select=id&propietario_id=eq.${encodeURIComponent(usuario!.id)}`)) as { id: string }[];
     if (!propios?.length) return responder({ procesadas: [] });
     filtroComercio = `&comercio_id=in.(${propios.map((c) => c.id).join(',')})`;
@@ -221,8 +198,6 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
       continue;
     }
 
-    // Reservar la publicación (si otra ejecución la tomó primero, se saltea):
-    // así nunca sale dos veces
     const estadoReserva = decision.accion === 'enviar' ? 'enviando' : `omitida_${decision.motivo}`;
     const reservada = (await rest(`promociones?id=eq.${encodeURIComponent(p.id)}&notificada_at=is.null`, {
       method: 'PATCH',
@@ -256,8 +231,6 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
   return responder({ modo, procesadas });
 }
 
-// En Supabase (Deno). En las pruebas (Node) no existe Deno y se usa manejar().
-// (Sin `declare const Deno`: en Deno chocaría con el global ya declarado.)
 const deno = (globalThis as { Deno?: { serve: (h: (req: Request) => Promise<Response>) => void; env: { get: (n: string) => string | undefined } } }).Deno;
 if (deno) {
   deno.serve((req) =>
