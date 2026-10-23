@@ -15,6 +15,7 @@ import { diferida } from '@/components/CargaDiferida';
 import { PromotionsPage } from '@/pages/PromotionsPage';
 import { FavoritesPage } from '@/pages/FavoritesPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { ScrollToTopButton } from '@/components/ScrollToTopButton';
 
 const PanelComercio = diferida(() => import('@/pages/PanelComercio'), 'PanelComercio');
 const AdminDashboardPage = diferida(() => import('@/pages/AdminDashboardPage'), 'AdminDashboardPage');
@@ -45,7 +46,7 @@ export const App: React.FC = () => {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div className="min-h-screen flex flex-col justify-between bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+          <div className="min-h-screen flex flex-col justify-between bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 relative">
             <div>
               <Navbar />
               <Routes>
@@ -137,6 +138,8 @@ export const App: React.FC = () => {
                 />
               </Routes>
             </div>
+            {/* Botón flotante global presente en absolutamente todas las pantallas */}
+            <ScrollToTopButton />
             <Footer />
           </div>
         </BrowserRouter>

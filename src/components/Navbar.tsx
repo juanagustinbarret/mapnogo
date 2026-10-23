@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { LogoNogoyork } from '@/components/LogoNogoyork';
 import {
@@ -23,10 +23,31 @@ export const Navbar: React.FC = () => {
   const { user, profile, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [confirmExitTarget, setConfirmExitTarget] = useState<string | null>(null);
+  const [cantFavoritos, setCantFavoritos] = useState(0);
   
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminArea = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    const actualizarFavoritos = () => {
+      try {
+        const favs: string[] = JSON.parse(localStorage.getItem('nogoyork_favoritos') || '[]');
+        setCantFavoritos(favs.length);
+      } catch {
+        setCantFavoritos(0);
+      }
+    };
+
+    actualizarFavoritos();
+    window.addEventListener('storage', actualizarFavoritos);
+    const interval = setInterval(actualizarFavoritos, 1000);
+
+    return () => {
+      window.removeEventListener('storage', actualizarFavoritos);
+      clearInterval(interval);
+    };
+  }, [location.pathname]);
 
   const handleNavigation = (targetPath: string) => {
     setMobileMenuOpen(false);
@@ -56,7 +77,6 @@ export const Navbar: React.FC = () => {
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* LOGO */}
           <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight" aria-label="NOGOYORK, ir al inicio">
             <LogoNogoyork className="w-8 h-8 shrink-0" />
             <span>NOGO<span className="text-red-600 dark:text-red-500">YORK</span></span>
@@ -71,7 +91,8 @@ export const Navbar: React.FC = () => {
               <Tag className="w-3.5 h-3.5" /> Ofertas & Promos
             </button>
             <button onClick={() => handleNavigation('/favoritos')} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg">
-              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> Favoritos
+              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> 
+              Favoritos {cantFavoritos > 0 && <span className="ml-0.5 bg-rose-500 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">{cantFavoritos}</span>}
             </button>
 
             <button
@@ -82,7 +103,6 @@ export const Navbar: React.FC = () => {
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-400" />}
             </button>
 
-            {/* BOTONES DE PANEL COMERCIAL Y ADMIN */}
             {user ? (
               <div className="flex items-center gap-2 ml-2 pl-3 border-l border-gray-200 dark:border-gray-700">
                 {profile?.rol === 'admin' ? (
@@ -151,8 +171,11 @@ export const Navbar: React.FC = () => {
             <button onClick={() => handleNavigation('/promociones')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-amber-600">
               <Tag className="w-4 h-4" /> Ofertas & Promociones
             </button>
-            <button onClick={() => handleNavigation('/favoritos')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-rose-600">
-              <Heart className="w-4 h-4 fill-rose-500" /> Mis Favoritos
+            <button onClick={() => handleNavigation('/favoritos')} className="w-full text-left flex items-center justify-between py-2 px-2 text-sm font-medium text-rose-600">
+              <span className="flex items-center gap-2">
+                <Heart className="w-4 h-4 fill-rose-500" /> Mis Favoritos
+              </span>
+              {cantFavoritos > 0 && <span className="bg-rose-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">{cantFavoritos}</span>}
             </button>
 
             <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
