@@ -514,6 +514,22 @@ export const MerchantDashboardPage: React.FC = () => {
     if (error) {
       alert('Error al publicar: ' + error.message);
     } else {
+      // Disparar las notificaciones push mediante la Edge Function
+      try {
+        const { error: pushError } = await supabase.functions.invoke('notificar-promociones', {
+          body: {
+            title: `${comercio.nombre} publicó una nueva ${promoForm.tipo === 'novedad' ? 'novedad' : 'oferta'}`,
+            body: promoForm.titulo,
+            url: '/'
+          }
+        });
+        if (pushError) {
+          console.warn('[push] La oferta se guardó, pero hubo un error al disparar la notificación:', pushError);
+        }
+      } catch (err) {
+        console.warn('[push] Error al invocar la función de notificaciones:', err);
+      }
+
       setPromoForm({ titulo: '', descripcion: '', tipo: 'promocion', precio_anterior: '', precio_promocional: '', fecha_fin: '' });
       setIsModalOpen(false);
       void refrescar();
