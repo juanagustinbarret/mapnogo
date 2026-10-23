@@ -1,5 +1,5 @@
 // public/sw.js - Service Worker de NOGOYORK (PWA Caché + Push)
-const CACHE_NAME = 'nogoyork-app-v1';
+const CACHE_NAME = 'nogoyork-app-v2';
 const RECURSOS_ESTATICOS = [
   '/',
   '/index.html',
@@ -35,7 +35,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estrategia Stale-While-Revalidate para la interfaz (Abre al instante desde el celular)
+// Estrategia Stale-While-Revalidate corregida para evitar fallos de Response
 self.addEventListener('fetch', (event) => {
   // Ignorar peticiones de la API de Supabase o servicios externos para que siempre traigan datos frescos
   if (
@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const respuestaCache = await cache.match(event.request);
-      
+
       const peticionRed = fetch(event.request)
         .then((respuestaRed) => {
           if (respuestaRed.ok && event.request.url.startsWith(self.location.origin)) {
@@ -58,10 +58,13 @@ self.addEventListener('fetch', (event) => {
           }
           return respuestaRed;
         })
-        .catch(() => respuestaCache);
+        .catch(() => undefined);
 
-      // Si tenemos la interfaz en caché, la mostramos al toque (0.1s); si no, esperamos la red
-      return respuestaCache || peticionRed;
+      const respuestaRedFinal = await peticionRed;
+
+      // Si tenemos respuesta de red válida, la usamos; si no, caemos en la caché.
+      // Si ambas fallan, devolvemos un Response.error() sintácticamente válido.
+      return respuestaRedFinal || respuestaCache || Response.error();
     })
   );
 });
