@@ -1,29 +1,72 @@
-// public/sw.js - Service Worker de NOGOYORK (notificaciones push)
-//
-// Solo maneja notificaciones: no intercepta pedidos ni guarda nada en caché,
-// así que no puede dejar a nadie con una versión vieja del sitio.
-//
-// Formato esperado del mensaje push (JSON):
-//   { "title": "...", "body": "...", "url": "/comercio/slug", "tag": "promo-123", "icon": "/..." }
-// Todos los campos son opcionales.
+// public/sw.js - Service Worker de NOGOYORK (PWA Caché + Push)
+const CACHE_NAME = 'nogoyork-app-v1';
+const RECURSOS_ESTATICOS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/pwa-192x192.png?v=2',
+  '/pwa-512x512.png?v=2',
+  '/favicon.svg?v=2'
+];
 
-// Cambiar VERSION fuerza a los navegadores a instalar este archivo de nuevo.
-const VERSION = '2026-10-18-logo-rana';
 const TITULO_POR_DEFECTO = 'NOGOYORK 🏪';
 const CUERPO_POR_DEFECTO = '¡Hay una nueva oferta o novedad en el directorio!';
 const ICONO = '/pwa-192x192.png?v=2';
 const INSIGNIA = '/badge-96x96.png?v=2';
 
-self.addEventListener('install', () => {
+// Instalar y precargar la carcasa estática de la app
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(RECURSOS_ESTATICOS);
+    })
+  );
   self.skipWaiting();
 });
 
+// Limpiar cachés viejas al activar
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
-// Solo se abren direcciones del propio sitio: un mensaje no puede mandar al
-// vecino a una página externa.
+// Estrategia Stale-While-Revalidate para la interfaz (Abre al instante desde el celular)
+self.addEventListener('fetch', (event) => {
+  // Ignorar peticiones de la API de Supabase o servicios externos para que siempre traigan datos frescos
+  if (
+    event.request.method !== 'GET' ||
+    event.request.url.includes('supabase.co') ||
+    event.request.url.includes('smn.gob.ar') ||
+    event.request.url.includes('openstreetmap.org')
+  ) {
+    return;
+  }
+
+  event.respondWith(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const respuestaCache = await cache.match(event.request);
+      
+      const peticionRed = fetch(event.request)
+        .then((respuestaRed) => {
+          if (respuestaRed.ok && event.request.url.startsWith(self.location.origin)) {
+            cache.put(event.request, respuestaRed.clone());
+          }
+          return respuestaRed;
+        })
+        .catch(() => respuestaCache);
+
+      // Si tenemos la interfaz en caché, la mostramos al toque (0.1s); si no, esperamos la red
+      return respuestaCache || peticionRed;
+    })
+  );
+});
+
+// Manejo de Notificaciones Push
 function urlSegura(url) {
   try {
     const destino = new URL(url || '/', self.location.origin);
@@ -39,15 +82,12 @@ function leerMensaje(data) {
     const json = data.json();
     return json && typeof json === 'object' ? json : { body: String(json) };
   } catch {
-    // Si no es JSON, se muestra como texto en vez de perder la notificación
     const texto = data.text();
     return texto ? { body: texto } : {};
   }
 }
 
 self.addEventListener('push', (event) => {
-  // Siempre se muestra algo: con userVisibleOnly, un push sin notificación
-  // hace que el navegador muestre un aviso genérico o corte la suscripción.
   const mensaje = leerMensaje(event.data);
   const titulo = typeof mensaje.title === 'string' && mensaje.title.trim() ? mensaje.title : TITULO_POR_DEFECTO;
   const opciones = {
@@ -57,7 +97,6 @@ self.addEventListener('push', (event) => {
     vibrate: [100, 50, 100],
     data: { url: urlSegura(mensaje.url) },
   };
-  // Con la misma etiqueta, una notificación reemplaza a la anterior en vez de apilarse
   if (typeof mensaje.tag === 'string' && mensaje.tag) opciones.tag = mensaje.tag;
 
   event.waitUntil(self.registration.showNotification(titulo, opciones));
@@ -69,18 +108,16 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (ventanas) => {
-      // Si ya está abierta en esa página, se enfoca
       const misma = ventanas.find((v) => v.url === urlAAbrir && 'focus' in v);
       if (misma) return misma.focus();
 
-      // Si hay otra pestaña del sitio, se lleva ahí y se enfoca
       const otra = ventanas.find((v) => 'navigate' in v && 'focus' in v);
       if (otra) {
         try {
           const navegada = await otra.navigate(urlAAbrir);
           return (navegada || otra).focus();
         } catch {
-          // Pestaña no controlada por este service worker: se abre una nueva
+          // Si no se puede navegar, abre ventana nueva
         }
       }
 
