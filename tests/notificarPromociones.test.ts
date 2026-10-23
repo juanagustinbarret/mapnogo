@@ -249,6 +249,21 @@ test('límite diario: la segunda publicación del mismo comercio se publica pero
   assert.equal(m.promociones.find((p) => p.id === 'p3').notificacion_estado, 'omitida_limite_comercio');
 });
 
+test('si no le llegó a nadie queda "fallida" y no gasta el aviso del día', async () => {
+  const m = mundo();
+  m.promociones = [promo(), promo({ id: 'p3', titulo: 'Otra más', created_at: '2026-10-21T17:58:00Z' })];
+  m.respuestaPush = () => 403; // p. ej. dispositivos suscriptos con otra clave VAPID
+  const r = await (await manejar(pedido({}, { 'x-cron-secret': 'cron-123' }), entorno(m, await claves()))).json();
+  assert.deepEqual(r.procesadas.map((x: any) => [x.id, x.accion, x.estado]), [['p1', 'enviar', 'fallida'], ['p3', 'enviar', 'fallida']]);
+  assert.equal(m.promociones.find((p) => p.id === 'p1').notificacion_estado, 'fallida');
+  assert.equal(m.notificaciones_envios.filter((f) => f.estado === 'enviada').length, 0);
+  // Mismo día: los envíos fallidos no cuentan para el límite
+  m.promociones.push(promo({ id: 'p4', titulo: 'Una más', created_at: '2026-10-21T17:59:00Z' }));
+  m.respuestaPush = () => 201;
+  const r2 = await (await manejar(pedido({}, { 'x-cron-secret': 'cron-123' }), entorno(m, await claves()))).json();
+  assert.deepEqual(r2.procesadas.map((x: any) => [x.id, x.estado]), [['p4', 'enviada']]);
+});
+
 test('las que empiezan otro día esperan (no se marcan) y los comercios no públicos también', async () => {
   const m = mundo();
   m.promociones = [promo({ fecha_inicio: '2026-10-25' }), promo({ id: 'p2', comercio_id: 'c2' })];
