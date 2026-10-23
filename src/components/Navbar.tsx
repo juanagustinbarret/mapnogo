@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Home,
   Tag,
+  Heart,
   Shield,
   AlertTriangle
 } from 'lucide-react';
@@ -55,7 +56,7 @@ export const Navbar: React.FC = () => {
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* LOGO CON NOGOYORK Y DETALLE EN ROJO */}
+          {/* LOGO */}
           <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight" aria-label="NOGOYORK, ir al inicio">
             <LogoNogoyork className="w-8 h-8 shrink-0" />
             <span>NOGO<span className="text-red-600 dark:text-red-500">YORK</span></span>
@@ -68,6 +69,9 @@ export const Navbar: React.FC = () => {
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg">
               <Tag className="w-3.5 h-3.5" /> Ofertas & Promos
+            </button>
+            <button onClick={() => handleNavigation('/favoritos')} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg">
+              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> Favoritos
             </button>
 
             <button
@@ -146,6 +150,9 @@ export const Navbar: React.FC = () => {
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-amber-600">
               <Tag className="w-4 h-4" /> Ofertas & Promociones
+            </button>
+            <button onClick={() => handleNavigation('/favoritos')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-rose-600">
+              <Heart className="w-4 h-4 fill-rose-500" /> Mis Favoritos
             </button>
 
             <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">

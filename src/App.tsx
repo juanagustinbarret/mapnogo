@@ -13,12 +13,9 @@ import { MerchantLoginPage } from '@/pages/MerchantLoginPage';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
 import { diferida } from '@/components/CargaDiferida';
 import { PromotionsPage } from '@/pages/PromotionsPage';
+import { FavoritesPage } from '@/pages/FavoritesPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
-// Paneles del comercio y del admin: se cargan recién al entrar (no van en el
-// paquete inicial que descarga cada visitante del mapa)
-// Las dos secciones del panel del comercio en un solo componente: cambiar
-// entre /panel y /panel/perfil no desmonta nada (ver PanelComercio.tsx)
 const PanelComercio = diferida(() => import('@/pages/PanelComercio'), 'PanelComercio');
 const AdminDashboardPage = diferida(() => import('@/pages/AdminDashboardPage'), 'AdminDashboardPage');
 const AdminNewCommercePage = diferida(() => import('@/pages/AdminNewCommercePage'), 'AdminNewCommercePage');
@@ -31,7 +28,6 @@ const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'Privaci
 const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
 
 export const App: React.FC = () => {
-  // Registrar el Service Worker al montar la aplicación
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
@@ -56,14 +52,15 @@ export const App: React.FC = () => {
                 {/* Rutas Públicas */}
                 <Route path="/" element={<HomeExplorerPage />} />
                 <Route path="/comercio/:slug" element={<CommerceDetailPage />} />
-                {/* Rutas estables de los QR impresos: no cambiar ni borrar */}
                 <Route path="/n/:slug/resenas" element={<QrResenasRedireccion />} />
                 <Route path="/n/:slug" element={<QrFichaRedireccion />} />
                 <Route path="/promociones" element={<PromotionsPage />} />
+                <Route path="/favoritos" element={<FavoritesPage />} />
                 <Route path="/terminos" element={<TerminosPage />} />
                 <Route path="/privacidad" element={<PrivacidadPage />} />
                 <Route path="/baja" element={<BajaPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+
                 {/* Logins Separados */}
                 <Route path="/login" element={<MerchantLoginPage />} />
                 <Route path="/admin/login" element={<AdminLoginPage />} />
