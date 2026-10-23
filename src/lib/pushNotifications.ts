@@ -139,7 +139,18 @@ export async function obtenerSuscripcionPushActual(): Promise<PushSubscription |
 
 /** ¿Este dispositivo ya está suscripto? (para mostrar el estado del botón) */
 export async function verificarEstadoSuscripcionPush(): Promise<boolean> {
-  return (await obtenerSuscripcionPushActual()) !== null;
+  const actual = await obtenerSuscripcionPushActual();
+  if (!actual) return false;
+  // Suscripción creada con otra clave VAPID (por ejemplo la de respaldo, antes
+  // de configurar VITE_VAPID_PUBLIC_KEY): el servicio push rechaza los avisos
+  // (403) y el botón igual decía "Ofertas Activas". Se renueva sola: con el
+  // permiso ya dado no aparece ningún cartel.
+  const claveDeCreacion = actual.options?.applicationServerKey;
+  const claveActual = urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY_FALLBACK);
+  if (claveDeCreacion && !mismaClave(claveDeCreacion, claveActual)) {
+    return (await solicitarPermisoNotificacionesPush()).ok;
+  }
+  return true;
 }
 
 export async function solicitarPermisoNotificacionesPush(): Promise<ResultadoPush> {

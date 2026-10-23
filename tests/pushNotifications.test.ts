@@ -260,4 +260,27 @@ test('el estado inicial detecta una suscripción existente sin esperar a "ready"
   const previa = crearSuscripcion('https://push.example/existente', urlBase64ToUint8Array(CLAVE));
   montar({ registrado: true, suscripcionPrevia: previa, permiso: 'granted', readyNunca: true });
   assert.equal(await verificarEstadoSuscripcionPush(), true);
+  assert.equal(contador.subscribe + contador.register, 0);
+});
+
+test('el estado inicial renueva sola una suscripción hecha con otra clave VAPID (no queda "activa" sin recibir)', async () => {
+  const previa = crearSuscripcion('https://push.example/vieja', new Uint8Array([1, 2, 3]));
+  const navegador = montar({ registrado: true, suscripcionPrevia: previa, permiso: 'granted' });
+  assert.equal(await verificarEstadoSuscripcionPush(), true);
+  assert.equal(previa.bajas, 1);
+  assert.equal(contador.subscribe, 1);
+  assert.deepEqual(new Uint8Array(navegador.obtener()!.options.applicationServerKey), urlBase64ToUint8Array(CLAVE));
+  assert.deepEqual(llamadas.map((l) => l.operacion), ['delete', 'upsert'], 'borra la fila vieja y guarda la nueva');
+});
+
+test('si la renovación falla, el botón no dice "activa"', async () => {
+  const previa = crearSuscripcion('https://push.example/vieja', new Uint8Array([1, 2, 3]));
+  montar({ registrado: true, suscripcionPrevia: previa, permiso: 'granted', subscribeFalla: 'AbortError' });
+  const original = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(await verificarEstadoSuscripcionPush(), false);
+  } finally {
+    console.error = original;
+  }
 });

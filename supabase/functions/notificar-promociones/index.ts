@@ -219,12 +219,15 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
     const subs = await cargarSuscripciones();
     const mensaje = armarMensaje(p, comercio!);
     const { resumen, errores } = subs.length ? await enviar(subs, mensaje) : { resumen: resumir([], 0), errores: [] };
-    const estado = subs.length ? 'enviada' : 'sin_destinatarios';
+    // "enviada" cuenta para el límite diario: solo si le llegó a alguien
+    const estado = !subs.length ? 'sin_destinatarios' : resumen.enviadas > 0 ? 'enviada' : 'fallida';
     await rest(`promociones?id=eq.${encodeURIComponent(p.id)}`, { method: 'PATCH', body: JSON.stringify({ notificacion_estado: estado }), headers: { Prefer: 'return=minimal' } });
     entorno.log({ evento: 'promo_notificada', promocion: p.id, comercio: comercio!.nombre, ...resumen, errores });
     await registrar({ modo: 'promocion', promocion_id: p.id, comercio_id: p.comercio_id, estado, destinatarios: resumen.destinatarios, enviadas: resumen.enviadas, fallidas: resumen.fallidas, borradas: resumen.borradas, detalle: { errores, porMotivo: resumen.porMotivo } });
-    hoyPorComercio.set(p.comercio_id, (hoyPorComercio.get(p.comercio_id) ?? 0) + 1);
-    hoyTotal++;
+    if (estado === 'enviada') {
+      hoyPorComercio.set(p.comercio_id, (hoyPorComercio.get(p.comercio_id) ?? 0) + 1);
+      hoyTotal++;
+    }
     procesadas.push({ id: p.id, accion: 'enviar', estado, ...resumen });
   }
 
