@@ -1,4 +1,3 @@
-// src/pages/HomeExplorerPage.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
@@ -59,12 +58,13 @@ function formatearDistanciaTexto(distanciaKm: number | null): string {
 
 export const HomeExplorerPage: React.FC = () => {
   const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [loadingComercios, setLoadingComercios] = useState(true);
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [horarios, setHorarios] = useState<Record<string, HorarioAtencion[]>>({});
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
   const [medioPago, setMedioPago] = useState<string>('');
-  // Filtros extra: los datos se piden recién al activarlos
+  
   const [soloConOfertas, setSoloConOfertas] = useState(false);
   const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
   const [soloNuevos, setSoloNuevos] = useState(false);
@@ -73,23 +73,16 @@ export const HomeExplorerPage: React.FC = () => {
   const [cargandoExtra, setCargandoExtra] = useState<'ofertas' | 'puntaje' | null>(null);
   const [errorExtra, setErrorExtra] = useState('');
   
-  // Farmacia de Turno Hoy
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
-
-  // Modal de Teléfonos de Emergencia
   const [modalEmergenciasOpen, setModalEmergenciasOpen] = useState(false);
 
-  // FILTROS AVANZADOS DINÁMICOS
   const [soloAbiertos, setSoloAbiertos] = useState(false);
   const [soloDelivery, setSoloDelivery] = useState(false);
-  // "¿Quién tiene delivery tal día a tal hora?" (null = ahora)
   const [momentoDelivery, setMomentoDelivery] = useState<MomentoElegido | null>(null);
   const [soloFarmaciasTurno, setSoloFarmaciasTurno] = useState(false);
 
-  // Delivery: rangos por comercio
   const [delivery, setDelivery] = useState<Record<string, RangoDelivery[]>>({});
 
-  // Re-evaluación automática de horarios cada 60 segundos
   const [ahora, setAhora] = useState(() => new Date());
   useEffect(() => {
     const actualizar = () => setAhora(new Date());
@@ -106,7 +99,6 @@ export const HomeExplorerPage: React.FC = () => {
     };
   }, []);
 
-  // Filtros de Cercanía Inteligente
   const [radioKm, setRadioKm] = useState<number | null>(null);
   const [ordenamiento, setOrdenamiento] = useState<'cercania' | 'nombre'>('cercania');
   
@@ -116,7 +108,6 @@ export const HomeExplorerPage: React.FC = () => {
   const [pedidoCentrado, setPedidoCentrado] = useState(0);
   const seguimientoId = useRef<number | null>(null);
 
-  // Notificaciones Push
   const [activandoPush, setActivandoPush] = useState(false);
   const [pushActivado, setPushActivado] = useState(false);
 
@@ -135,6 +126,7 @@ export const HomeExplorerPage: React.FC = () => {
   useEffect(() => detenerSeguimiento, [detenerSeguimiento]);
 
   const fetchData = async () => {
+    setLoadingComercios(true);
     const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
     const pedirComercios = (columnas: string) =>
       supabase
@@ -184,6 +176,7 @@ export const HomeExplorerPage: React.FC = () => {
       });
       setHorarios(mapaHorarios);
     }
+    setLoadingComercios(false);
   };
 
   const handleToggleNotificaciones = async () => {
@@ -286,7 +279,6 @@ export const HomeExplorerPage: React.FC = () => {
 
   const momentoAhora = momentoArgentina(ahora);
 
-  // OBJETO CONSOLIDADOR DE FILTROS AVANZADOS
   const filtrosActuales: FiltrosMapa = {
     busqueda: search,
     rubroId: selectedRubro,
@@ -295,7 +287,6 @@ export const HomeExplorerPage: React.FC = () => {
     soloFarmaciasTurno,
     conMomentoDelivery: momentoDelivery !== null,
     medioPago,
-    // Mientras llegan los datos, el filtro todavía no se aplica
     soloConOfertas: soloConOfertas && conOfertas !== null,
     soloMejorPuntaje: soloMejorPuntaje && puntajes !== null,
     soloNuevos,
@@ -336,7 +327,6 @@ export const HomeExplorerPage: React.FC = () => {
   const farmaciasTurnoIds = farmaciaDeTurno ? [farmaciaDeTurno.id] : [];
   const whatsappFarmacia = normalizeWhatsAppNumber(farmaciaDeTurno?.whatsapp ?? '');
 
-  // LÓGICA COMPLETA DE FILTRADO Y PROCESAMIENTO DINÁMICO
   const comerciosProcesados = comercios.map((c) => {
     const posicion = posicionDeComercio(c);
     const distancia =
@@ -356,8 +346,6 @@ export const HomeExplorerPage: React.FC = () => {
     };
   });
 
-  // Etiqueta "Nuevo": si más de la mitad son nuevos (sitio recién lanzado),
-  // la etiqueta no dice nada y solo agrega ruido; el filtro sigue andando.
   const mostrarInsigniaNuevo = comercios.filter((c) => esNuevo(c.created_at, ahora)).length <= comercios.length / 2;
 
   const filteredComercios = filtrarComerciosMapa(comerciosProcesados, filtrosActuales, farmaciasTurnoIds, ahora)
@@ -383,15 +371,12 @@ export const HomeExplorerPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
       
-      {/* MODAL DE EMERGENCIAS */}
       <ModalEmergencias
         isOpen={modalEmergenciasOpen}
         onClose={() => setModalEmergenciasOpen(false)}
       />
-      {/* MARQUESINA DE AVISOS Y EVENTOS */}
       <MarquesinaAvisos />
       
-      {/* BANNER DESTACADO: FARMACIA DE TURNO HOY */}
       {farmaciaDeTurno && (
         <div className="bg-gradient-to-r from-red-600 via-rose-600 to-blue-700 rounded-3xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-rose-400/30">
           <div className="flex items-center gap-3.5">
@@ -433,7 +418,6 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       )}
 
-      {/* TARJETA DE BIENVENIDA, CLIMA Y EMERGENCIAS */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
           <div>
@@ -494,7 +478,6 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PANEL PRINCIPAL DE CONTROLES Y FILTROS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 pt-4 pb-3 space-y-3">
         <div className="px-4 relative w-full">
           <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -563,11 +546,9 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         )}
 
-        {/* CHIPS DE FILTRADO AVANZADO RÁPIDO - ORGANIZADOS EN FILAS RESPONSIVAS */}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full space-y-2.5">
           <div className="px-4 space-y-2">
             
-            {/* FILA 1: ABIERTO AHORA + CON DELIVERY */}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setSoloAbiertos(!soloAbiertos)}
@@ -590,7 +571,6 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* FILA 2: CONSULTAR HORARIO DELIVERY */}
             <div>
               <FiltroDeliveryBotonConsulta
                 activo={soloDelivery}
@@ -601,7 +581,6 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* FILA 3: FILTRO DE MEDIOS DE PAGO (TOTALMENTE RESPONSIVE CON DESPLAZAMIENTO) */}
             <div className="space-y-1 pt-1">
               <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">
                 Medio de Pago:
@@ -632,7 +611,6 @@ export const HomeExplorerPage: React.FC = () => {
               </div>
             </div>
 
-            {/* FILA 3b: MÁS FILTROS (ofertas vigentes, mejor puntaje, nuevos) */}
             <div className="space-y-1 pt-1">
               <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Más filtros:</span>
               <div className="flex flex-wrap items-center gap-2">
@@ -658,7 +636,6 @@ export const HomeExplorerPage: React.FC = () => {
               {errorExtra && <p role="alert" className="text-[11px] font-semibold text-red-600 dark:text-red-400">{errorExtra}</p>}
             </div>
 
-            {/* FILA 4: FARMACIA DE TURNO Y RUBROS */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 onClick={() => setSoloFarmaciasTurno(!soloFarmaciasTurno)}
@@ -703,7 +680,6 @@ export const HomeExplorerPage: React.FC = () => {
 
       </div>
 
-      {/* MAPA INTERACTIVO Y LISTA FILTRADA DE COMERCIOS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
         <div className="lg:col-span-2 h-[350px] lg:h-full rounded-2xl overflow-hidden border dark:border-gray-700">
           <InteractiveMap
@@ -717,7 +693,27 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="overflow-y-auto space-y-3 max-h-[500px] lg:max-h-full pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {filteredComercios.length === 0 ? (
+          {/* SKELETON LOADER PARA LA LISTA DE COMERCIOS */}
+          {loadingComercios ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3 animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-2 w-2/3">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                    </div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-full w-12"></div>
+                  </div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+                  <div className="pt-2 border-t dark:border-gray-700 flex justify-between">
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredComercios.length === 0 ? (
             <div className="text-center py-12 text-gray-500 space-y-2">
               <Store className="w-10 h-10 mx-auto opacity-40" />
               <p className="text-sm font-semibold">

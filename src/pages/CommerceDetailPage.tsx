@@ -67,6 +67,7 @@ export const CommerceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { hash } = useLocation();
   const [comercio, setComercio] = useState<Comercio | null>(null);
+  const [loadingComercio, setLoadingComercio] = useState(true);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [fotosAprobadas, setFotosAprobadas] = useState<FotoComercio[]>([]);
   const [fotoAReportar, setFotoAReportar] = useState<{ url: string; fotoId?: string; indiceGaleria?: number } | null>(null);
@@ -101,7 +102,6 @@ export const CommerceDetailPage: React.FC = () => {
     visitaRegistrada.current = comercio.id;
     void registrarInteraccion(comercio.id, 'visita', { excluir: esPropioOAdmin(comercio) });
     
-    // Chequear si ya está en favoritos en localStorage
     try {
       const favs: string[] = JSON.parse(localStorage.getItem('nogoyork_favoritos') || '[]');
       setEsFavorito(favs.includes(comercio.id));
@@ -142,6 +142,7 @@ export const CommerceDetailPage: React.FC = () => {
   }, [comercio, hash, promociones.length]);
 
   const fetchComercio = async () => {
+    setLoadingComercio(true);
     const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
       const pedir = (columnas: string) =>
         filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
@@ -157,24 +158,32 @@ export const CommerceDetailPage: React.FC = () => {
     }
     if (!c) {
       setNoEncontrado(true);
+      setLoadingComercio(false);
       return;
     }
     setNoEncontrado(false);
     setComercio(c);
 
     const hoyStr = hoyArgentina();
-    const [{ data: h }, { data: hd }, { data: p }] = await Promise.all([
+
+    // RÁPIDA CARGA EN PARALELO
+    const [{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes] = await Promise.all([
       supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
       c.tiene_delivery
         ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
         : Promise.resolve({ data: null }),
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
-      fetchResenas(c.id),
-      cargarFotosComercio(c.id).then((r) => setFotosAprobadas(r.fotos)),
+      supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
+      cargarFotosComercio(c.id),
     ]);
+
     if (h) setHorarios(h);
     if (hd) setHorariosDelivery(hd);
     if (p) setPromociones(p);
+    if (r) setResenas(r);
+    if (fotosRes) setFotosAprobadas(fotosRes.fotos);
+
+    setLoadingComercio(false);
   };
 
   const fetchResenas = async (comercioId: string) => {
@@ -243,7 +252,6 @@ export const CommerceDetailPage: React.FC = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'whatsapp', { excluir: esPropioOAdmin(comercio) });
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-    // Mensaje dinámico prearmado optimizado
     const mensaje = `Hola *${comercio.nombre}*! 👋 Vi su comercio en NOGOYORK y quisiera hacerles una consulta.`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
     window.open(url, '_blank');
@@ -287,11 +295,43 @@ export const CommerceDetailPage: React.FC = () => {
       </div>
     );
   }
-  if (!comercio) return <div className="p-8 text-center text-gray-500 font-semibold">Cargando ficha del comercio...</div>;
+
+  // SKELETON LOADER EN LA FICHA DEL COMERCIO
+  if (loadingComercio || !comercio) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-pulse">
+        <div className="flex justify-between items-center">
+          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded-md w-36"></div>
+          <div className="flex gap-2">
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-xl w-24"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-xl w-8"></div>
+          </div>
+        </div>
+
+        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-3xl w-full"></div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 space-y-6">
+          <div className="flex justify-between items-start">
+            <div className="space-y-2 w-1/2">
+              <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded-lg w-3/4"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-1/3"></div>
+            </div>
+            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded-full w-20"></div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+          </div>
+
+          <div className="h-32 bg-gray-100 dark:bg-gray-900 rounded-2xl w-full"></div>
+        </div>
+      </div>
+    );
+  }
+
   const fotosFicha = fotosParaMostrar(fotosAprobadas, comercio.galeria_urls);
-
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
-
   const estadoHorario = evaluarEstadoHorario(horarios);
   const estadoDeliveryAhora = aplicarPausa(
     estadoDelivery(rangosDeDelivery(horariosDelivery, horarios)),
@@ -309,7 +349,6 @@ export const CommerceDetailPage: React.FC = () => {
           <ArrowLeft className="w-4 h-4" /> Volver al mapa público
         </Link>
         <div className="flex items-center gap-2">
-          {/* BOTÓN DE FAVORITOS (localStorage) */}
           <button
             onClick={toggleFavorito}
             className={`p-2 rounded-xl transition text-xs font-bold inline-flex items-center gap-1.5 ${
