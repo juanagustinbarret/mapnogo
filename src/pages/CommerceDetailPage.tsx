@@ -173,7 +173,7 @@ export const CommerceDetailPage: React.FC = () => {
         ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
         : Promise.resolve({ data: null }),
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
-      supabase.from('resenas').select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio').eq('comercio_id', c.id).order('created_at', { ascending: false }),
+     supabase.from('resenas').select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio').eq('comercio_id', c.id).or('estado.eq.aprobado,estado.is.null').order('created_at', { ascending: false }),
       cargarFotosComercio(c.id),
     ]).then(([{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes]) => {
       if (h) setHorarios(h);
