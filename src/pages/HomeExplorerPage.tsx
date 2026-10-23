@@ -5,11 +5,12 @@ import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveM
 import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
+import { SmartSearch } from '@/components/SmartSearch';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
 import { formatearPuntaje } from '@/lib/puntaje';
 import type { PuntajePropio } from '@/lib/puntajePropio';
-import { Search, MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
+import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -479,14 +480,14 @@ export const HomeExplorerPage: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 pt-4 pb-3 space-y-3">
-        <div className="px-4 relative w-full">
-          <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por negocio, servicio, comida o calle..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+        {/* BUSCADOR INTELIGENTE EN VIVO */}
+        <div className="px-4">
+          <SmartSearch
+            comercios={comercios}
+            rubros={rubros}
+            searchQuery={search}
+            onSearchChange={setSearch}
+            onSelectRubro={setSelectedRubro}
           />
         </div>
 
@@ -693,7 +694,6 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="overflow-y-auto space-y-3 max-h-[500px] lg:max-h-full pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {/* SKELETON LOADER PARA LA LISTA DE COMERCIOS */}
           {loadingComercios ? (
             <div className="space-y-3">
               {[1, 2, 3, 4].map((n) => (

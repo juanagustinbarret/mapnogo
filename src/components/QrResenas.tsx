@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Image as ImageIcon, Printer, Share2 } from 'lucide-react';
+import { Download, Image as ImageIcon, Printer, Share2, Sun, Moon } from 'lucide-react';
 import { DOMINIO_QR, dibujarQr, svgQr, urlQrResenas } from '@/lib/qrResenas';
 import { slugLimpio } from '@/lib/rutasQr';
 import {
@@ -21,8 +21,6 @@ interface Props {
   conStory?: boolean;
 }
 
-// El logo se precarga al mostrar el QR: el cartel se tiene que dibujar sin
-// esperas para que "compartir" siga dentro del toque (lo exige iPhone).
 let logo: HTMLImageElement | null = null;
 function precargarLogo() {
   if (logo || typeof Image === 'undefined') return;
@@ -40,21 +38,18 @@ function lienzo(ancho: number, alto: number) {
   return { c, ctx };
 }
 
-/** Achica la letra hasta que el texto entre en el ancho dado. */
 function textoQueEntra(ctx: CanvasRenderingContext2D, texto: string, x: number, y: number, ancho: number, tamano: number, minimo: number) {
   ctx.font = `bold ${tamano}px sans-serif`;
   while (ctx.measureText(texto).width > ancho && tamano > minimo) ctx.font = `bold ${(tamano -= 4)}px sans-serif`;
   ctx.fillText(texto, x, y, ancho);
 }
 
-/** QR solo, en PNG cuadrado. */
 export function qrCanvas(slug: string, lado = 1024) {
   const { c, ctx } = lienzo(lado, lado);
   dibujarQr(ctx, urlQrResenas(slug), 0, 0, lado);
   return c;
 }
 
-/** Cartel A6 (1240×1748 px, 300 ppp): nombre, "¡Dejanos tu reseña!", QR y logo de NOGOYORK. */
 export function cartelCanvas(slug: string, nombre: string) {
   const { c, ctx } = lienzo(1240, 1748);
   ctx.fillStyle = '#ffffff';
@@ -88,56 +83,111 @@ export function cartelCanvas(slug: string, nombre: string) {
   return c;
 }
 
-/** Story para Instagram (1080×1920). */
-export function storyCanvas(slug: string, nombre: string, direccion?: string | null) {
+export function storyCanvas(slug: string, nombre: string, direccion?: string | null, esOscuro: boolean = true) {
   const { c, ctx } = lienzo(1080, 1920);
-  const gradiente = ctx.createLinearGradient(0, 0, 0, 1920);
-  gradiente.addColorStop(0, '#022c22');
-  gradiente.addColorStop(0.5, '#0f172a');
-  gradiente.addColorStop(1, '#020617');
-  ctx.fillStyle = gradiente;
-  ctx.fillRect(0, 0, 1080, 1920);
 
-  ctx.fillStyle = '#059669';
-  ctx.fillRect(0, 0, 1080, 28);
-  ctx.fillRect(0, 1892, 1080, 28);
+  if (esOscuro) {
+    const gradiente = ctx.createLinearGradient(0, 0, 0, 1920);
+    gradiente.addColorStop(0, '#022c22');
+    gradiente.addColorStop(0.5, '#0f172a');
+    gradiente.addColorStop(1, '#020617');
+    ctx.fillStyle = gradiente;
+    ctx.fillRect(0, 0, 1080, 1920);
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#34d399';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('NOGOYORK', 540, 220);
+    ctx.fillStyle = '#059669';
+    ctx.fillRect(0, 0, 1080, 28);
+    ctx.fillRect(0, 1892, 1080, 28);
 
-  ctx.fillStyle = '#ffffff';
-  textoQueEntra(ctx, nombre.toUpperCase(), 540, 360, 960, 76, 40);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('NOGOYORK', 540, 220);
 
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '32px sans-serif';
-  ctx.fillText(direccion || 'Nogoyá, Entre Ríos', 540, 430, 960);
+    ctx.fillStyle = '#ffffff';
+    textoQueEntra(ctx, nombre.toUpperCase(), 540, 360, 960, 76, 40);
 
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(140, 520, 800, 950, 40);
-  else ctx.rect(140, 520, 800, 950);
-  ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '32px sans-serif';
+    ctx.fillText(direccion || 'Nogoyá, Entre Ríos', 540, 430, 960);
 
-  ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 48px sans-serif';
-  ctx.fillText('★ ★ ★ ★ ★', 540, 610);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 44px sans-serif';
-  ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '28px sans-serif';
-  ctx.fillText('Escaneá el código con tu celular', 540, 730);
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(140, 520, 800, 950, 40);
+    else ctx.rect(140, 520, 800, 950);
+    ctx.fill();
 
-  dibujarQr(ctx, urlQrResenas(slug), 290, 780, 500);
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.fillText('★ ★ ★ ★ ★', 540, 610);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 44px sans-serif';
+    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '28px sans-serif';
+    ctx.fillText('Escaneá el código con tu celular', 540, 730);
 
-  ctx.fillStyle = '#34d399';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
-  ctx.fillStyle = '#64748b';
-  ctx.font = '28px sans-serif';
-  ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
+    dibujarQr(ctx, urlQrResenas(slug), 290, 780, 500);
+
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '28px sans-serif';
+    ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
+  } else {
+    const gradiente = ctx.createLinearGradient(0, 0, 0, 1920);
+    gradiente.addColorStop(0, '#f0fdf4');
+    gradiente.addColorStop(0.5, '#ffffff');
+    gradiente.addColorStop(1, '#e2e8f0');
+    ctx.fillStyle = gradiente;
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    ctx.fillStyle = '#16a34a';
+    ctx.fillRect(0, 0, 1080, 28);
+    ctx.fillRect(0, 1892, 1080, 28);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#15803d';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('NOGOYORK', 540, 220);
+
+    ctx.fillStyle = '#0f172a';
+    textoQueEntra(ctx, nombre.toUpperCase(), 540, 360, 960, 76, 40);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '32px sans-serif';
+    ctx.fillText(direccion || 'Nogoyá, Entre Ríos', 540, 430, 960);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(140, 520, 800, 950, 40);
+    else ctx.rect(140, 520, 800, 950);
+    ctx.fill();
+
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    ctx.fillStyle = '#d97706';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.fillText('★ ★ ★ ★ ★', 540, 610);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 44px sans-serif';
+    ctx.fillText('¡DEJANOS TU RESEÑA!', 540, 680);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '28px sans-serif';
+    ctx.fillText('Escaneá el código con tu celular', 540, 730);
+
+    dibujarQr(ctx, urlQrResenas(slug), 290, 780, 500);
+
+    ctx.fillStyle = '#15803d';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Tu opinión nos ayuda a seguir creciendo', 540, 1380);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '28px sans-serif';
+    ctx.fillText(DOMINIO_QR.replace(/^https:\/\//, ''), 540, 1750);
+  }
+
   return c;
 }
 
@@ -147,22 +197,16 @@ const AVISOS: Record<ResultadoCompartir, string> = {
   descargado: 'Se descargó la imagen.',
 };
 
-/**
- * QR del comercio hacia sus reseñas en NOGOYORK. Lo ven el dueño (en su panel,
- * solo el de su comercio) y el admin. El destino es una página pública, así
- * que el QR no expone nada privado.
- */
 export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory = false }) => {
   const url = urlQrResenas(slug);
   const base = slugLimpio(slug) || 'comercio';
   const [aviso, setAviso] = useState('');
+  const [modoOscuro, setModoOscuro] = useState(true);
   const compartir = useMemo(() => ofreceCompartir(), []);
   const tactil = useMemo(() => esTactil(), []);
 
   useEffect(precargarLogo, []);
 
-  // PNG (no SVG) para que en iPhone, manteniendo apretada la imagen, salga
-  // "Guardar en Fotos" / "Compartir" como con el QR de antes.
   const vistaPrevia = useMemo(() => {
     try {
       return qrCanvas(slug, 480).toDataURL('image/png');
@@ -171,7 +215,6 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
     }
   }, [slug]);
 
-  // Todo sincrónico hasta compartirOGuardar (ver src/lib/compartirImagen.ts)
   const enviar = (armar: () => File, titulo: string) => {
     let archivo: File;
     try {
@@ -184,8 +227,6 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
     compartirOGuardar(archivo, titulo).then((r) => setAviso(AVISOS[r]));
   };
 
-  // Forma común y colores aparte: si se mezclan dos bg-* en la misma clase,
-  // gana el que viene después en el CSS y el botón verde quedaba gris.
   const forma = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition';
   const boton = `${forma} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100`;
   const Icono = compartir ? Share2 : Download;
@@ -197,6 +238,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
       )}
       <p className="text-[11px] text-gray-500 text-center break-all">{url.replace(/^https:\/\//, '')}</p>
       {tactil && <p className="text-[11px] text-gray-500 text-center -mt-2">También podés mantener apretado el QR para guardarlo.</p>}
+      
       <div className="grid grid-cols-2 gap-2 w-full">
         <button type="button" onClick={() => enviar(() => archivoDesdeCanvas(qrCanvas(slug), `QR_Resenas_${base}.png`), `QR de reseñas de ${nombre}`)} className={boton}>
           <Icono className="w-3.5 h-3.5" aria-hidden="true" /> {compartir ? 'Compartir QR' : 'PNG'}
@@ -209,6 +251,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
         >
           <Download className="w-3.5 h-3.5" aria-hidden="true" /> SVG
         </button>
+        
         <button
           type="button"
           onClick={() => enviar(() => archivoDesdeCanvas(cartelCanvas(slug, nombre), `Cartel_Resenas_${base}.png`), `Cartel de reseñas de ${nombre}`)}
@@ -216,14 +259,30 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
         >
           <Printer className="w-3.5 h-3.5" aria-hidden="true" /> Cartel para imprimir (A6)
         </button>
+
         {conStory && (
-          <button
-            type="button"
-            onClick={() => enviar(() => archivoDesdeCanvas(storyCanvas(slug, nombre, direccion), `Story_Resenas_${base}.png`), `Story de reseñas de ${nombre}`)}
-            className={`${forma} col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm`}
-          >
-            <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" /> {compartir ? 'Compartir Story para Instagram' : 'Generar Story para Instagram'}
-          </button>
+          <>
+            {/* Botón de Selección de Tema para la Story */}
+            <div className="col-span-2 flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 mt-1">
+              <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Estilo de Story:</span>
+              <button
+                type="button"
+                onClick={() => setModoOscuro(!modoOscuro)}
+                className="px-2.5 py-1 bg-white dark:bg-gray-700 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-1.5 transition"
+              >
+                {modoOscuro ? <Moon className="w-3.5 h-3.5 text-emerald-400" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+                {modoOscuro ? 'Modo Oscuro' : 'Modo Claro'}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => enviar(() => archivoDesdeCanvas(storyCanvas(slug, nombre, direccion, modoOscuro), `Story_Resenas_${base}_${modoOscuro ? 'oscuro' : 'claro'}.png`), `Story de reseñas de ${nombre}`)}
+              className={`${forma} col-span-2 ${modoOscuro ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-500 hover:bg-emerald-600'} text-white shadow-sm`}
+            >
+              <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" /> {compartir ? `Compartir Story (${modoOscuro ? 'Oscura' : 'Clara'})` : `Generar Story (${modoOscuro ? 'Oscura' : 'Clara'})`}
+            </button>
+          </>
         )}
       </div>
       <p role="status" aria-live="polite" className="text-[11px] text-gray-500 min-h-[1em] text-center">{aviso}</p>

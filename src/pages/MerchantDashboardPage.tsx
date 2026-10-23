@@ -863,6 +863,7 @@ export const MerchantDashboardPage: React.FC = () => {
               Lleva a las reseñas de tu comercio en NOGOYORK. Imprimilo o generá una story para Instagram.
             </p>
           </div>
+          
 
           <div className="flex flex-col items-center gap-3 py-1">
             <QrResenasDiferido slug={comercio.slug} nombre={comercio.nombre} direccion={comercio.direccion} conStory />
