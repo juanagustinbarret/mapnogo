@@ -4,7 +4,17 @@ import { App } from './App';
 import './index.css';
 import { migrarClavesLocales } from './lib/migrarClavesLocales';
 
-// Antes de que la app lea sus datos guardados (cambio de nombre a NOGOYORK)
+// Registrar Service Worker para PWA y Notificaciones Push
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => console.log('Service Worker de NOGOYORK registrado con éxito:', reg.scope))
+      .catch((err) => console.error('Error al registrar Service Worker:', err));
+  });
+}
+
+// Migración de claves locales previo a la lectura de datos
 migrarClavesLocales();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
