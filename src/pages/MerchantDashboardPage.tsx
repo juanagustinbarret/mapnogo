@@ -52,11 +52,11 @@ import {
   Star,
   MessageSquare,
   Cross,
-  FileText
+  FileText,
+  CornerDownRight
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
-// Lo que se guarda en el caché del panel (src/lib/datosPanel.ts)
 interface DatosInicioPanel {
   comercio: Comercio;
   suscripcion: Suscripcion | null;
@@ -70,10 +70,10 @@ interface DatosInicioPanel {
 const diasHastaVencer = (s: Suscripcion | null) =>
   s?.proximo_vencimiento ? diasEntre(hoyArgentina(), fechaCalendario(s.proximo_vencimiento)) : null;
 
-// Indicador de carga de una sección (en vez de tapar todo el panel)
 const Esqueleto: React.FC<{ className?: string }> = ({ className = 'h-3 w-24' }) => (
   <span className={`inline-block rounded bg-gray-200 dark:bg-gray-700 animate-pulse ${className}`} aria-hidden="true" />
 );
+
 const BloqueCargando: React.FC<{ texto: string }> = ({ texto }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="status" aria-label={texto}>
     {[0, 1].map((i) => (
@@ -90,8 +90,6 @@ export const MerchantDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Si ya se cargó antes (otra sección, el mapa y volver), se muestra al toque
-  // y se actualiza por detrás.
   const claveCache = `inicio:${user?.id ?? ''}`;
   const [previo] = useState(() => (user ? leerCachePanel<DatosInicioPanel>(claveCache) : undefined));
   const datosPrevios = previo?.datos;
@@ -109,18 +107,18 @@ export const MerchantDashboardPage: React.FC = () => {
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
 
+  const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+  const [guardandoRespuesta, setGuardandoRespuesta] = useState<string | null>(null);
+
   const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(() => datosPrevios?.comercio.delivery_pausado_hasta ?? null);
   const [pausandoDelivery, setPausandoDelivery] = useState(false);
   const [diasParaVencer, setDiasParaVencer] = useState<number | null>(() => diasHastaVencer(datosPrevios?.suscripcion ?? null));
 
   const [metricasReales, setMetricasReales] = useState(() => datosPrevios?.metricas ?? { visitas: 0, whatsapp: 0, comoLlegar: 0 });
   const [metricasListas, setMetricasListas] = useState(() => !!datosPrevios?.metricas);
-  // Pantalla de carga completa: solo la primera vez, hasta saber cuál es el comercio
   const [loading, setLoading] = useState(() => !datosPrevios);
-  // Después, cada sección muestra su propio indicador mientras llegan sus datos
   const [cargandoDetalle, setCargandoDetalle] = useState(() => !datosPrevios);
 
-  // ESTADO PARA LA GALERÍA DE FOTOS
   const [galeriaUrls, setGaleriaUrls] = useState<string[]>(() => datosPrevios?.comercio.galeria_urls ?? []);
   const [guardandoGaleria, setGuardandoGaleria] = useState(false);
 
@@ -137,8 +135,6 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-  // Antes dependía de `user` (objeto): Supabase entrega uno nuevo cada vez
-  // que la pestaña vuelve a estar visible y el panel recargaba todo.
   useEffect(() => {
     if (!user) return;
     if (!datosPrevios) void fetchMerchantData();
@@ -147,15 +143,12 @@ export const MerchantDashboardPage: React.FC = () => {
     }
   }, [user?.id]);
 
-  // Volver a la pestaña del navegador: se actualiza por detrás solo si pasó un rato
   useRevalidarAlVolver(
     () => cargadoEn.current,
     () => void fetchMerchantData({ silencioso: true }),
   );
-  // Cambios guardados en "Editar datos del local": refrescar por detrás
   useCambiosDeOtraSeccion('inicio', () => void fetchMerchantData({ silencioso: true }));
 
-  // Mantener el caché al día con lo que se ve (incluye cambios locales)
   useEffect(() => {
     if (!user || !comercio || cargandoDetalle) return;
     guardarCachePanel<DatosInicioPanel>(
@@ -165,14 +158,12 @@ export const MerchantDashboardPage: React.FC = () => {
     );
   }, [user, claveCache, comercio, suscripcion, promociones, horarios, resenas, proximoTurno, metricasListas, metricasReales, cargandoDetalle]);
 
-  /** Después de un cambio: actualizar por detrás (sin pantalla de carga) y avisar a la otra sección. */
   const refrescar = () => {
     avisarCambioPanel('inicio');
     return fetchMerchantData({ silencioso: true });
   };
 
   const fetchMerchantData = async ({ silencioso = false }: { silencioso?: boolean } = {}) => {
-    // Una sola carga a la vez; si piden otra mientras tanto, se hace al terminar
     if (cargaEnCurso.current) {
       cargaPendiente.current = true;
       return;
@@ -212,7 +203,7 @@ export const MerchantDashboardPage: React.FC = () => {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
         setGaleriaUrls(c.galeria_urls || []);
-        // Ya se puede mostrar el panel; el resto llega por secciones
+
         if (!silencioso) {
           setCargandoDetalle(true);
           setLoading(false);
@@ -226,25 +217,39 @@ export const MerchantDashboardPage: React.FC = () => {
           .catch((errorMetricas) => console.warn('[panel] No se pudieron leer las métricas:', errorMetricas));
 
         const pedirPromociones = async () => {
-          const consultaConClics = await supabase
-            .from('promociones')
-            .select('*, metricas_clics:interacciones_ofertas(count)')
-            .eq('comercio_id', c.id)
-            .order('created_at', { ascending: false });
-          if (!consultaConClics.error) return consultaConClics.data;
-          const simple = await supabase
+          const { data: promosSimple } = await supabase
             .from('promociones')
             .select('*')
             .eq('comercio_id', c.id)
             .order('created_at', { ascending: false });
-          return simple.data;
+
+          if (!promosSimple) return [];
+
+          const { data: clics } = await supabase
+            .from('interacciones_ofertas')
+            .select('promocion_id')
+            .eq('comercio_id', c.id);
+
+          if (clics) {
+            const conteoMap: Record<string, number> = {};
+            clics.forEach((i: any) => {
+              conteoMap[i.promocion_id] = (conteoMap[i.promocion_id] || 0) + 1;
+            });
+
+            return promosSimple.map((p) => ({
+              ...p,
+              metricas_clics: [{ count: conteoMap[p.id] || 0 }],
+            }));
+          }
+
+          return promosSimple;
         };
 
         const [{ data: s }, p, { data: h }, { data: r }, { data: ft }] = await Promise.all([
           supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle(),
           pedirPromociones(),
           supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
-          supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
+          supabase.from('resenas').select('*').eq('comercio_id', c.id).order('created_at', { ascending: false }),
           supabase
             .from('farmacias_turno')
             .select('fecha')
@@ -260,12 +265,18 @@ export const MerchantDashboardPage: React.FC = () => {
         }
         if (p) setPromociones(p);
         if (h) setHorarios(h);
-        if (r) setResenas(r);
+        if (r) {
+          setResenas(r);
+          const mapeoRespuestas: Record<string, string> = {};
+          r.forEach((resena: any) => {
+            if (resena.respuesta_comercio) mapeoRespuestas[resena.id] = resena.respuesta_comercio;
+          });
+          setRespuestas(mapeoRespuestas);
+        }
         setProximoTurno(ft?.[0]?.fecha ?? null);
         cargadoEn.current = Date.now();
       }
     } catch (error) {
-      // En una actualización por detrás se sigue mostrando lo que había
       console.error('Error al cargar datos del comercio:', error);
     } finally {
       setLoading(false);
@@ -275,6 +286,29 @@ export const MerchantDashboardPage: React.FC = () => {
         cargaPendiente.current = false;
         void fetchMerchantData({ silencioso: true });
       }
+    }
+  };
+
+  const handleGuardarRespuesta = async (resenaId: string) => {
+    const texto = respuestas[resenaId]?.trim();
+    if (!texto) return;
+
+    setGuardandoRespuesta(resenaId);
+    const { error } = await supabase
+      .from('resenas')
+      .update({
+        respuesta_comercio: texto,
+        respondida_at: new Date().toISOString(),
+      })
+      .eq('id', resenaId);
+
+    setGuardandoRespuesta(null);
+
+    if (error) {
+      alert('No se pudo guardar la respuesta: ' + error.message);
+    } else {
+      alert('¡Respuesta publicada con éxito!');
+      void refrescar();
     }
   };
 
@@ -479,7 +513,6 @@ export const MerchantDashboardPage: React.FC = () => {
       setPromoForm({ titulo: '', descripcion: '', tipo: 'promocion', precio_anterior: '', precio_promocional: '', fecha_fin: '' });
       setIsModalOpen(false);
       void refrescar();
-      // Aviso a los vecinos suscriptos (lo decide y lo envía el servidor)
       void pedirAvisoDePublicaciones();
     }
     setSavingPromo(false);
@@ -594,7 +627,6 @@ export const MerchantDashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       
-      {/* ALERTA DE VENCIMIENTO PRÓXIMO */}
       {diasParaVencer !== null && diasParaVencer <= 5 && (
         <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
           <div className="flex items-center gap-3">
@@ -626,7 +658,6 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* CABECERA */}
       <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -672,7 +703,6 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* NAVEGACIÓN */}
         <div className="flex items-center gap-2 border-t dark:border-gray-700 pt-4">
           <Link
             to="/panel"
@@ -698,7 +728,6 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* GESTIÓN DE GALERÍA DE FOTOS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm">
         <GaleriaModerada comercioId={comercio.id} galeriaVieja={galeriaUrls} onGuardarGaleriaVieja={handleGuardarGaleria} />
         {guardandoGaleria && (
@@ -706,7 +735,6 @@ export const MerchantDashboardPage: React.FC = () => {
         )}
       </div>
 
-      {/* BLOQUE GESTIÓN FARMACIA DE TURNO */}
       {esFarmaciaDeTurno && (
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-red-200 dark:border-red-900/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -733,7 +761,6 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* MÉTRICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
           <div>
@@ -766,7 +793,6 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MÉTRICAS POR PERÍODO Y EXPORTACIÓN PDF */}
       {comercio && (
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b dark:border-gray-700 pb-3">
@@ -787,10 +813,7 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* BLOQUES INFORMACIÓN */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* DATOS COMERCIALES */}
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
@@ -811,7 +834,6 @@ export const MerchantDashboardPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* SUSCRIPCIÓN */}
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b dark:border-gray-700 pb-3">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -853,7 +875,6 @@ export const MerchantDashboardPage: React.FC = () => {
           />
         </div>
 
-        {/* BLOQUE QR REVIEWS Y BOTÓN GENERAR FLYER DE INSTAGRAM */}
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between space-y-4">
           <div>
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
@@ -863,7 +884,6 @@ export const MerchantDashboardPage: React.FC = () => {
               Lleva a las reseñas de tu comercio en NOGOYORK. Imprimilo o generá una story para Instagram.
             </p>
           </div>
-          
 
           <div className="flex flex-col items-center gap-3 py-1">
             <QrResenasDiferido slug={comercio.slug} nombre={comercio.nombre} direccion={comercio.direccion} conStory />
@@ -871,10 +891,10 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MÓDULO DE RESEÑAS RECIBIDAS */}
+      {/* MÓDULO DE RESEÑAS RECIBIDAS + FORMULARIO DE RESPUESTA OFICIAL */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-4">
         <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
-          <MessageSquare className="w-5 h-5 text-brand-600" /> Opiniones y Calificaciones de Clientes
+          <MessageSquare className="w-5 h-5 text-brand-600" /> Reseñas y Respuestas Oficiales
         </h3>
 
         {cargandoDetalle ? (
@@ -882,9 +902,9 @@ export const MerchantDashboardPage: React.FC = () => {
         ) : resenas.length === 0 ? (
           <p className="text-xs text-gray-500 text-center py-6">Aún no recibiste opiniones para tu comercio.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-4">
             {resenas.map((r) => (
-              <div key={r.id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-2 border dark:border-gray-700">
+              <div key={r.id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl space-y-3 border dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-gray-900 dark:text-white">{r.nombre_usuario}</span>
                   <div className="flex items-center gap-0.5">
@@ -894,14 +914,37 @@ export const MerchantDashboardPage: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
-                <span className="text-[10px] text-gray-400 block pt-1">{new Date(r.created_at).toLocaleDateString()}</span>
+                <span className="text-[10px] text-gray-400 block">{new Date(r.created_at).toLocaleDateString()}</span>
+
+                {/* FORMULARIO DE RESPUESTA OFICIAL DEL LOCAL */}
+                <div className="pt-2 border-t dark:border-gray-800 space-y-2">
+                  <label className="text-[11px] font-bold text-brand-600 flex items-center gap-1">
+                    <CornerDownRight className="w-3.5 h-3.5" /> Responder como {comercio.nombre}:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Escribí tu respuesta o agradecimiento..."
+                      value={respuestas[r.id] || ''}
+                      onChange={(e) => setRespuestas({ ...respuestas, [r.id]: e.target.value })}
+                      className="flex-1 p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleGuardarRespuesta(r.id)}
+                      disabled={guardandoRespuesta === r.id}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0 disabled:opacity-50"
+                    >
+                      {guardandoRespuesta === r.id ? 'Guardando...' : 'Responder'}
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* HORARIOS */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-3">
           <div>
@@ -1040,7 +1083,6 @@ export const MerchantDashboardPage: React.FC = () => {
         )}
       </div>
 
-      {/* DELIVERY */}
       <div className="space-y-4">
         <EditorDelivery
           comercioId={comercio.id}
@@ -1114,7 +1156,6 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PROMOCIONES */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-4">
           <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white flex items-center gap-2">
@@ -1185,7 +1226,6 @@ export const MerchantDashboardPage: React.FC = () => {
         )}
       </div>
 
-      {/* MODAL PROMO / NOVEDAD */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">

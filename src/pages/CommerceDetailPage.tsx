@@ -21,7 +21,8 @@ import {
   MessageSquare,
   X,
   Send,
-  Heart
+  Heart,
+  CornerDownRight
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
@@ -61,6 +62,7 @@ interface Resena {
   estrellas: number;
   comentario: string;
   created_at: string;
+  respuesta_comercio?: string | null;
 }
 
 export const CommerceDetailPage: React.FC = () => {
@@ -103,7 +105,7 @@ export const CommerceDetailPage: React.FC = () => {
       const favs: string[] = JSON.parse(localStorage.getItem('nogoyork_favoritos') || '[]');
       setEsFavorito(favs.includes(comercio.id));
     } catch {
-      // Ignorar errores de parsing
+      // Ignorar
     }
   }, [comercio, cargandoSesion]);
 
@@ -161,11 +163,9 @@ export const CommerceDetailPage: React.FC = () => {
     }
 
     setNoEncontrado(false);
-    // PASO 1: Renderizar la información básica del comercio inmediatamente
     setComercio(c);
     setLoadingComercio(false);
 
-    // PASO 2: Traer los datos secundarios de forma asíncrona sin bloquear la pantalla
     const hoyStr = hoyArgentina();
     Promise.all([
       supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
@@ -173,13 +173,13 @@ export const CommerceDetailPage: React.FC = () => {
         ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
         : Promise.resolve({ data: null }),
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
-      supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
+      supabase.from('resenas').select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio').eq('comercio_id', c.id).order('created_at', { ascending: false }),
       cargarFotosComercio(c.id),
     ]).then(([{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes]) => {
       if (h) setHorarios(h);
       if (hd) setHorariosDelivery(hd);
       if (p) setPromociones(p);
-      if (r) setResenas(r);
+      if (r) setResenas(r as any);
       if (fotosRes) setFotosAprobadas(fotosRes.fotos);
     }).catch((err) => console.error('Error cargando detalles secundarios:', err));
   };
@@ -187,10 +187,10 @@ export const CommerceDetailPage: React.FC = () => {
   const fetchResenas = async (comercioId: string) => {
     const { data: r } = await supabase
       .from('resenas')
-      .select(COLUMNAS_RESENA)
+      .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio')
       .eq('comercio_id', comercioId)
       .order('created_at', { ascending: false });
-    if (r) setResenas(r);
+    if (r) setResenas(r as any);
   };
 
   const handleCrearResena = async (e: React.FormEvent) => {
@@ -294,7 +294,6 @@ export const CommerceDetailPage: React.FC = () => {
     );
   }
 
-  // SKELETON LOADER
   if (loadingComercio || !comercio) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-pulse">
@@ -305,25 +304,7 @@ export const CommerceDetailPage: React.FC = () => {
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-xl w-8"></div>
           </div>
         </div>
-
         <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-3xl w-full"></div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 space-y-6">
-          <div className="flex justify-between items-start">
-            <div className="space-y-2 w-1/2">
-              <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded-lg w-3/4"></div>
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-1/3"></div>
-            </div>
-            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded-full w-20"></div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-          </div>
-
-          <div className="h-32 bg-gray-100 dark:bg-gray-900 rounded-2xl w-full"></div>
-        </div>
       </div>
     );
   }
@@ -450,7 +431,6 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         ) : null}
 
-        {/* HORARIOS DE ATENCIÓN COMERCIAL */}
         <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl space-y-3 border dark:border-gray-700/60">
           <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
             <Clock className="w-4 h-4 text-brand-600" /> Horarios de Atención Semanal
@@ -472,7 +452,6 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* HORARIOS DE DELIVERY */}
         {comercio.tiene_delivery && (
           <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-2xl space-y-3 border border-emerald-500/20">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b dark:border-emerald-800/40 pb-2">
@@ -676,6 +655,18 @@ export const CommerceDetailPage: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-line break-words">{r.comentario}</p>
+
+                {/* VISTA PÚBLICA DE LA RESPUESTA OFICIAL */}
+                {r.respuesta_comercio && (
+                  <div className="mt-2.5 p-3 bg-emerald-500/10 border-l-2 border-emerald-500 rounded-r-xl space-y-1">
+                    <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                      <CornerDownRight className="w-3.5 h-3.5" /> Respuesta de {comercio.nombre}:
+                    </span>
+                    <p className="text-xs text-gray-800 dark:text-gray-200">
+                      {r.respuesta_comercio}
+                    </p>
+                  </div>
+                )}
               </div>
             ))
           )}

@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
 
 // Estrategia Stale-While-Revalidate corregida para evitar fallos de Response
 self.addEventListener('fetch', (event) => {
-  // Ignorar peticiones de la API de Supabase o servicios externos para que siempre traigan datos frescos
+  // Ignorar peticiones de la API de Supabase o servicios externos
   if (
     event.request.method !== 'GET' ||
     event.request.url.includes('supabase.co') ||
@@ -62,8 +62,7 @@ self.addEventListener('fetch', (event) => {
 
       const respuestaRedFinal = await peticionRed;
 
-      // Si tenemos respuesta de red válida, la usamos; si no, caemos en la caché.
-      // Si ambas fallan, devolvemos un Response.error() sintácticamente válido.
+      // Garantizar que SIEMPRE devuelva una Response válida para la API del Service Worker
       return respuestaRedFinal || respuestaCache || Response.error();
     })
   );
