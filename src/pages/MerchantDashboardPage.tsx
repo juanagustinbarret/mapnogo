@@ -245,7 +245,7 @@ export const MerchantDashboardPage: React.FC = () => {
           return promosSimple;
         };
 
-        const [{ data: s }, p, { data: h }, { data: r }, { data: ft }] = await Promise.all([
+        const [{ data: s }, p, { data: h }, { data: r, error: errResenas }, { data: ft }] = await Promise.all([
           supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle(),
           pedirPromociones(),
           supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
@@ -258,6 +258,10 @@ export const MerchantDashboardPage: React.FC = () => {
             .order('fecha', { ascending: true })
             .limit(1),
         ]);
+
+        if (errResenas) {
+          console.error("Error leyendo reseñas en el panel de administración:", errResenas);
+        }
 
         if (s) {
           setSuscripcion(s);
