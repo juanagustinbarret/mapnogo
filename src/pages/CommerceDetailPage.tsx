@@ -173,7 +173,12 @@ export const CommerceDetailPage: React.FC = () => {
         ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
         : Promise.resolve({ data: null }),
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
-     supabase.from('resenas').select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio').eq('comercio_id', c.id).or('estado.eq.aprobado,estado.is.null').order('created_at', { ascending: false }),
+      supabase
+        .from('resenas')
+        .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio')
+        .eq('comercio_id', c.id)
+        .or('estado.eq.aprobado,estado.is.null')
+        .order('created_at', { ascending: false }),
       cargarFotosComercio(c.id),
     ]).then(([{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes]) => {
       if (h) setHorarios(h);
@@ -185,12 +190,18 @@ export const CommerceDetailPage: React.FC = () => {
   };
 
   const fetchResenas = async (comercioId: string) => {
-    const { data: r } = await supabase
+    const { data: r, error } = await supabase
       .from('resenas')
       .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio')
       .eq('comercio_id', comercioId)
+      .or('estado.eq.aprobado,estado.is.null')
       .order('created_at', { ascending: false });
-    if (r) setResenas(r as any);
+
+    if (error) {
+      console.error('Error al traer reseñas:', error);
+    } else if (r) {
+      setResenas(r as any);
+    }
   };
 
   const handleCrearResena = async (e: React.FormEvent) => {
@@ -207,6 +218,7 @@ export const CommerceDetailPage: React.FC = () => {
       nombre_usuario: nombreResena.trim(),
       estrellas: estrellasResena,
       comentario: comentarioResena.trim(),
+      estado: 'aprobado'
     });
 
     setGuardandoResena(false);
