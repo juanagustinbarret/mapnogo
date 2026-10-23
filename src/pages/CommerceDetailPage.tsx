@@ -75,17 +75,14 @@ export const CommerceDetailPage: React.FC = () => {
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
   
-  // Estado de Favoritos con localStorage
   const [esFavorito, setEsFavorito] = useState(false);
 
-  // Reseñas y Reportes
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [modalReporteOpen, setModalReporteOpen] = useState(false);
   const [motivoReporte, setMotivoReporte] = useState('Horarios incorrectos');
   const [descReporte, setDescReporte] = useState('');
   const [enviandoReporte, setEnviandoReporte] = useState(false);
 
-  // Formulario de Nueva Reseña
   const [nombreResena, setNombreResena] = useState('');
   const [estrellasResena, setEstrellasResena] = useState(5);
   const [comentarioResena, setComentarioResena] = useState('');
@@ -150,6 +147,7 @@ export const CommerceDetailPage: React.FC = () => {
       if (error) ({ data } = await pedir('*'));
       return (data ?? []) as any[];
     };
+    
     let c: any = (await buscar((q) => q.eq('slug', slug), 1))[0] ?? null;
 
     if (!c && slug) {
@@ -161,13 +159,15 @@ export const CommerceDetailPage: React.FC = () => {
       setLoadingComercio(false);
       return;
     }
+
     setNoEncontrado(false);
+    // PASO 1: Renderizar la información básica del comercio inmediatamente
     setComercio(c);
+    setLoadingComercio(false);
 
+    // PASO 2: Traer los datos secundarios de forma asíncrona sin bloquear la pantalla
     const hoyStr = hoyArgentina();
-
-    // RÁPIDA CARGA EN PARALELO
-    const [{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes] = await Promise.all([
+    Promise.all([
       supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
       c.tiene_delivery
         ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
@@ -175,15 +175,13 @@ export const CommerceDetailPage: React.FC = () => {
       supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
       supabase.from('resenas').select(COLUMNAS_RESENA).eq('comercio_id', c.id).order('created_at', { ascending: false }),
       cargarFotosComercio(c.id),
-    ]);
-
-    if (h) setHorarios(h);
-    if (hd) setHorariosDelivery(hd);
-    if (p) setPromociones(p);
-    if (r) setResenas(r);
-    if (fotosRes) setFotosAprobadas(fotosRes.fotos);
-
-    setLoadingComercio(false);
+    ]).then(([{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes]) => {
+      if (h) setHorarios(h);
+      if (hd) setHorariosDelivery(hd);
+      if (p) setPromociones(p);
+      if (r) setResenas(r);
+      if (fotosRes) setFotosAprobadas(fotosRes.fotos);
+    }).catch((err) => console.error('Error cargando detalles secundarios:', err));
   };
 
   const fetchResenas = async (comercioId: string) => {
@@ -296,7 +294,7 @@ export const CommerceDetailPage: React.FC = () => {
     );
   }
 
-  // SKELETON LOADER EN LA FICHA DEL COMERCIO
+  // SKELETON LOADER
   if (loadingComercio || !comercio) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-pulse">
