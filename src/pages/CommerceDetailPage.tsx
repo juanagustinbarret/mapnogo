@@ -272,7 +272,8 @@ export const CommerceDetailPage: React.FC = () => {
     setEnviandoReporte(false);
 
     if (error) {
-      alert('Error al enviar el reporte: ' + error.message);
+      console.error(error);
+      alert('Error al enviar el reporte. Probá de nuevo en un rato.');
     } else {
       setModalReporteOpen(false);
       setDescReporte('');
