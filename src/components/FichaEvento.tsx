@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, CalendarPlus, Clock, MapPin, Navigation, Share2, X } from 'lucide-react';
 import {
@@ -10,7 +10,8 @@ import {
   textoHorarioEvento,
   type EventoPublico,
 } from '@/lib/eventos';
-import { MapaEvento } from '@/components/MapaEvento';
+
+const MapaEvento = lazy(() => import('@/components/MapaEvento').then((m) => ({ default: m.MapaEvento })));
 
 interface Props {
   evento: EventoPublico | null;
@@ -150,7 +151,11 @@ export const FichaEvento: React.FC<Props> = ({ evento, onClose }) => {
             )}
           </div>
 
-          {punto && <MapaEvento punto={punto} titulo={evento.titulo} />}
+          {punto && (
+            <Suspense fallback={<div className="h-[162px] rounded-2xl bg-gray-100 dark:bg-gray-800" aria-hidden="true" />}>
+              <MapaEvento punto={punto} titulo={evento.titulo} />
+            </Suspense>
+          )}
 
           {evento.descripcion && (
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">{evento.descripcion}</p>

@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
-import { InteractiveMap, type UbicacionUsuario } from '@/components/InteractiveMap';
+import type { UbicacionUsuario } from '@/components/InteractiveMap';
 import { ModalEmergencias } from '@/components/ModalEmergencias';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
 import { SmartSearch } from '@/components/SmartSearch';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
+
+// Leaflet pesa ~150 KB: el mapa se baja aparte para que la ficha y el resto no lo carguen
+const InteractiveMap = lazy(() => import('@/components/InteractiveMap').then((m) => ({ default: m.InteractiveMap })));
 import { formatearPuntaje } from '@/lib/puntaje';
 import type { PuntajePropio } from '@/lib/puntajePropio';
 import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
@@ -624,14 +627,16 @@ export const HomeExplorerPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
         <div className="lg:col-span-2 h-[350px] lg:h-full rounded-2xl overflow-hidden border dark:border-gray-700">
-          <InteractiveMap
-            comercios={filteredComercios}
-            userLocation={userLocation}
-            onSolicitarUbicacion={solicitarUbicacion}
-            buscandoUbicacion={loadingLoc}
-            pedidoCentrado={pedidoCentrado}
-            radioKm={filtrarPorRadio ? radioKm : null}
-          />
+          <Suspense fallback={<div className="w-full h-full bg-gray-100 dark:bg-gray-800 animate-pulse" aria-hidden="true" />}>
+            <InteractiveMap
+              comercios={filteredComercios}
+              userLocation={userLocation}
+              onSolicitarUbicacion={solicitarUbicacion}
+              buscandoUbicacion={loadingLoc}
+              pedidoCentrado={pedidoCentrado}
+              radioKm={filtrarPorRadio ? radioKm : null}
+            />
+          </Suspense>
         </div>
 
         <div className="overflow-y-auto space-y-3 max-h-[500px] lg:max-h-full pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
