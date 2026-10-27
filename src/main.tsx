@@ -4,7 +4,7 @@ import { App } from './App';
 import './index.css';
 import { migrarClavesLocales } from './lib/migrarClavesLocales';
 
-// Registrar Service Worker para PWA y Notificaciones Push
+// Registrar Service Worker para PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker

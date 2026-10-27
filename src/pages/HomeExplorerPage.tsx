@@ -10,7 +10,7 @@ import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
 import { formatearPuntaje } from '@/lib/puntaje';
 import type { PuntajePropio } from '@/lib/puntajePropio';
-import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bell, BellOff, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
+import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -25,12 +25,6 @@ import {
 import { FiltroDeliveryBotonPrincipal, FiltroDeliveryBotonConsulta } from '@/components/FiltroDelivery';
 import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
-import {
-  mensajeFalloPush,
-  solicitarPermisoNotificacionesPush, 
-  cancelarSuscripcionNotificacionesPush, 
-  verificarEstadoSuscripcionPush 
-} from '@/lib/pushNotifications';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
 import { filtrarComerciosMapa, esNuevo, DIAS_NUEVO, PUNTAJE_MINIMO, RESENAS_MINIMAS, type FiltrosMapa } from '@/lib/filtrosAvanzados';
@@ -109,12 +103,8 @@ export const HomeExplorerPage: React.FC = () => {
   const [pedidoCentrado, setPedidoCentrado] = useState(0);
   const seguimientoId = useRef<number | null>(null);
 
-  const [activandoPush, setActivandoPush] = useState(false);
-  const [pushActivado, setPushActivado] = useState(false);
-
   useEffect(() => {
     fetchData();
-    verificarEstadoSuscripcionPush().then((activo) => setPushActivado(activo));
   }, []);
 
   const detenerSeguimiento = useCallback(() => {
@@ -178,32 +168,6 @@ export const HomeExplorerPage: React.FC = () => {
       setHorarios(mapaHorarios);
     }
     setLoadingComercios(false);
-  };
-
-  const handleToggleNotificaciones = async () => {
-    setActivandoPush(true);
-
-    if (pushActivado) {
-      const exito = await cancelarSuscripcionNotificacionesPush();
-      setActivandoPush(false);
-      if (exito) {
-        setPushActivado(false);
-        setTimeout(() => alert('Te diste de baja de las notificaciones de ofertas.'), 50);
-      } else {
-        setTimeout(() => alert('No se pudo cancelar la suscripción.'), 50);
-      }
-    } else {
-      const resultado = await solicitarPermisoNotificacionesPush();
-      setActivandoPush(false);
-
-      if (resultado.ok) {
-        setPushActivado(true);
-        setTimeout(() => alert('¡Notificaciones activadas con éxito! Vas a recibir alertas de promociones.'), 50);
-      } else {
-        const mensaje = mensajeFalloPush(resultado);
-        setTimeout(() => alert(mensaje), 50);
-      }
-    }
   };
 
   const solicitarUbicacion = () => {
@@ -443,29 +407,6 @@ export const HomeExplorerPage: React.FC = () => {
             className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 active:scale-95 border border-red-400/30"
           >
             <ShieldAlert className="w-4 h-4 animate-pulse" /> Emergencias
-          </button>
-
-          <button
-            onClick={handleToggleNotificaciones}
-            disabled={activandoPush}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 disabled:opacity-60 ${
-              pushActivado
-                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                : 'bg-amber-400 hover:bg-amber-300 text-gray-900'
-            }`}
-            title={pushActivado ? 'Hacé clic para desactivar ofertas' : 'Recibir avisos de ofertas y promociones'}
-          >
-            {pushActivado ? (
-              <>
-                <BellOff className="w-4 h-4 text-white" />
-                {activandoPush ? 'Procesando...' : 'Ofertas Activas'}
-              </>
-            ) : (
-              <>
-                <Bell className="w-4 h-4 text-gray-900" />
-                {activandoPush ? 'Activando...' : 'Recibir Ofertas'}
-              </>
-            )}
           </button>
 
           <button
