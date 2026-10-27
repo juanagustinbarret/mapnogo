@@ -1,7 +1,7 @@
 // Clima: interpretación de MET Norway y la función /api/clima
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { interpretarMetNorway, puntoCardinal, responderClima, segundosDeCache, sensacionTermica, UMBRAL_VIENTO_KMH, USER_AGENT_CLIMA } from '../src/lib/clima.ts';
+import { interpretarMetNorway, puntoCardinal, responderClima, segundosDeCache, sensacionTermica, INTERVALO_CLIMA_SEGUNDOS, UMBRAL_VIENTO_KMH, USER_AGENT_CLIMA } from '../src/lib/clima.ts';
 
 const AHORA = new Date('2026-10-20T15:20:00Z');
 const paso = (time: string, instante: Record<string, unknown>, proxima: Record<string, unknown> = {}, simbolo = 'partlycloudy_day') => ({
@@ -84,11 +84,12 @@ test('respuestas inválidas no rompen nada', () => {
   assert.equal(interpretarMetNorway(resp({ time: 'x', data: {} }), AHORA), null);
 });
 
-test('caché: hasta Expires, como mínimo 5 minutos', () => {
-  assert.equal(segundosDeCache(new Date(AHORA.getTime() + 20 * 60_000).toUTCString(), AHORA), 1200);
+test('caché: hasta Expires, como mínimo 1 hora (INTERVALO_CLIMA_SEGUNDOS)', () => {
+  assert.equal(INTERVALO_CLIMA_SEGUNDOS, 3600);
+  assert.equal(segundosDeCache(new Date(AHORA.getTime() + 20 * 60_000).toUTCString(), AHORA), 3600);
   assert.equal(segundosDeCache(new Date(AHORA.getTime() + 3 * 3600_000).toUTCString(), AHORA), 10800); // no antes de Expires
-  assert.equal(segundosDeCache(new Date(AHORA.getTime() - 60_000).toUTCString(), AHORA), 300);
-  assert.equal(segundosDeCache(null, AHORA), 900);
+  assert.equal(segundosDeCache(new Date(AHORA.getTime() - 60_000).toUTCString(), AHORA), 3600);
+  assert.equal(segundosDeCache(null, AHORA), 3600);
 });
 
 test('/api/clima: se identifica ante MET Norway y devuelve el clima con caché', async () => {
@@ -103,34 +104,34 @@ test('/api/clima: se identifica ante MET Norway y devuelve el clima con caché',
   assert.equal(r.status, 200);
   assert.match(pedido!.url, /^https:\/\/api\.met\.no\/weatherapi\/locationforecast\/2\.0\/complete\?lat=-32\.3942&lon=-59\.7881$/);
   assert.equal(pedido!.headers['User-Agent'], USER_AGENT_CLIMA);
-  assert.match(r.headers.get('Cache-Control')!, /max-age=1200/);
+  assert.match(r.headers.get('Cache-Control')!, /max-age=3600/);
   assert.equal((await r.json()).temp, 21);
 });
 
-test('/api/clima: no consulta antes de Expires; después pregunta con If-Modified-Since (304 = mismos datos)', async () => {
-  // Sigue la consulta del test anterior: vence a los 20 minutos
+test('/api/clima: no consulta antes de 1 hora ni de Expires; después pregunta con If-Modified-Since (304 = mismos datos)', async () => {
+  // Sigue la consulta del test anterior: Expires a los 20 minutos, pero el intervalo es de 1 hora
   const pedidos: Record<string, string>[] = [];
   const fetch304 = (async (_url: string, init?: RequestInit) => {
     pedidos.push(init?.headers as Record<string, string>);
-    return new Response(null, { status: 304, headers: { Expires: new Date(AHORA.getTime() + 60 * 60_000).toUTCString() } });
+    return new Response(null, { status: 304, headers: { Expires: new Date(AHORA.getTime() + 150 * 60_000).toUTCString() } });
   }) as typeof fetch;
-  const antes = await responderClima(fetch304, new Date(AHORA.getTime() + 10 * 60_000));
+  const antes = await responderClima(fetch304, new Date(AHORA.getTime() + 40 * 60_000));
   assert.equal(antes.status, 200);
-  assert.equal(pedidos.length, 0);
-  assert.match(antes.headers.get('Cache-Control')!, /max-age=600/);
-  const despues = await responderClima(fetch304, new Date(AHORA.getTime() + 30 * 60_000));
+  assert.equal(pedidos.length, 0, 'venció Expires, pero no pasó la hora');
+  assert.match(antes.headers.get('Cache-Control')!, /max-age=3600/);
+  const despues = await responderClima(fetch304, new Date(AHORA.getTime() + 61 * 60_000));
   assert.equal(despues.status, 200);
   assert.equal(pedidos[0]['If-Modified-Since'], 'Tue, 20 Oct 2026 15:00:00 GMT');
   assert.equal(pedidos[0]['User-Agent'], USER_AGENT_CLIMA);
   assert.equal((await despues.json()).temp, 21);
-  assert.match(despues.headers.get('Cache-Control')!, /max-age=1800/);
+  assert.match(despues.headers.get('Cache-Control')!, /max-age=5340/); // hasta el nuevo Expires (150 − 61 min)
 });
 
 test('/api/clima: si MET Norway falla, 502 sin caché', async () => {
   const original = console.error;
   console.error = () => {};
   try {
-    const r = await responderClima((async () => new Response('', { status: 503 })) as typeof fetch, new Date(AHORA.getTime() + 2 * 3600_000));
+    const r = await responderClima((async () => new Response('', { status: 503 })) as typeof fetch, new Date(AHORA.getTime() + 3 * 3600_000));
     assert.equal(r.status, 502);
     assert.equal(r.headers.get('Cache-Control'), 'no-store');
   } finally {
