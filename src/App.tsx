@@ -6,15 +6,9 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { QrFichaRedireccion, QrResenasRedireccion } from '@/pages/QrRedireccion';
-import { AdminSolicitudesPasswordPage } from '@/pages/admin/AdminSolicitudesPasswordPage';
 import { HomeExplorerPage } from '@/pages/HomeExplorerPage';
 import { CommerceDetailPage } from '@/pages/CommerceDetailPage';
-import { MerchantLoginPage } from '@/pages/MerchantLoginPage';
-import { AdminLoginPage } from '@/pages/AdminLoginPage';
 import { diferida } from '@/components/CargaDiferida';
-import { PromotionsPage } from '@/pages/PromotionsPage';
-import { FavoritesPage } from '@/pages/FavoritesPage';
-import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ScrollToTopButton } from '@/components/ScrollToTopButton';
 
 const PanelComercio = diferida(() => import('@/pages/PanelComercio'), 'PanelComercio');
@@ -27,6 +21,12 @@ const AdminModeracionPage = diferida(() => import('@/pages/AdminModeracionPage')
 const TerminosPage = diferida(() => import('@/pages/TerminosPage'), 'TerminosPage');
 const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'PrivacidadPage');
 const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
+const PromotionsPage = diferida(() => import('@/pages/PromotionsPage'), 'PromotionsPage');
+const FavoritesPage = diferida(() => import('@/pages/FavoritesPage'), 'FavoritesPage');
+const MerchantLoginPage = diferida(() => import('@/pages/MerchantLoginPage'), 'MerchantLoginPage');
+const AdminLoginPage = diferida(() => import('@/pages/AdminLoginPage'), 'AdminLoginPage');
+const ResetPasswordPage = diferida(() => import('@/pages/ResetPasswordPage'), 'ResetPasswordPage');
+const AdminSolicitudesPasswordPage = diferida(() => import('@/pages/admin/AdminSolicitudesPasswordPage'), 'AdminSolicitudesPasswordPage');
 
 export const App: React.FC = () => {
   useEffect(() => {

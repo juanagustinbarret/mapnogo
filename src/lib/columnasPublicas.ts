@@ -49,3 +49,8 @@ export const COLUMNAS_LISTADO_COMERCIO = COLUMNAS_PUBLICAS_COMERCIO.split(', ')
   .filter((c) => c !== 'galeria_urls' && c !== 'descripcion_completa')
   .join(', ');
 
+/** Para la ficha: todo menos las fotos viejas, que se piden aparte para no demorar el contenido. */
+export const COLUMNAS_FICHA_COMERCIO = COLUMNAS_PUBLICAS_COMERCIO.split(', ')
+  .filter((c) => c !== 'galeria_urls')
+  .join(', ');
+

@@ -27,7 +27,7 @@ import {
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
 import { registrarInteraccion } from '@/lib/metrics';
-import { COLUMNAS_PUBLICAS_COMERCIO } from '@/lib/columnasPublicas';
+import { COLUMNAS_FICHA_COMERCIO } from '@/lib/columnasPublicas';
 import { normalizeWhatsAppNumber, buildWhatsAppUrl } from '@/lib/whatsapp';
 import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
 import { tieneCoordenadasPropias } from '@/lib/ubicacionComercios';
@@ -47,7 +47,7 @@ import { etiquetaPuntaje, fechaResena, textoPuntaje } from '@/lib/puntaje';
 import { Estrellas } from '@/components/Estrellas';
 import { CarruselFotosComercio } from '@/components/CarruselFotosComercio';
 import { ReportarFoto } from '@/components/ReportarFoto';
-import { cargarFotosComercio, fotosParaMostrar, type FotoComercio } from '@/lib/fotosComercio';
+import { COLUMNAS_FOTO, cargarFotosComercio, fotosParaMostrar, type FotoComercio } from '@/lib/fotosComercio';
 
 interface HorarioDelivery {
   id: string;
@@ -73,6 +73,8 @@ export const CommerceDetailPage: React.FC = () => {
   const [loadingComercio, setLoadingComercio] = useState(true);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [fotosAprobadas, setFotosAprobadas] = useState<FotoComercio[]>([]);
+  const [galeriaVieja, setGaleriaVieja] = useState<string[] | null>(null);
+  const [esperandoGaleria, setEsperandoGaleria] = useState(false);
   const [fotoAReportar, setFotoAReportar] = useState<{ url: string; fotoId?: string; indiceGaleria?: number } | null>(null);
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
@@ -146,11 +148,16 @@ export const CommerceDetailPage: React.FC = () => {
     const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
       const pedir = (columnas: string) =>
         filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
-      let { data, error } = await pedir(COLUMNAS_PUBLICAS_COMERCIO);
+      // Las fotos nuevas vienen en la misma respuesta: el carrusel aparece con el resto
+      let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
+      if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
       if (error) ({ data } = await pedir('*'));
       return (data ?? []) as any[];
     };
-    
+    // En paralelo y casi sin peso: ¿tiene fotos viejas? (para reservarles el lugar)
+    const hayGaleriaVieja = supabase.from('comercios').select('id').eq('slug', slug).neq('galeria_urls', '{}').limit(1)
+      .then(({ data }) => !!data?.length, () => false);
+
     let c: any = (await buscar((q) => q.eq('slug', slug), 1))[0] ?? null;
 
     if (!c && slug) {
@@ -163,33 +170,45 @@ export const CommerceDetailPage: React.FC = () => {
       return;
     }
 
+    const fotosEmbebidas: (FotoComercio & { orden?: number | null })[] | null = Array.isArray(c.fotos_comercio) ? c.fotos_comercio : null;
     setNoEncontrado(false);
+    setFotosAprobadas(
+      (fotosEmbebidas ?? [])
+        .filter((f) => f.estado !== 'rechazada')
+        .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.created_at.localeCompare(b.created_at)),
+    );
+    setGaleriaVieja(null);
+    const conGaleriaVieja = !('galeria_urls' in c) && (await hayGaleriaVieja);
+    setEsperandoGaleria(conGaleriaVieja);
     setComercio(c);
     setLoadingComercio(false);
 
+    // Cada parte se muestra apenas llega (antes esperaban a la más lenta)
     const hoyStr = hoyArgentina();
-    Promise.all([
-      supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
-      c.tiene_delivery
-        ? supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
-        : Promise.resolve({ data: null }),
-      supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr),
-      supabase
-        .from('resenas')
-        .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
-        .eq('comercio_id', c.id)
-        .order('created_at', { ascending: false }),
-      cargarFotosComercio(c.id),
-    ]).then(([{ data: h }, { data: hd }, { data: p }, { data: r }, fotosRes]) => {
-      if (h) setHorarios(h);
-      if (hd) setHorariosDelivery(hd);
-      if (p) setPromociones(p);
-      if (r) {
-        const aprobadas = r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado);
-        setResenas(aprobadas as any);
-      }
-      if (fotosRes) setFotosAprobadas(fotosRes.fotos);
-    }).catch((err) => console.error('Error cargando detalles secundarios:', err));
+    const avisar = (err: unknown) => console.error('Error cargando detalles secundarios:', err);
+    supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
+      .then(({ data: h }) => { if (h) setHorarios(h); }, avisar);
+    if (c.tiene_delivery) {
+      supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
+        .then(({ data: hd }) => { if (hd) setHorariosDelivery(hd); }, avisar);
+    }
+    supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr)
+      .then(({ data: p }) => { if (p) setPromociones(p); }, avisar);
+    supabase
+      .from('resenas')
+      .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
+      .eq('comercio_id', c.id)
+      .order('created_at', { ascending: false })
+      .then(({ data: r }) => {
+        if (r) setResenas(r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado) as any);
+      }, avisar);
+    if (!fotosEmbebidas) cargarFotosComercio(c.id).then((fotosRes) => setFotosAprobadas(fotosRes.fotos), avisar);
+    // Fotos viejas (base64 dentro de la fila, pueden pesar MB): al final y aparte
+    if (conGaleriaVieja) {
+      supabase.from('comercios').select('galeria_urls').eq('id', c.id).maybeSingle()
+        .then(({ data: g }) => setGaleriaVieja(((g as { galeria_urls?: string[] | null } | null)?.galeria_urls) ?? []), avisar)
+        .then(() => setEsperandoGaleria(false));
+    }
   };
 
   const fetchResenas = async (comercioId: string) => {
@@ -311,7 +330,7 @@ export const CommerceDetailPage: React.FC = () => {
 
   if (loadingComercio || !comercio) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-pulse">
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-pulse min-h-screen">
         <div className="flex justify-between items-center">
           <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded-md w-36"></div>
           <div className="flex gap-2">
@@ -324,7 +343,7 @@ export const CommerceDetailPage: React.FC = () => {
     );
   }
 
-  const fotosFicha = fotosParaMostrar(fotosAprobadas, comercio.galeria_urls);
+  const fotosFicha = fotosParaMostrar(fotosAprobadas, galeriaVieja ?? comercio.galeria_urls);
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
   const estadoHorario = evaluarEstadoHorario(horarios);
   const estadoDeliveryAhora = aplicarPausa(
@@ -373,6 +392,9 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {fotosFicha.length === 0 && esperandoGaleria && (
+        <div className="w-full h-56 sm:h-72 rounded-2xl bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
+      )}
       {fotosFicha.length > 0 && (
         <CarruselFotosComercio
           fotos={fotosFicha.map((f) => f.url)}
