@@ -9,7 +9,6 @@ Rana sobre un mapa plegado, con un pin. Diseño propio, plano.
 | `logo-16.svg` | Versión de 16 px alineada a píxeles (favicon 16 y .ico). |
 | `logo-maskable.svg` | Fondo completo con el dibujo dentro de la zona segura (Android). |
 | `logo-apple.svg` | Ícono de iOS (180 px, sin transparencia). |
-| `badge.svg` | Insignia de las notificaciones: blanco sobre transparente. |
 
 Colores: verde fondo `#15803d`, rana `#4ade80`, mapa `#fef3c7` / `#fde68a`, pin `#ef4444`.
 

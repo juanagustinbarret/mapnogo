@@ -10,7 +10,7 @@
 // MET Norway pide identificarse (User-Agent) y no repetir la consulta antes
 // de que venza, cosas que el navegador no puede hacer bien. Por eso el
 // navegador le pide el clima a /api/clima (función propia en Cloudflare
-// Pages o Vercel), que consulta a MET Norway como mucho cada 15 minutos para
+// Pages o Vercel), que consulta a MET Norway como mucho cada 1 hora para
 // todos los visitantes y devuelve ya interpretado (ClimaData).
 
 export const COORDENADAS_NOGOYA = { lat: -32.3942, lon: -59.7881 }; // MET Norway pide 4 decimales como máximo
@@ -19,6 +19,9 @@ export const URL_MET_NOGOYA =
 export const USER_AGENT_CLIMA = 'NOGOYORK/1.0 (+https://mapnogo.vercel.app; juanagustinbarret@gmail.com)';
 export const ENDPOINT_CLIMA = '/api/clima';
 export const LICENCIA_MET = 'https://api.met.no/doc/License';
+// Cada cuánto se actualiza el pronóstico: el widget, la caché de la CDN y la
+// consulta a MET Norway (que igual nunca se repite antes de su Expires).
+export const INTERVALO_CLIMA_SEGUNDOS = 3600;
 // Aviso de viento fuerte: velocidad media prevista desde este valor en las
 // próximas horas. 50 km/h es el comienzo de la fuerza 7 de Beaufort ("viento
 // fuerte", 50-61 km/h). MET Norway no trae ráfagas para Argentina.
@@ -118,17 +121,18 @@ export function interpretarMetNorway(respuesta: unknown, ahora: Date = new Date(
 
 /**
  * Segundos que se puede guardar la respuesta: hasta lo que diga Expires (MET
- * Norway pide no volver a consultar antes), como mínimo 5 minutos.
+ * Norway pide no volver a consultar antes), como mínimo INTERVALO_CLIMA_SEGUNDOS.
  */
 export function segundosDeCache(expires: string | null, ahora: Date = new Date()): number {
   const vence = expires ? Date.parse(expires) : NaN;
-  const segundos = Number.isNaN(vence) ? 900 : Math.round((vence - ahora.getTime()) / 1000);
-  return Math.max(300, segundos);
+  const segundos = Number.isNaN(vence) ? INTERVALO_CLIMA_SEGUNDOS : Math.round((vence - ahora.getTime()) / 1000);
+  return Math.max(INTERVALO_CLIMA_SEGUNDOS, segundos);
 }
 
 // Última respuesta de MET Norway (mientras la función siga viva): no se vuelve
-// a consultar antes de Expires, y después se pregunta con If-Modified-Since.
-let ultimaMet: { datos: unknown; lastModified: string | null; expires: string | null } | null = null;
+// a consultar antes de Expires ni antes de INTERVALO_CLIMA_SEGUNDOS, y después
+// se pregunta con If-Modified-Since.
+let ultimaMet: { datos: unknown; lastModified: string | null; expires: string | null; consultadaAt: number } | null = null;
 
 /**
  * Lo que hace la función /api/clima en el servidor (igual en Cloudflare y en
@@ -138,16 +142,19 @@ let ultimaMet: { datos: unknown; lastModified: string | null; expires: string | 
 export async function responderClima(pedirFetch: typeof fetch = fetch, ahora: Date = new Date()): Promise<Response> {
   const cabeceras = { 'Content-Type': 'application/json; charset=utf-8' };
   try {
-    const vigente = ultimaMet?.expires && Date.parse(ultimaMet.expires) > ahora.getTime();
+    const vigente =
+      !!ultimaMet &&
+      Math.max(Date.parse(ultimaMet.expires ?? '') || 0, ultimaMet.consultadaAt + INTERVALO_CLIMA_SEGUNDOS * 1000) > ahora.getTime();
     if (!vigente) {
       const pedido: Record<string, string> = { 'User-Agent': USER_AGENT_CLIMA, Accept: 'application/json' };
       if (ultimaMet?.lastModified) pedido['If-Modified-Since'] = ultimaMet.lastModified;
       const r = await pedirFetch(URL_MET_NOGOYA, { headers: pedido });
       if (r.status === 304 && ultimaMet) {
         ultimaMet.expires = r.headers.get('Expires');
+        ultimaMet.consultadaAt = ahora.getTime();
       } else {
         if (!r.ok) throw new Error(`MET Norway respondió ${r.status}`);
-        ultimaMet = { datos: await r.json(), lastModified: r.headers.get('Last-Modified'), expires: r.headers.get('Expires') };
+        ultimaMet = { datos: await r.json(), lastModified: r.headers.get('Last-Modified'), expires: r.headers.get('Expires'), consultadaAt: ahora.getTime() };
       }
     }
     const clima = interpretarMetNorway(ultimaMet!.datos, ahora);

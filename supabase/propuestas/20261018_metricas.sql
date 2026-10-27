@@ -130,9 +130,3 @@ CREATE POLICY "Dueño o admin leen métricas" ON public.metricas_interacciones
 -- insertar métricas salteando la función. Revisar el nombre real de la
 -- política de INSERT con la consulta de pg_policies de arriba.
 -- REVOKE INSERT ON public.metricas_interacciones FROM anon, authenticated;
-
--- 5. Privacidad de notificaciones (encontrado el 18/10): hoy cualquiera con la
--- anon key puede LEER push_subscriptions (endpoints y claves de todos).
--- Revisar las políticas y dejar solo INSERT para anon:
---   SELECT policyname, cmd, roles FROM pg_policies WHERE tablename = 'push_subscriptions';
---   DROP POLICY "<nombre de la política de SELECT pública>" ON public.push_subscriptions;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CloudSun, CloudRain, AlertTriangle, OctagonAlert, ShieldCheck, Wind, Zap } from 'lucide-react';
-import { ENDPOINT_CLIMA, HORAS_AVISO_VIENTO, LICENCIA_MET, type ClimaData } from '@/lib/clima';
+import { ENDPOINT_CLIMA, HORAS_AVISO_VIENTO, INTERVALO_CLIMA_SEGUNDOS, LICENCIA_MET, type ClimaData } from '@/lib/clima';
 import { ENDPOINT_ALERTAS, URL_ALERTAS_SMN, textoVigencia, type AlertaSmn, type NivelAlerta } from '@/lib/alertasSmn';
 
 const ESTILO_NIVEL: Record<NivelAlerta, { texto: string; clase: string; Icono: typeof AlertTriangle }> = {
@@ -32,8 +32,8 @@ export const WidgetClima: React.FC = () => {
     };
 
     fetchClimaNogoya();
-    // Se actualiza cada 30 minutos si la página queda abierta
-    const reloj = window.setInterval(fetchClimaNogoya, 30 * 60_000);
+    // Se actualiza cada 1 hora si la página queda abierta
+    const reloj = window.setInterval(fetchClimaNogoya, INTERVALO_CLIMA_SEGUNDOS * 1000);
     return () => {
       vigente = false;
       window.clearInterval(reloj);

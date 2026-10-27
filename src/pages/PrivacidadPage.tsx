@@ -32,7 +32,6 @@ const SECCIONES: SeccionLegal[] = [
           items={[
             <><b>Tu ubicación</b>, solo si tocás "Usar mi ubicación": se usa en tu dispositivo para mostrar distancias y ordenar por cercanía. No la guardamos. Para mostrar el nombre de tu calle, las coordenadas se consultan a OpenStreetMap (Nominatim).</>,
             <><b>Un identificador anónimo</b> generado en tu navegador, junto con las visitas a fichas y los toques en "WhatsApp" y "Cómo llegar". Sirve para darle estadísticas a cada comercio sin contar dos veces a la misma persona. No incluye tu nombre ni tu teléfono.</>,
-            <><b>Notificaciones de ofertas</b>, si las activás: guardamos la dirección técnica que da tu navegador para enviarlas. Se borra al desactivarlas.</>,
             <><b>Reseñas y reportes</b> que escribas: el nombre que pongas, la calificación y el texto. Las reseñas se muestran públicamente con ese nombre. Para evitar reseñas repetidas guardamos una huella cifrada de tu conexión (no tu dirección IP), que solo sirve para permitir una reseña por comercio desde la misma conexión y no se muestra.</>,
             <><b>Preferencias</b> como el modo oscuro, guardadas solo en tu navegador.</>,
           ]}
@@ -83,7 +82,6 @@ const SECCIONES: SeccionLegal[] = [
     contenido: (
       <Lista
         items={[
-          'Notificaciones de ofertas: solo si las activás, y las podés desactivar cuando quieras desde el sitio o desde tu navegador.',
           'A los comercios: avisos de vencimiento, pagos y cambios del servicio por WhatsApp o email. Son parte del servicio contratado.',
           'Nunca te mandamos publicidad de terceros. Si algún día mandamos novedades de NOGOYORK, cada mensaje va a decir cómo dejar de recibirlas.',
         ]}
@@ -97,7 +95,6 @@ const SECCIONES: SeccionLegal[] = [
       <Lista
         items={[
           'Estadísticas: mientras el comercio esté en NOGOYORK (se usan en forma agregada).',
-          'Notificaciones: hasta que las desactives.',
           'Reseñas y reportes: hasta que se borren por pedido tuyo, del comercio o por moderación.',
           'Datos de comercios y pagos: mientras la cuenta esté activa y luego el tiempo que exijan las normas contables e impositivas.',
           'Pedidos de recuperación de contraseña: hasta que se resuelven y por un tiempo razonable de control.',

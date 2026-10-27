@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, ExternalLink, Flag, ShieldAlert, X } from 'lucide-react';
 import { AdminNav } from '@/components/AdminNav';
+import { ModeracionResenasAdmin } from '@/components/ModeracionResenasAdmin';
 import { supabase } from '@/lib/supabase';
 import { COLUMNAS_FOTO, MOTIVOS_REPORTE, esTablaFaltante, resolverReporte, revisarFoto, type FotoComercio } from '@/lib/fotosComercio';
 
@@ -88,7 +89,7 @@ export const AdminModeracionPage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 space-y-4">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <ShieldAlert className="w-6 h-6 text-brand-600" aria-hidden="true" /> Moderación de fotos
+          <ShieldAlert className="w-6 h-6 text-brand-600" aria-hidden="true" /> Moderación
         </h1>
         <AdminNav />
       </div>
@@ -169,6 +170,8 @@ export const AdminModeracionPage: React.FC = () => {
           })}
         </ul>
       </section>
+
+      <ModeracionResenasAdmin />
     </div>
   );
 };

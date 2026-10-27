@@ -29,7 +29,7 @@ Cuando el SMN publica una emisión nueva, la primera carga son unos 80 XML: dos 
 Supabase → **Database → Extensions** → activar **`pg_cron`** y **`pg_net`**, si no están.
 
 ### 2. Secreto del cron
-Si ya existe por los recordatorios de WhatsApp o por las notificaciones, se reusa el mismo.
+Si ya existe por los recordatorios de WhatsApp, se reusa el mismo.
 
 - Supabase → **Edge Functions → Secrets** → que exista **`CRON_SECRET`**.
 - El mismo valor guardado en Vault. Supabase → **SQL Editor**:

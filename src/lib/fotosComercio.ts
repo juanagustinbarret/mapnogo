@@ -89,7 +89,7 @@ export function recodificarFoto(archivo: File, ladoMax = 1600, calidad = 0.82): 
 }
 
 /** El mensaje de error que mandó la función (o uno genérico). */
-async function mensajeDeError(error: unknown, generico: string): Promise<string> {
+export async function mensajeDeError(error: unknown, generico: string): Promise<string> {
   try {
     const cuerpo = await (error as { context?: Response }).context?.json();
     if (cuerpo?.error) return String(cuerpo.error);

@@ -1,6 +1,6 @@
 // Cloudflare Pages Function: GET /api/clima
 // Consulta el clima de Nogoyá a MET Norway y lo guarda en la caché de
-// Cloudflare (como mucho una consulta cada 5–30 minutos para todos los
+// Cloudflare (como mucho una consulta por hora para todos los
 // visitantes, como pide MET Norway). La lógica está en src/lib/clima.ts.
 import { responderClima } from '../../src/lib/clima';
 
