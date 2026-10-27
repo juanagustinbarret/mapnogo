@@ -62,8 +62,41 @@ export async function cargarFotosComercio(comercioId: string): Promise<{ disponi
   return { disponible: true, fotos: (data ?? []) as FotoComercio[] };
 }
 
+export const MAX_BYTES_ENTRADA = 25_000_000;
+export const MAX_BYTES_SALIDA = 3_000_000; // el mismo límite que el servidor
+const BYTES_FOTO_CHICA = 300_000;
+const MIME_FOTO = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' } as const;
+
+const ascii = (b: Uint8Array, desde: number, largo: number) => String.fromCharCode(...b.subarray(desde, desde + largo));
+
+/** Tipo real por los primeros bytes, no por la extensión ni el tipo que declara el archivo. */
+export function tipoDeFoto(b: Uint8Array): keyof typeof MIME_FOTO | 'heic' | null {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+  if (b.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v)) return 'png';
+  if (b.length >= 12 && ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 4) === 'WEBP') return 'webp';
+  if (b.length >= 12 && ascii(b, 4, 4) === 'ftyp' && /^(heic|heix|hevc|hevx|heim|heis|mif1|msf1)$/.test(ascii(b, 8, 4))) return 'heic';
+  return null;
+}
+
+/** Si trae EXIF (puede traer GPS o una rotación que el servidor perdería al limpiarlo). */
+export function tieneExif(b: Uint8Array): boolean {
+  const cabecera = ascii(b, 0, Math.min(b.length, 65_536));
+  return cabecera.includes('Exif\0\0') || cabecera.includes('eXIf') || cabecera.includes('EXIF');
+}
+
+const bytesDeDataUrl = (d: string) => Math.floor(((d.length - d.indexOf(',') - 1) * 3) / 4);
+
+function aDataUrl(b: Blob): Promise<string> {
+  return new Promise((resolver, rechazar) => {
+    const lector = new FileReader();
+    lector.onload = () => resolver(String(lector.result));
+    lector.onerror = () => rechazar(new Error('No se pudo leer la foto.'));
+    lector.readAsDataURL(b);
+  });
+}
+
 /** Achica (lado mayor ≤ 1600 px) y recodifica a WebP en el navegador. */
-export function recodificarFoto(archivo: File, ladoMax = 1600, calidad = 0.82): Promise<string> {
+export function recodificarFoto(archivo: Blob, ladoMax = 1600, calidad = 0.82): Promise<{ dataUrl: string; ancho: number; alto: number }> {
   return new Promise((resolver, rechazar) => {
     const url = URL.createObjectURL(archivo);
     const img = new Image();
@@ -77,8 +110,13 @@ export function recodificarFoto(archivo: File, ladoMax = 1600, calidad = 0.82): 
       if (!ctx) return rechazar(new Error('Este navegador no puede procesar la imagen.'));
       ctx.drawImage(img, 0, 0, c.width, c.height);
       const webp = c.toDataURL('image/webp', calidad);
-      // Safari viejo no genera WebP: usa JPEG
-      resolver(webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', calidad));
+      const medidas = { ancho: img.naturalWidth, alto: img.naturalHeight };
+      if (webp.startsWith('data:image/webp')) return resolver({ dataUrl: webp, ...medidas });
+      // Safari viejo no genera WebP: usa JPEG, con fondo blanco para que lo transparente no quede negro
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      resolver({ dataUrl: c.toDataURL('image/jpeg', calidad), ...medidas });
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -86,6 +124,29 @@ export function recodificarFoto(archivo: File, ladoMax = 1600, calidad = 0.82): 
     };
     img.src = url;
   });
+}
+
+/**
+ * Valida la foto por su contenido y la achica. Manda la original solo si ya es
+ * chica o si achicarla no la hace más liviana, y nunca si trae EXIF.
+ */
+export async function prepararFoto(archivo: File, ladoMax = 1600): Promise<string> {
+  if (archivo.size > MAX_BYTES_ENTRADA) throw new Error(`La foto pesa más de ${MAX_BYTES_ENTRADA / 1_000_000} MB. Elegí una más liviana.`);
+  const buffer = await archivo.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const tipo = tipoDeFoto(bytes);
+  if (tipo === 'heic') throw new Error('La foto está en formato HEIC (iPhone). Elegila de nuevo como JPG, o en el iPhone poné Ajustes → Cámara → Formatos → Más compatible.');
+  if (!tipo) throw new Error('Ese archivo no es una foto JPG, PNG o WebP.');
+  const original = new Blob([buffer], { type: MIME_FOTO[tipo] });
+  const sinExif = !tieneExif(bytes);
+  const { dataUrl, ancho, alto } = await recodificarFoto(original, ladoMax);
+  const entraEnLado = Math.max(ancho, alto) <= ladoMax;
+  let elegida = dataUrl;
+  if (sinExif && entraEnLado && (bytes.length <= BYTES_FOTO_CHICA || bytes.length <= bytesDeDataUrl(dataUrl))) {
+    elegida = await aDataUrl(original);
+  }
+  if (bytesDeDataUrl(elegida) > MAX_BYTES_SALIDA) throw new Error('La foto sigue pesando más de 3 MB después de achicarla. Probá con otra.');
+  return elegida;
 }
 
 /** El mensaje de error que mandó la función (o uno genérico). */
@@ -101,14 +162,15 @@ export async function mensajeDeError(error: unknown, generico: string): Promise<
 
 export type Resultado<T> = { ok: true; valor: T; mensaje?: string } | { ok: false; mensaje: string };
 
-export async function subirFoto(comercioId: string, archivo: File): Promise<Resultado<FotoComercio>> {
-  if (!archivo.type.startsWith('image/')) return { ok: false, mensaje: 'Elegí una foto (JPG, PNG o WebP).' };
+export async function subirFoto(comercioId: string, archivo: File, alAvanzar?: (etapa: 'achicando' | 'subiendo') => void): Promise<Resultado<FotoComercio>> {
   let imagen: string;
   try {
-    imagen = await recodificarFoto(archivo);
+    alAvanzar?.('achicando');
+    imagen = await prepararFoto(archivo);
   } catch (e) {
     return { ok: false, mensaje: (e as Error).message };
   }
+  alAvanzar?.('subiendo');
   const { data, error } = await supabase.functions.invoke(FUNCION_IMAGENES, { body: { accion: 'subir', comercio_id: comercioId, imagen } });
   if (error) return { ok: false, mensaje: await mensajeDeError(error, 'No se pudo subir la foto. Probá de nuevo.') };
   return { ok: true, valor: data.foto as FotoComercio, mensaje: data.mensaje };

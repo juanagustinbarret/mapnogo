@@ -24,7 +24,7 @@ const ESTILO_ESTADO = {
 export const GaleriaModerada: React.FC<Props> = ({ comercioId, galeriaVieja, onGuardarGaleriaVieja, maxFotos = 6 }) => {
   const [disponible, setDisponible] = useState<boolean | null>(null);
   const [fotos, setFotos] = useState<FotoComercio[]>([]);
-  const [subiendo, setSubiendo] = useState(false);
+  const [subiendo, setSubiendo] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error' | 'info'; texto: string } | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
 
@@ -49,9 +49,10 @@ export const GaleriaModerada: React.FC<Props> = ({ comercioId, galeriaVieja, onG
   const subir = async (archivos: FileList | null) => {
     if (!archivos?.length) return;
     setAviso(null);
-    setSubiendo(true);
-    for (const archivo of Array.from(archivos).slice(0, Math.max(0, lugar))) {
-      const r = await subirFoto(comercioId, archivo);
+    const elegidos = Array.from(archivos).slice(0, Math.max(0, lugar));
+    for (const [i, archivo] of elegidos.entries()) {
+      const cual = elegidos.length > 1 ? ` ${i + 1} de ${elegidos.length}` : '';
+      const r = await subirFoto(comercioId, archivo, (etapa) => setSubiendo(etapa === 'achicando' ? `Achicando foto${cual}…` : `Subiendo y revisando foto${cual}…`));
       if (r.ok) {
         setFotos((f) => [...f, r.valor]);
         setAviso({ tipo: r.valor.estado === 'aprobada' ? 'ok' : 'info', texto: r.mensaje ?? 'Foto subida.' });
@@ -59,7 +60,7 @@ export const GaleriaModerada: React.FC<Props> = ({ comercioId, galeriaVieja, onG
         setAviso({ tipo: 'error', texto: `${archivo.name}: ${r.mensaje}` });
       }
     }
-    setSubiendo(false);
+    setSubiendo(null);
     if (entrada.current) entrada.current.value = '';
   };
 
@@ -87,14 +88,14 @@ export const GaleriaModerada: React.FC<Props> = ({ comercioId, galeriaVieja, onG
       <button
         type="button"
         onClick={() => entrada.current?.click()}
-        disabled={subiendo || lugar <= 0 || disponible === null}
+        disabled={subiendo !== null || lugar <= 0 || disponible === null}
         className="w-full border-2 border-dashed rounded-2xl p-5 text-center transition flex flex-col items-center gap-2 border-gray-300 dark:border-gray-700 hover:border-emerald-500 bg-white dark:bg-gray-800 disabled:opacity-50"
       >
         <span className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-full">
           <Upload className="w-6 h-6" aria-hidden="true" />
         </span>
         <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-          {subiendo ? 'Subiendo y revisando…' : lugar <= 0 ? `Llegaste al máximo de ${maxFotos} fotos` : 'Subir fotos desde tu dispositivo'}
+          {subiendo ?? (lugar <= 0 ? `Llegaste al máximo de ${maxFotos} fotos` : 'Subir fotos desde tu dispositivo')}
         </span>
         <span className="text-[11px] text-gray-500">JPG, PNG o WebP. Se achican y se les quitan los datos ocultos (ubicación, cámara).</span>
       </button>
