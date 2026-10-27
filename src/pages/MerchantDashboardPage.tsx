@@ -15,6 +15,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
+import { COLUMNAS_FICHA_COMERCIO } from '@/lib/columnasPublicas';
 import { ListaSolicitudesEliminacion, SolicitarEliminacionResena, useSolicitudesEliminacion } from '@/components/EliminacionResenas';
 import {
   REVALIDAR_AL_ENTRAR_MS,
@@ -85,6 +86,9 @@ const BloqueCargando: React.FC<{ texto: string }> = ({ texto }) => (
   </div>
 );
 
+// Las últimas reseñas (las más viejas casi nunca se responden)
+const LIMITE_RESENAS_PANEL = 100;
+
 export const MerchantDashboardPage: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -110,6 +114,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [guardandoRespuesta, setGuardandoRespuesta] = useState<string | null>(null);
   const eliminacion = useSolicitudesEliminacion(comercio?.id);
+  const galeriaPedidaPara = useRef<string | null>(null);
 
   const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(() => datosPrevios?.comercio.delivery_pausado_hasta ?? null);
   const [pausandoDelivery, setPausandoDelivery] = useState(false);
@@ -159,9 +164,55 @@ export const MerchantDashboardPage: React.FC = () => {
     );
   }, [user, claveCache, comercio, suscripcion, promociones, horarios, resenas, proximoTurno, metricasListas, metricasReales, cargandoDetalle]);
 
-  const refrescar = () => {
-    avisarCambioPanel('inicio');
-    return fetchMerchantData({ silencioso: true });
+  // Cada parte del panel se puede volver a pedir sola: después de una acción
+  // no hace falta recargar todo (antes eran ~10 consultas por acción).
+  const cargarResenas = async (comercioId: string) => {
+    const { data: r, error } = await supabase
+      .from('resenas')
+      .select(`${COLUMNAS_RESENA}, respuesta_comercio`)
+      .eq('comercio_id', comercioId)
+      .order('created_at', { ascending: false })
+      .limit(LIMITE_RESENAS_PANEL);
+    if (error) console.error('Error leyendo reseñas en el panel de administración:', error);
+    if (!r) return;
+    setResenas(r);
+    const mapeoRespuestas: Record<string, string> = {};
+    r.forEach((resena: any) => {
+      if (resena.respuesta_comercio) mapeoRespuestas[resena.id] = resena.respuesta_comercio;
+    });
+    setRespuestas(mapeoRespuestas);
+  };
+
+  const cargarPromociones = async (comercioId: string) => {
+    // Los clics se cuentan en la base (antes se bajaba una fila por clic)
+    const pedir = (columnas: string) =>
+      supabase.from('promociones').select(columnas).eq('comercio_id', comercioId).order('created_at', { ascending: false });
+    let { data, error } = await pedir('*, metricas_clics:interacciones_ofertas(count)');
+    if (error) ({ data } = await pedir('*'));
+    if (data) setPromociones(data as any[]);
+  };
+
+  const cargarHorarios = async (comercioId: string) => {
+    const { data: h } = await supabase.from('horarios_atencion').select('*').eq('comercio_id', comercioId).order('dia_semana', { ascending: true });
+    if (h) setHorarios(h);
+  };
+
+  const cargarTurno = async (comercioId: string) => {
+    const { data: ft } = await supabase
+      .from('farmacias_turno')
+      .select('fecha')
+      .eq('comercio_id', comercioId)
+      .gte('fecha', hoyArgentina())
+      .order('fecha', { ascending: true })
+      .limit(1);
+    setProximoTurno(ft?.[0]?.fecha ?? null);
+  };
+
+  const refrescarParte = (parte: 'resenas' | 'promociones' | 'horarios' | 'turno') => {
+    if (!comercio) return Promise.resolve();
+    if (parte === 'horarios') avisarCambioPanel('inicio'); // el perfil también muestra los horarios
+    const cargar = { resenas: cargarResenas, promociones: cargarPromociones, horarios: cargarHorarios, turno: cargarTurno }[parte];
+    return cargar(comercio.id);
   };
 
   const fetchMerchantData = async ({ silencioso = false }: { silencioso?: boolean } = {}) => {
@@ -176,7 +227,7 @@ export const MerchantDashboardPage: React.FC = () => {
     try {
       let { data: c } = await supabase
         .from('comercios')
-        .select('*')
+        .select(COLUMNAS_FICHA_COMERCIO as '*')
         .eq('propietario_id', user?.id)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -186,7 +237,7 @@ export const MerchantDashboardPage: React.FC = () => {
         const emailBuscado = user.email.trim().toLowerCase();
         const { data: cByEmail } = await supabase
           .from('comercios')
-          .select('*')
+          .select(COLUMNAS_FICHA_COMERCIO as '*')
           .ilike('email_comercial', emailBuscado)
           .maybeSingle();
 
@@ -203,7 +254,13 @@ export const MerchantDashboardPage: React.FC = () => {
       if (c) {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
-        setGaleriaUrls(c.galeria_urls || []);
+        // Fotos viejas (base64, pueden pesar MB): aparte y una sola vez
+        if (galeriaPedidaPara.current !== c.id) {
+          galeriaPedidaPara.current = c.id;
+          const id = c.id;
+          void supabase.from('comercios').select('galeria_urls').eq('id', id).maybeSingle()
+            .then(({ data: g }) => setGaleriaUrls((g as { galeria_urls?: string[] | null } | null)?.galeria_urls ?? []));
+        }
 
         if (!silencioso) {
           setCargandoDetalle(true);
@@ -217,68 +274,17 @@ export const MerchantDashboardPage: React.FC = () => {
           })
           .catch((errorMetricas) => console.warn('[panel] No se pudieron leer las métricas:', errorMetricas));
 
-        const pedirPromociones = async () => {
-          const { data: promosSimple } = await supabase
-            .from('promociones')
-            .select('*')
-            .eq('comercio_id', c.id)
-            .order('created_at', { ascending: false });
-
-          if (!promosSimple) return [];
-
-          const { data: clics } = await supabase
-            .from('interacciones_ofertas')
-            .select('promocion_id')
-            .eq('comercio_id', c.id);
-
-          if (clics) {
-            const conteoMap: Record<string, number> = {};
-            clics.forEach((i: any) => {
-              conteoMap[i.promocion_id] = (conteoMap[i.promocion_id] || 0) + 1;
-            });
-
-            return promosSimple.map((p) => ({
-              ...p,
-              metricas_clics: [{ count: conteoMap[p.id] || 0 }],
-            }));
-          }
-
-          return promosSimple;
-        };
-
-        const [{ data: s }, p, { data: h }, { data: r, error: errResenas }, { data: ft }] = await Promise.all([
+        const [{ data: s }] = await Promise.all([
           supabase.from('suscripciones').select('*').eq('comercio_id', c.id).maybeSingle(),
-          pedirPromociones(),
-          supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true }),
-          supabase.from('resenas').select('*').eq('comercio_id', c.id).order('created_at', { ascending: false }),
-          supabase
-            .from('farmacias_turno')
-            .select('fecha')
-            .eq('comercio_id', c.id)
-            .gte('fecha', hoyArgentina())
-            .order('fecha', { ascending: true })
-            .limit(1),
+          cargarPromociones(c.id),
+          cargarHorarios(c.id),
+          cargarResenas(c.id),
+          cargarTurno(c.id),
         ]);
-
-        if (errResenas) {
-          console.error("Error leyendo reseñas en el panel de administración:", errResenas);
-        }
-
         if (s) {
           setSuscripcion(s);
           setDiasParaVencer(diasHastaVencer(s));
         }
-        if (p) setPromociones(p);
-        if (h) setHorarios(h);
-        if (r) {
-          setResenas(r);
-          const mapeoRespuestas: Record<string, string> = {};
-          r.forEach((resena: any) => {
-            if (resena.respuesta_comercio) mapeoRespuestas[resena.id] = resena.respuesta_comercio;
-          });
-          setRespuestas(mapeoRespuestas);
-        }
-        setProximoTurno(ft?.[0]?.fecha ?? null);
         cargadoEn.current = Date.now();
       }
     } catch (error) {
@@ -313,7 +319,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo guardar la respuesta: ' + error.message);
     } else {
       alert('¡Respuesta publicada con éxito!');
-      void refrescar();
+      void refrescarParte('resenas');
     }
   };
 
@@ -356,7 +362,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
       setProximoTurno(null);
       alert('✅ El comercio ya no figura como farmacia de turno.');
-      await refrescar();
+      await refrescarParte('turno');
     } catch (err: any) {
       alert('Ocurrió un error inesperado: ' + err.message);
     }
@@ -449,7 +455,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('Error al copiar horarios: ' + e.message);
     } finally {
       setSavingHorarios(false);
-      await refrescar();
+      await refrescarParte('horarios');
     }
   };
 
@@ -477,7 +483,7 @@ export const MerchantDashboardPage: React.FC = () => {
       } else {
         alert('✅ Todos los horarios semanales fueron actualizados.');
       }
-      await refrescar();
+      await refrescarParte('horarios');
     } catch (e: any) {
       alert('Error al guardar horarios: ' + e.message);
     } finally {
@@ -517,7 +523,7 @@ export const MerchantDashboardPage: React.FC = () => {
     } else {
       setPromoForm({ titulo: '', descripcion: '', tipo: 'promocion', precio_anterior: '', precio_promocional: '', fecha_fin: '' });
       setIsModalOpen(false);
-      void refrescar();
+      void refrescarParte('promociones');
     }
     setSavingPromo(false);
   };
@@ -529,7 +535,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo eliminar la publicación: ' + error.message);
       return;
     }
-    void refrescar();
+    void refrescarParte('promociones');
   };
 
   const handleExportarReporte = async () => {
@@ -556,7 +562,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo agregar el turno: ' + error.message);
       return;
     }
-    void refrescar();
+    void refrescarParte('horarios');
   };
 
   const handleUpdateHorario = async (horario: any) => {
@@ -581,7 +587,7 @@ export const MerchantDashboardPage: React.FC = () => {
     }
 
     alert('Horario actualizado correctamente.');
-    await refrescar();
+    await refrescarParte('horarios');
   };
 
   const handleDeleteHorario = async (id: string) => {
@@ -590,7 +596,7 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('No se pudo eliminar el turno: ' + error.message);
       return;
     }
-    void refrescar();
+    void refrescarParte('horarios');
   };
 
   const handleSignOut = async () => {
