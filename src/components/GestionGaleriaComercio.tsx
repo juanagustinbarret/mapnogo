@@ -114,7 +114,7 @@ export const GestionGaleriaComercio: React.FC<Props> = ({
 
     if (!urlLimpia) return;
 
-    if (!urlLimpia.startsWith('http://') && !urlLimpia.startsWith('https://') && !urlLimpia.startsWith('data:image/')) {
+    if (!urlLimpia.startsWith('http://') && !urlLimpia.startsWith('https://') && !/^data:image\/(jpeg|png|webp);base64,/.test(urlLimpia)) {
       setErrorInput('La URL debe comenzar con http:// o https://');
       return;
     }

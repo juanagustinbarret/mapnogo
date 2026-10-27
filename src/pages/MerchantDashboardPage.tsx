@@ -316,7 +316,8 @@ export const MerchantDashboardPage: React.FC = () => {
     setGuardandoRespuesta(null);
 
     if (error) {
-      alert('No se pudo guardar la respuesta: ' + error.message);
+      console.error(error);
+      alert('No se pudo guardar la respuesta. Probá de nuevo en un rato.');
     } else {
       alert('¡Respuesta publicada con éxito!');
       void refrescarParte('resenas');
@@ -335,7 +336,8 @@ export const MerchantDashboardPage: React.FC = () => {
     setGuardandoGaleria(false);
 
     if (error) {
-      alert('Error al guardar la galería: ' + error.message);
+      console.error(error);
+      alert('Error al guardar la galería. Probá de nuevo en un rato.');
     } else {
       setGaleriaUrls(nuevasFotos);
       setComercio({ ...comercio, galeria_urls: nuevasFotos });
@@ -356,7 +358,8 @@ export const MerchantDashboardPage: React.FC = () => {
         .gte('fecha', hoyArgentina());
 
       if (error) {
-        alert('Error al quitar la farmacia de turno: ' + error.message);
+        console.error(error);
+        alert('Error al quitar la farmacia de turno. Probá de nuevo en un rato.');
         return;
       }
 
@@ -364,7 +367,8 @@ export const MerchantDashboardPage: React.FC = () => {
       alert('✅ El comercio ya no figura como farmacia de turno.');
       await refrescarParte('turno');
     } catch (err: any) {
-      alert('Ocurrió un error inesperado: ' + err.message);
+      console.error(err);
+      alert('Ocurrió un error inesperado. Probá de nuevo en un rato.');
     }
   };
 
@@ -399,7 +403,8 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!error) {
       setDeliveryPausadoHasta(null);
     } else {
-      alert('No se pudo reanudar el delivery: ' + error.message);
+      console.error(error);
+      alert('No se pudo reanudar el delivery. Probá de nuevo en un rato.');
     }
     setPausandoDelivery(false);
   };
@@ -443,16 +448,21 @@ export const MerchantDashboardPage: React.FC = () => {
         const { error: errorRestaurar } = respaldo.length
           ? await supabase.from('horarios_atencion').insert(respaldo)
           : { error: null };
-        throw new Error(
-          errorRestaurar
-            ? `${errorAlta.message}. Además no se pudieron restaurar los horarios anteriores: revisalos.`
-            : `${errorAlta.message}. Se dejaron los horarios como estaban.`
+        console.error(errorAlta);
+        throw Object.assign(
+          new Error(
+            errorRestaurar
+              ? 'Además no se pudieron restaurar los horarios anteriores: revisalos.'
+              : 'Se dejaron los horarios como estaban.'
+          ),
+          { paraMostrar: true }
         );
       }
 
       alert('✅ Horarios copiados de Lunes a Viernes exitosamente.');
     } catch (e: any) {
-      alert('Error al copiar horarios: ' + e.message);
+      console.error(e);
+      alert(`Error al copiar horarios. ${e?.paraMostrar ? e.message : 'Probá de nuevo en un rato.'}`);
     } finally {
       setSavingHorarios(false);
       await refrescarParte('horarios');
@@ -485,7 +495,8 @@ export const MerchantDashboardPage: React.FC = () => {
       }
       await refrescarParte('horarios');
     } catch (e: any) {
-      alert('Error al guardar horarios: ' + e.message);
+      console.error(e);
+      alert('Error al guardar horarios. Probá de nuevo en un rato.');
     } finally {
       setSavingHorarios(false);
     }
@@ -519,7 +530,8 @@ export const MerchantDashboardPage: React.FC = () => {
     const { error } = await supabase.from('promociones').insert(newPromo);
 
     if (error) {
-      alert('Error al publicar: ' + error.message);
+      console.error(error);
+      alert('Error al publicar. Probá de nuevo en un rato.');
     } else {
       setPromoForm({ titulo: '', descripcion: '', tipo: 'promocion', precio_anterior: '', precio_promocional: '', fecha_fin: '' });
       setIsModalOpen(false);
@@ -532,7 +544,8 @@ export const MerchantDashboardPage: React.FC = () => {
     if (!confirm('¿Deseás eliminar esta publicación?')) return;
     const { error } = await supabase.from('promociones').delete().eq('id', id);
     if (error) {
-      alert('No se pudo eliminar la publicación: ' + error.message);
+      console.error(error);
+      alert('No se pudo eliminar la publicación. Probá de nuevo en un rato.');
       return;
     }
     void refrescarParte('promociones');
@@ -559,7 +572,8 @@ export const MerchantDashboardPage: React.FC = () => {
       activo: true,
     });
     if (error) {
-      alert('No se pudo agregar el turno: ' + error.message);
+      console.error(error);
+      alert('No se pudo agregar el turno. Probá de nuevo en un rato.');
       return;
     }
     void refrescarParte('horarios');
@@ -582,7 +596,8 @@ export const MerchantDashboardPage: React.FC = () => {
     setSavingHorarioId(null);
 
     if (error) {
-      alert('No se pudo guardar el horario: ' + error.message);
+      console.error(error);
+      alert('No se pudo guardar el horario. Probá de nuevo en un rato.');
       return;
     }
 
@@ -593,7 +608,8 @@ export const MerchantDashboardPage: React.FC = () => {
   const handleDeleteHorario = async (id: string) => {
     const { error } = await supabase.from('horarios_atencion').delete().eq('id', id);
     if (error) {
-      alert('No se pudo eliminar el turno: ' + error.message);
+      console.error(error);
+      alert('No se pudo eliminar el turno. Probá de nuevo en un rato.');
       return;
     }
     void refrescarParte('horarios');

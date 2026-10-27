@@ -34,7 +34,7 @@ export const AdminLoginPage: React.FC = () => {
       .eq('id', data.user.id)
       .maybeSingle();
 
-    const userRole = profile?.rol || data.user.user_metadata?.rol;
+    const userRole = profile?.rol;
 
     if (userRole !== 'admin') {
       await supabase.auth.signOut();

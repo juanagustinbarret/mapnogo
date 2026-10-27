@@ -34,15 +34,15 @@ function normalizarWhatsApp(telefono: string): string | null {
 
 serve(async (req: Request) => {
   // Sin esta protección cualquiera con la URL (y la anon key, que es pública)
-  // podía disparar los envíos las veces que quisiera. Si se define el secreto
-  // CRON_SECRET, el cron tiene que mandarlo en el encabezado x-cron-secret.
+  // podía disparar los envíos las veces que quisiera. El cron tiene que mandar
+  // el secreto CRON_SECRET en el encabezado x-cron-secret; sin secreto no corre.
   const secreto = Deno.env.get('CRON_SECRET');
-  if (secreto) {
-    if (req.headers.get('x-cron-secret') !== secreto) {
-      return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
-    }
-  } else {
-    console.warn('CRON_SECRET no está definido: la función se puede invocar sin protección.');
+  if (!secreto) {
+    console.error('CRON_SECRET no está definido: la función no corre sin protección.');
+    return new Response(JSON.stringify({ error: 'Falta el secreto CRON_SECRET' }), { status: 500 });
+  }
+  if (req.headers.get('x-cron-secret') !== secreto) {
+    return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
   }
 
   try {
@@ -111,6 +111,7 @@ serve(async (req: Request) => {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    console.error('Error en los recordatorios de WhatsApp:', err?.message ?? err);
+    return new Response(JSON.stringify({ error: 'No se pudieron procesar los recordatorios' }), { status: 500 });
   }
 });
