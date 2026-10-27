@@ -15,6 +15,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
+import { ListaSolicitudesEliminacion, SolicitarEliminacionResena, useSolicitudesEliminacion } from '@/components/EliminacionResenas';
 import {
   REVALIDAR_AL_ENTRAR_MS,
   avisarCambioPanel,
@@ -108,6 +109,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [guardandoRespuesta, setGuardandoRespuesta] = useState<string | null>(null);
+  const eliminacion = useSolicitudesEliminacion(comercio?.id);
 
   const [deliveryPausadoHasta, setDeliveryPausadoHasta] = useState<string | null>(() => datosPrevios?.comercio.delivery_pausado_hasta ?? null);
   const [pausandoDelivery, setPausandoDelivery] = useState(false);
@@ -917,6 +919,13 @@ export const MerchantDashboardPage: React.FC = () => {
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
                 <span className="text-[10px] text-gray-400 block">{new Date(r.created_at).toLocaleDateString()}</span>
+                {eliminacion.disponible && (
+                  <SolicitarEliminacionResena
+                    resenaId={r.id}
+                    pendiente={eliminacion.solicitudes.some((s) => s.resena_id === r.id && s.estado === 'pendiente')}
+                    onEnviada={() => void eliminacion.recargar()}
+                  />
+                )}
 
                 {/* FORMULARIO DE RESPUESTA OFICIAL DEL LOCAL */}
                 <div className="pt-2 border-t dark:border-gray-800 space-y-2">
@@ -945,6 +954,7 @@ export const MerchantDashboardPage: React.FC = () => {
             ))}
           </div>
         )}
+        {eliminacion.disponible && <ListaSolicitudesEliminacion solicitudes={eliminacion.solicitudes} />}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-4">
