@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const meta = import.meta as any;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseUrl = meta.env?.VITE_SUPABASE_URL || 'https://graipurciaipsoonmtqk.supabase.co';
-const supabaseAnonKey = meta.env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyYWlwdXJjaWFpcHNvb25tdHFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MjI3MzQsImV4cCI6MjEwNzM5ODczNH0.reHxsRdjboBzIP71BNwzaClzG0XxAARiECRI4t1_ZFs';
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Faltan las variables de entorno de Supabase. Verificá que VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY estén configuradas en tu archivo .env o en el panel de Vercel.'
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
