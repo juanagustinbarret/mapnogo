@@ -86,7 +86,6 @@ const BloqueCargando: React.FC<{ texto: string }> = ({ texto }) => (
   </div>
 );
 
-// Las últimas reseñas (las más viejas casi nunca se responden)
 const LIMITE_RESENAS_PANEL = 100;
 
 export const MerchantDashboardPage: React.FC = () => {
@@ -164,8 +163,6 @@ export const MerchantDashboardPage: React.FC = () => {
     );
   }, [user, claveCache, comercio, suscripcion, promociones, horarios, resenas, proximoTurno, metricasListas, metricasReales, cargandoDetalle]);
 
-  // Cada parte del panel se puede volver a pedir sola: después de una acción
-  // no hace falta recargar todo (antes eran ~10 consultas por acción).
   const cargarResenas = async (comercioId: string) => {
     const { data: r, error } = await supabase
       .from('resenas')
@@ -184,7 +181,6 @@ export const MerchantDashboardPage: React.FC = () => {
   };
 
   const cargarPromociones = async (comercioId: string) => {
-    // Los clics se cuentan en la base (antes se bajaba una fila por clic)
     const pedir = (columnas: string) =>
       supabase.from('promociones').select(columnas).eq('comercio_id', comercioId).order('created_at', { ascending: false });
     let { data, error } = await pedir('*, metricas_clics:interacciones_ofertas(count)');
@@ -210,7 +206,7 @@ export const MerchantDashboardPage: React.FC = () => {
 
   const refrescarParte = (parte: 'resenas' | 'promociones' | 'horarios' | 'turno') => {
     if (!comercio) return Promise.resolve();
-    if (parte === 'horarios') avisarCambioPanel('inicio'); // el perfil también muestra los horarios
+    if (parte === 'horarios') avisarCambioPanel('inicio');
     const cargar = { resenas: cargarResenas, promociones: cargarPromociones, horarios: cargarHorarios, turno: cargarTurno }[parte];
     return cargar(comercio.id);
   };
@@ -254,7 +250,6 @@ export const MerchantDashboardPage: React.FC = () => {
       if (c) {
         setComercio(c);
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
-        // Fotos viejas (base64, pueden pesar MB): aparte y una sola vez
         if (galeriaPedidaPara.current !== c.id) {
           galeriaPedidaPara.current = c.id;
           const id = c.id;
@@ -917,7 +912,6 @@ export const MerchantDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MÓDULO DE RESEÑAS RECIBIDAS + FORMULARIO DE RESPUESTA OFICIAL */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 shadow-sm space-y-4">
         <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
           <MessageSquare className="w-5 h-5 text-brand-600" /> Reseñas y Respuestas Oficiales
@@ -949,7 +943,6 @@ export const MerchantDashboardPage: React.FC = () => {
                   />
                 )}
 
-                {/* FORMULARIO DE RESPUESTA OFICIAL DEL LOCAL */}
                 <div className="pt-2 border-t dark:border-gray-800 space-y-2">
                   <label className="text-[11px] font-bold text-brand-600 flex items-center gap-1">
                     <CornerDownRight className="w-3.5 h-3.5" /> Responder como {comercio.nombre}:
@@ -1238,8 +1231,16 @@ export const MerchantDashboardPage: React.FC = () => {
 
                   <h4 className="font-bold text-sm text-gray-900 dark:text-white">{p.titulo}</h4>
                   <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{p.descripcion}</p>
-                  {p.precio_promocional && (
-                    <div className="text-lg font-extrabold text-green-600">{formatCurrency(p.precio_promocional)}</div>
+                  
+                  {(p.precio_promocional || p.precio_anterior) && (
+                    <div className="flex items-baseline gap-2 pt-1">
+                      {p.precio_promocional && (
+                        <span className="text-base font-extrabold text-green-600">{formatCurrency(p.precio_promocional)}</span>
+                      )}
+                      {p.precio_anterior && (
+                        <span className="text-xs text-gray-400 line-through">{formatCurrency(p.precio_anterior)}</span>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1260,6 +1261,7 @@ export const MerchantDashboardPage: React.FC = () => {
         )}
       </div>
 
+      {/* MODAL CREAR PUBLICACIÓN/OFERTA CON PRECIO ANTERIOR Y PROMOCIONAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -1302,15 +1304,29 @@ export const MerchantDashboardPage: React.FC = () => {
               </div>
 
               {promoForm.tipo === 'promocion' && (
-                <div>
-                  <label className="block text-xs font-semibold mb-1">Precio Promocional ($)</label>
-                  <input
-                    type="number"
-                    placeholder="8500"
-                    value={promoForm.precio_promocional}
-                    onChange={(e) => setPromoForm({ ...promoForm, precio_promocional: e.target.value })}
-                    className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Precio Normal ($)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej: 12000"
+                      value={promoForm.precio_anterior}
+                      onChange={(e) => setPromoForm({ ...promoForm, precio_anterior: e.target.value })}
+                      className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Precio Oferta ($)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej: 8500"
+                      value={promoForm.precio_promocional}
+                      onChange={(e) => setPromoForm({ ...promoForm, precio_promocional: e.target.value })}
+                      className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
+                    />
+                  </div>
                 </div>
               )}
 
