@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, CreditCard, KeyRound, LayoutDashboard, PlusCircle, ShieldAlert, type LucideIcon } from 'lucide-react';
+import { Calendar, Clock, CreditCard, KeyRound, LayoutDashboard, PlusCircle, ShieldAlert, Info, type LucideIcon } from 'lucide-react';
 import { AdminEventosModal } from '@/components/AdminEventosModal';
+import { AdminGuiaUtilModal } from '@/components/AdminGuiaUtilModal';
 
-// Pestañas del panel de administración. Antes estaban copiadas en cada página
-// y no coincidían: en Pagos faltaban "Eventos" y "Solicitudes".
 const PESTANAS: Array<{ ruta: string; texto: string; Icono: LucideIcon; activa: string }> = [
   { ruta: '/admin', texto: 'Dashboard', Icono: LayoutDashboard, activa: 'bg-brand-600' },
   { ruta: '/admin/pagos', texto: 'Pagos', Icono: CreditCard, activa: 'bg-blue-600' },
@@ -20,6 +19,7 @@ const INACTIVA = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 
 export const AdminNav: React.FC = () => {
   const { pathname } = useLocation();
   const [eventosAbierto, setEventosAbierto] = useState(false);
+  const [guiaUtilAbierto, setGuiaUtilAbierto] = useState(false);
 
   const pestana = ({ ruta, texto, Icono, activa }: (typeof PESTANAS)[number]) => {
     const esActual = pathname === ruta;
@@ -38,7 +38,7 @@ export const AdminNav: React.FC = () => {
 
   return (
     <>
-      <nav aria-label="Secciones del panel de administración" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 border-t dark:border-gray-700 pt-4">
+      <nav aria-label="Secciones del panel de administración" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 border-t dark:border-gray-700 pt-4">
         {PESTANAS.slice(0, 3).map(pestana)}
         <button
           type="button"
@@ -48,9 +48,18 @@ export const AdminNav: React.FC = () => {
           <Calendar className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span className="truncate">Eventos</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setGuiaUtilAbierto(true)}
+          className={`${BASE} bg-sky-600 hover:bg-sky-700 text-white shadow-sm`}
+        >
+          <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Guía Útil</span>
+        </button>
         {PESTANAS.slice(3).map(pestana)}
       </nav>
       <AdminEventosModal isOpen={eventosAbierto} onClose={() => setEventosAbierto(false)} />
+      <AdminGuiaUtilModal isOpen={guiaUtilAbierto} onClose={() => setGuiaUtilAbierto(false)} />
     </>
   );
 };

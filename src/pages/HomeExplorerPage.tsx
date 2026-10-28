@@ -2,18 +2,17 @@ import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import type { UbicacionUsuario } from '@/components/InteractiveMap';
-import { ModalEmergencias } from '@/components/ModalEmergencias';
+import { GuiaUtilModal } from '@/components/GuiaUtilModal';
 import { WidgetClima } from '@/components/WidgetClima';
 import { MarquesinaAvisos } from '@/components/MarquesinaAvisos';
 import { SmartSearch } from '@/components/SmartSearch';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
 
-// Leaflet pesa ~150 KB: el mapa se baja aparte para que la ficha y el resto no lo carguen
 const InteractiveMap = lazy(() => import('@/components/InteractiveMap').then((m) => ({ default: m.InteractiveMap })));
 import { formatearPuntaje } from '@/lib/puntaje';
 import type { PuntajePropio } from '@/lib/puntajePropio';
-import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bike, HeartPulse, MessageCircle, ArrowRight, ShieldAlert, Banknote, Building2, Tag, Star } from 'lucide-react';
+import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bike, HeartPulse, MessageCircle, ArrowRight, Banknote, Building2, Tag, Star, Moon, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -66,13 +65,14 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloConOfertas, setSoloConOfertas] = useState(false);
   const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
   const [soloNuevos, setSoloNuevos] = useState(false);
+  const [soloNocturno, setSoloNocturno] = useState(false);
   const [conOfertas, setConOfertas] = useState<Set<string> | null>(null);
   const [puntajes, setPuntajes] = useState<Record<string, PuntajePropio> | null>(null);
   const [cargandoExtra, setCargandoExtra] = useState<'ofertas' | 'puntaje' | null>(null);
   const [errorExtra, setErrorExtra] = useState('');
   
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
-  const [modalEmergenciasOpen, setModalEmergenciasOpen] = useState(false);
+  const [modalGuiaUtilOpen, setModalGuiaUtilOpen] = useState(false);
 
   const [soloAbiertos, setSoloAbiertos] = useState(false);
   const [soloDelivery, setSoloDelivery] = useState(false);
@@ -258,6 +258,7 @@ export const HomeExplorerPage: React.FC = () => {
     soloConOfertas: soloConOfertas && conOfertas !== null,
     soloMejorPuntaje: soloMejorPuntaje && puntajes !== null,
     soloNuevos,
+    soloNocturno,
   };
 
   const activarOfertas = async () => {
@@ -339,10 +340,11 @@ export const HomeExplorerPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
       
-      <ModalEmergencias
-        isOpen={modalEmergenciasOpen}
-        onClose={() => setModalEmergenciasOpen(false)}
+      <GuiaUtilModal
+        isOpen={modalGuiaUtilOpen}
+        onClose={() => setModalGuiaUtilOpen(false)}
       />
+
       <MarquesinaAvisos />
       
       {farmaciaDeTurno && (
@@ -386,6 +388,7 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       )}
 
+      {/* BANNER PRINCIPAL */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
           <div>
@@ -404,21 +407,21 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
           <button
-            onClick={() => setModalEmergenciasOpen(true)}
-            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition shrink-0 active:scale-95 border border-red-400/30"
+            onClick={() => setModalGuiaUtilOpen(true)}
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-95 border border-sky-400/30"
           >
-            <ShieldAlert className="w-4 h-4 animate-pulse" /> Emergencias
+            <Info className="w-4 h-4" /> Guía Útil
           </button>
 
           <button
             onClick={solicitarUbicacion}
             disabled={loadingLoc}
-            className="px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
           >
             <Navigation className="w-4 h-4" />{' '}
-            {loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar en Mi Ubicación' : 'Usar Mi Ubicación'}
+            {loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar Mi Ubicación' : 'Usar Mi Ubicación'}
           </button>
         </div>
       </div>
@@ -504,6 +507,17 @@ export const HomeExplorerPage: React.FC = () => {
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" /> Abierto Ahora
+              </button>
+
+              <button
+                onClick={() => setSoloNocturno(!soloNocturno)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                  soloNocturno
+                    ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-indigo-400'
+                    : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5 text-indigo-400" /> Noche (20hs+)
               </button>
 
               <FiltroDeliveryBotonPrincipal
@@ -665,6 +679,8 @@ export const HomeExplorerPage: React.FC = () => {
               <p className="text-sm font-semibold">
                 {soloAbiertos
                   ? 'No hay negocios abiertos en este momento'
+                  : soloNocturno
+                  ? 'No hay comercios con atención nocturna (20hs+) cargados'
                   : soloDelivery && momentoDelivery
                   ? `Ningún comercio tiene delivery ${textoMomentoElegido(momentoDelivery, hoyArgentina())}`
                   : soloDelivery
