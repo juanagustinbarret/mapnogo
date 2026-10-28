@@ -22,7 +22,8 @@ import {
   X,
   Send,
   Heart,
-  CornerDownRight
+  CornerDownRight,
+  Sparkles
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
@@ -148,13 +149,12 @@ export const CommerceDetailPage: React.FC = () => {
     const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
       const pedir = (columnas: string) =>
         filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
-      // Las fotos nuevas vienen en la misma respuesta: el carrusel aparece con el resto
       let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
       if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
       if (error) ({ data } = await pedir('*'));
       return (data ?? []) as any[];
     };
-    // En paralelo y casi sin peso: ¿tiene fotos viejas? (para reservarles el lugar)
+
     const hayGaleriaVieja = supabase.from('comercios').select('id').eq('slug', slug).neq('galeria_urls', '{}').limit(1)
       .then(({ data }) => !!data?.length, () => false);
 
@@ -183,7 +183,6 @@ export const CommerceDetailPage: React.FC = () => {
     setComercio(c);
     setLoadingComercio(false);
 
-    // Cada parte se muestra apenas llega (antes esperaban a la más lenta)
     const hoyStr = hoyArgentina();
     const avisar = (err: unknown) => console.error('Error cargando detalles secundarios:', err);
     supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
@@ -203,7 +202,7 @@ export const CommerceDetailPage: React.FC = () => {
         if (r) setResenas(r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado) as any);
       }, avisar);
     if (!fotosEmbebidas) cargarFotosComercio(c.id).then((fotosRes) => setFotosAprobadas(fotosRes.fotos), avisar);
-    // Fotos viejas (base64 dentro de la fila, pueden pesar MB): al final y aparte
+
     if (conGaleriaVieja) {
       supabase.from('comercios').select('galeria_urls').eq('id', c.id).maybeSingle()
         .then(({ data: g }) => setGaleriaVieja(((g as { galeria_urls?: string[] | null } | null)?.galeria_urls) ?? []), avisar)
@@ -408,8 +407,19 @@ export const CommerceDetailPage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
         <div className="flex justify-between items-start flex-wrap gap-2">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
               {comercio.nombre}
+              
+              {promociones.length > 0 && (
+                <a
+                  href="#promociones"
+                  className="text-xs bg-amber-500 text-white px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shadow-sm hover:bg-amber-600 transition"
+                  title="Ver ofertas vigentes"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> ¡{promociones.length} {promociones.length === 1 ? 'oferta activa' : 'ofertas activas'}!
+                </a>
+              )}
+
               {promedioEstrellas && (
                 <a
                   href="#resenas"
@@ -694,7 +704,6 @@ export const CommerceDetailPage: React.FC = () => {
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-line break-words">{r.comentario}</p>
 
-                {/* VISTA PÚBLICA DE LA RESPUESTA OFICIAL */}
                 {r.respuesta_comercio && (
                   <div className="mt-2.5 p-3 bg-emerald-500/10 border-l-2 border-emerald-500 rounded-r-xl space-y-1">
                     <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Tag, CalendarDays, ExternalLink, ArrowUpRight, MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Tag, CalendarDays, ExternalLink, ArrowUpRight, MessageCircle, Share2, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/lib/formatters';
 import { textoVencimiento } from '@/lib/fechasArgentina';
@@ -30,10 +30,10 @@ interface Props {
 }
 
 export const OfertaCard: React.FC<Props> = ({ promo }) => {
+  const [copiado, setCopiado] = useState(false);
   const comercio = promo.comercio;
   const whatsappLimpio = normalizeWhatsAppNumber(comercio?.whatsapp ?? '');
 
-  // Cálculo del porcentaje de descuento
   const descuentoPorcentaje =
     promo.precio_anterior && promo.precio_promocional && promo.precio_anterior > promo.precio_promocional
       ? Math.round(((promo.precio_anterior - promo.precio_promocional) / promo.precio_anterior) * 100)
@@ -47,12 +47,35 @@ export const OfertaCard: React.FC<Props> = ({ promo }) => {
     }
   };
 
+  const handleCompartir = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const linkOferta = comercio?.slug
+      ? `${window.location.origin}/comercio/${comercio.slug}#promociones`
+      : window.location.href;
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: promo.titulo,
+          text: `¡Mirá esta oferta de ${comercio?.nombre ?? 'NOGOYORK'}!: ${promo.titulo}`,
+          url: linkOferta,
+        })
+        .catch(() => {});
+    } else {
+      navigator.clipboard.writeText(linkOferta);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    }
+  };
+
   const mensajeWsp = `Hola *${comercio?.nombre}*, vi la publicación "${promo.titulo}" en NOGOYORK y quiero consultar.`;
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/80 hover:border-amber-500/80 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
       
-      {/* IMAGEN DE LA OFERTA (SI EXISTE) */}
+      {/* IMAGEN DE LA OFERTA */}
       {promo.imagen_url ? (
         <div className="relative h-48 w-full overflow-hidden bg-gray-100 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700">
           <img
@@ -67,7 +90,7 @@ export const OfertaCard: React.FC<Props> = ({ promo }) => {
       <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
         <div className="space-y-3">
           
-          {/* ENCABEZADO DE TARJETA: TIPO Y LOCAL */}
+          {/* ENCABEZADO */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
@@ -102,7 +125,7 @@ export const OfertaCard: React.FC<Props> = ({ promo }) => {
             </p>
           </div>
 
-          {/* INDICADOR DE VENCIMIENTO */}
+          {/* VENCIMIENTO */}
           {vencInfo && vencInfo.texto && (
             <div
               className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
@@ -117,7 +140,7 @@ export const OfertaCard: React.FC<Props> = ({ promo }) => {
           )}
         </div>
 
-        {/* SECCIÓN PRECIO Y DESCUENTO TACHADO */}
+        {/* PRECIO Y DESCUENTO */}
         {(promo.precio_promocional || promo.precio_anterior) && (
           <div className="pt-3 border-t border-gray-100 dark:border-gray-700/80 flex items-baseline justify-between gap-2">
             <div className="flex items-baseline gap-2">
@@ -142,26 +165,34 @@ export const OfertaCard: React.FC<Props> = ({ promo }) => {
         )}
       </div>
 
-      {/* BOTÓN DE ACCIÓN PRINCIPAL */}
-      <div className="p-5 pt-0">
+      {/* ACCIONES DE LA TARJETA */}
+      <div className="p-5 pt-0 flex items-center gap-2">
         {whatsappLimpio.isValid ? (
           <a
             href={buildWhatsAppUrl(whatsappLimpio.normalized, mensajeWsp)}
             target="_blank"
             rel="noreferrer"
             onClick={handleWhatsAppClick}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition shadow-sm"
+            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition shadow-sm"
           >
-            <MessageCircle className="w-4 h-4" /> Consultar por WhatsApp
+            <MessageCircle className="w-4 h-4" /> Consultar WhatsApp
           </a>
         ) : comercio ? (
           <Link
             to={`/comercio/${comercio.slug}`}
-            className="w-full py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
+            className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition"
           >
-            Ver Ficha del Comercio <ExternalLink className="w-3.5 h-3.5" />
+            Ver Ficha <ExternalLink className="w-3.5 h-3.5" />
           </Link>
         ) : null}
+
+        <button
+          onClick={handleCompartir}
+          className="p-2.5 bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition border border-gray-200 dark:border-gray-600/50"
+          title="Compartir oferta"
+        >
+          {copiado ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
+        </button>
       </div>
     </div>
   );

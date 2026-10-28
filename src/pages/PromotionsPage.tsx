@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Promocion, Rubro } from '@/types/database.types';
-import { hoyArgentina } from '@/lib/fechasArgentina';
-import { Tag, Search, Sparkles, Filter } from 'lucide-react';
+import { hoyArgentina, textoVencimiento } from '@/lib/fechasArgentina';
+import { Tag, Search, Sparkles, Filter, Clock } from 'lucide-react';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { OfertaCard } from '@/components/OfertaCard';
 
@@ -15,6 +15,7 @@ export const PromotionsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<'todas' | 'promocion' | 'novedad'>('todas');
+  const [soloPorVencer, setSoloPorVencer] = useState(false);
 
   useEffect(() => {
     const hoy = hoyArgentina();
@@ -53,7 +54,6 @@ export const PromotionsPage: React.FC = () => {
     void cargarTodo();
   }, []);
 
-  // Extraer solo los rubros que tienen al menos una promoción/novedad activa
   const rubrosConOfertas = useMemo(() => {
     const idsRubrosConPromo = new Set(
       promociones.map((p: any) => p.comercio?.rubro_id || p.comercio?.rubro?.id).filter(Boolean)
@@ -69,7 +69,6 @@ export const PromotionsPage: React.FC = () => {
       .filter((r) => idsRubrosConPromo.has(r.id));
   }, [rubros, promociones]);
 
-  // Filtrado dinámico
   const promocionesFiltradas = promociones.filter((p: any) => {
     const texto = search.toLowerCase().trim();
     const coincideTexto =
@@ -82,7 +81,10 @@ export const PromotionsPage: React.FC = () => {
     const coincideRubro = !selectedRubro || rubroIdComercio === selectedRubro;
     const coincideTipo = tipoFiltro === 'todas' || p.tipo === tipoFiltro;
 
-    return coincideTexto && coincideRubro && coincideTipo;
+    const vencInfo = p.fecha_fin ? textoVencimiento(p.fecha_fin) : null;
+    const coincideVencimiento = !soloPorVencer || Boolean(vencInfo?.estaPorVencer);
+
+    return coincideTexto && coincideRubro && coincideTipo && coincideVencimiento;
   });
 
   return (
@@ -116,7 +118,7 @@ export const PromotionsPage: React.FC = () => {
           />
         </div>
 
-        {/* SELECTOR DE TIPO (OCUPA TODO EL ANCHO DEL CONTENEDOR CON FLEX-1) */}
+        {/* SELECTOR DE TIPO (TODAS / SOLO OFERTAS / NOVEDADES) */}
         <div className="flex items-center w-full bg-gray-50 dark:bg-gray-900 p-1 rounded-2xl border border-gray-200 dark:border-gray-700">
           {[
             { id: 'todas', label: 'Todas' },
@@ -137,26 +139,39 @@ export const PromotionsPage: React.FC = () => {
           ))}
         </div>
 
-        {/* SELECTOR DESPLEGABLE DE RUBROS CON OFERTAS */}
-        <div className="relative w-full pt-1">
-          <div className="absolute left-3.5 top-4 pointer-events-none text-gray-400 flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5" />
+        {/* CONTROLES INFERIORES: RUBRO Y FILTRO POR VENCER */}
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative w-full sm:flex-1">
+            <div className="absolute left-3.5 top-3.5 pointer-events-none text-gray-400 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5" />
+            </div>
+            <select
+              value={selectedRubro}
+              onChange={(e) => setSelectedRubro(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-amber-500 focus:outline-none appearance-none cursor-pointer"
+            >
+              <option value="">Rubro: Todos ({promociones.length})</option>
+              {rubrosConOfertas.map((r) => (
+                <option key={r.id} value={r.id}>
+                  Rubro: {r.nombre} ({r.cantidadPromos})
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3.5 top-3.5 pointer-events-none text-gray-400 text-[10px]">
+              ▼
+            </div>
           </div>
-          <select
-            value={selectedRubro}
-            onChange={(e) => setSelectedRubro(e.target.value)}
-            className="w-full pl-9 pr-8 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-amber-500 focus:outline-none appearance-none cursor-pointer"
+
+          <button
+            onClick={() => setSoloPorVencer(!soloPorVencer)}
+            className={`w-full sm:w-auto px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 border shrink-0 ${
+              soloPorVencer
+                ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200/60'
+            }`}
           >
-            <option value="">Rubro: Todos ({promociones.length})</option>
-            {rubrosConOfertas.map((r) => (
-              <option key={r.id} value={r.id}>
-                Rubro: {r.nombre} ({r.cantidadPromos})
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-3.5 top-4 pointer-events-none text-gray-400 text-[10px]">
-            ▼
-          </div>
+            <Clock className="w-3.5 h-3.5" /> Por Vencer Pronto
+          </button>
         </div>
 
       </div>
@@ -170,7 +185,7 @@ export const PromotionsPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-12 rounded-2xl text-center text-gray-500 border border-gray-200 dark:border-gray-700 space-y-3">
           <Tag className="w-12 h-12 mx-auto opacity-30 text-amber-500" />
           <p className="text-sm font-semibold">
-            {search || selectedRubro || tipoFiltro !== 'todas'
+            {search || selectedRubro || tipoFiltro !== 'todas' || soloPorVencer
               ? 'No se encontraron publicaciones con esos filtros.'
               : 'No hay promociones activas en este momento. ¡Volvé a consultar pronto!'}
           </p>
