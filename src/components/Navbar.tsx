@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { LogoNogoyork } from '@/components/LogoNogoyork';
+import { BuscadorGlobal } from '@/components/BuscadorGlobal';
 import {
   Sun,
   Moon,
@@ -13,7 +14,8 @@ import {
   Tag,
   Heart,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -72,14 +74,29 @@ export const Navbar: React.FC = () => {
     navigate('/');
   };
 
+  const abrirBuscadorBoton = () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+  };
+
   return (
     <>
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
           
-          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight" aria-label="NOGOYORK, ir al inicio">
+          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight shrink-0" aria-label="NOGOYORK, ir al inicio">
             <LogoNogoyork className="w-8 h-8 shrink-0" />
             <span>NOGO<span className="text-red-600 dark:text-red-500">YORK</span></span>
+          </button>
+
+          {/* BOTÓN DE BÚSQUEDA GLOBAL RÁPIDA (Ctrl+K) */}
+          <button
+            onClick={abrirBuscadorBoton}
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-700 transition"
+            title="Buscar en todo NOGOYORK (Ctrl + K)"
+          >
+            <Search className="w-3.5 h-3.5 text-gray-400" />
+            <span>Buscar en NOGOYORK...</span>
+            <kbd className="hidden md:inline-block px-1.5 py-0.5 text-[10px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-gray-400 font-mono">Ctrl K</kbd>
           </button>
 
           {/* NAVEGACIÓN ESCRITORIO */}
@@ -153,6 +170,9 @@ export const Navbar: React.FC = () => {
 
           {/* MENÚ MÓVIL */}
           <div className="flex items-center gap-2 md:hidden">
+            <button onClick={abrirBuscadorBoton} className="p-2 text-gray-500" aria-label="Abrir buscador">
+              <Search className="w-5 h-5" />
+            </button>
             <button onClick={toggleTheme} className="p-2 text-gray-500" aria-label="Cambiar tema">
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-400" />}
             </button>
@@ -232,6 +252,9 @@ export const Navbar: React.FC = () => {
           </div>
         )}
       </header>
+
+      {/* COMPONENTE BUSCADOR GLOBAL MODAL (CMD/CTRL+K) */}
+      <BuscadorGlobal />
 
       {/* MODAL SALIR DEL ADMIN */}
       {confirmExitTarget && (
