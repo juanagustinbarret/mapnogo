@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Promocion, Rubro } from '@/types/database.types';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { Tag, Search, Sparkles, Filter } from 'lucide-react';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { OfertaCard } from '@/components/OfertaCard';
-import { InsigniaRubro } from '@/components/InsigniaRubro';
 
 export const PromotionsPage: React.FC = () => {
   const [promociones, setPromociones] = useState<Promocion[]>([]);
@@ -33,7 +32,13 @@ export const PromotionsPage: React.FC = () => {
 
     const cargarTodo = async () => {
       setLoading(true);
-      const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
+
+      const { data: rubrosData } = await supabase
+        .from('rubros')
+        .select('*')
+        .eq('estado', true)
+        .order('orden');
+
       if (rubrosData) setRubros(rubrosData);
 
       let { data, error } = await pedirPromos(COLUMNAS_LISTADO_COMERCIO);
@@ -41,11 +46,28 @@ export const PromotionsPage: React.FC = () => {
 
       if (error) console.error('[promociones] No se pudieron cargar', error);
       if (data) setPromociones(data as any[]);
+
       setLoading(false);
     };
 
     void cargarTodo();
   }, []);
+
+  // Extraer solo los rubros que tienen al menos una promoción/novedad activa
+  const rubrosConOfertas = useMemo(() => {
+    const idsRubrosConPromo = new Set(
+      promociones.map((p: any) => p.comercio?.rubro_id || p.comercio?.rubro?.id).filter(Boolean)
+    );
+
+    return rubros
+      .map((r) => ({
+        ...r,
+        cantidadPromos: promociones.filter(
+          (p: any) => (p.comercio?.rubro_id || p.comercio?.rubro?.id) === r.id
+        ).length,
+      }))
+      .filter((r) => idsRubrosConPromo.has(r.id));
+  }, [rubros, promociones]);
 
   // Filtrado dinámico
   const promocionesFiltradas = promociones.filter((p: any) => {
@@ -56,7 +78,8 @@ export const PromotionsPage: React.FC = () => {
       p.descripcion?.toLowerCase().includes(texto) ||
       p.comercio?.nombre?.toLowerCase().includes(texto);
 
-    const coincideRubro = !selectedRubro || p.comercio?.rubro_id === selectedRubro;
+    const rubroIdComercio = p.comercio?.rubro_id || p.comercio?.rubro?.id;
+    const coincideRubro = !selectedRubro || rubroIdComercio === selectedRubro;
     const coincideTipo = tipoFiltro === 'todas' || p.tipo === tipoFiltro;
 
     return coincideTexto && coincideRubro && coincideTipo;
@@ -79,75 +102,63 @@ export const PromotionsPage: React.FC = () => {
       </div>
 
       {/* BARRA DE FILTROS Y BÚSQUEDA */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          
-          {/* INPUT BUSCADOR */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por oferta, producto o comercio (ej. Pizza, 2x1)..."
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-            />
-          </div>
-
-          {/* CHIPS DE TIPO */}
-          <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 shrink-0">
-            {[
-              { id: 'todas', label: 'Todas' },
-              { id: 'promocion', label: 'Solo Ofertas' },
-              { id: 'novedad', label: 'Novedades' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTipoFiltro(t.id as any)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  tipoFiltro === t.id
-                    ? 'bg-amber-500 text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+      <div className="bg-white dark:bg-gray-800/90 rounded-3xl p-4 shadow-sm border border-gray-200 dark:border-gray-700/80 space-y-3">
+        
+        {/* BUSCADOR */}
+        <div className="relative w-full">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por oferta, producto o comercio (ej. Pizza, 2x1)..."
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none text-gray-900 dark:text-white"
+          />
         </div>
 
-        {/* BARRAS DE RUBROS */}
-        <div className="flex items-center gap-2 overflow-x-auto pt-2 pb-1 border-t border-gray-100 dark:border-gray-700/60 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5" /> Rubro:
-          </span>
-
-          <button
-            onClick={() => setSelectedRubro('')}
-            className={`px-3 py-1 text-xs font-bold rounded-xl transition shrink-0 ${
-              selectedRubro === ''
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-            }`}
-          >
-            Todos
-          </button>
-
-          {rubros.map((r) => (
+        {/* SELECTOR DE TIPO (OCUPA TODO EL ANCHO DEL CONTENEDOR CON FLEX-1) */}
+        <div className="flex items-center w-full bg-gray-50 dark:bg-gray-900 p-1 rounded-2xl border border-gray-200 dark:border-gray-700">
+          {[
+            { id: 'todas', label: 'Todas' },
+            { id: 'promocion', label: 'Solo Ofertas' },
+            { id: 'novedad', label: 'Novedades' },
+          ].map((t) => (
             <button
-              key={r.id}
-              onClick={() => setSelectedRubro(r.id)}
-              className={`px-3 py-1 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 ${
-                selectedRubro === r.id
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+              key={t.id}
+              onClick={() => setTipoFiltro(t.id as any)}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition text-center whitespace-nowrap ${
+                tipoFiltro === t.id
+                  ? 'bg-amber-500 text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-800'
               }`}
             >
-              <InsigniaRubro rubro={r} />
-              {r.nombre}
+              {t.label}
             </button>
           ))}
         </div>
+
+        {/* SELECTOR DESPLEGABLE DE RUBROS CON OFERTAS */}
+        <div className="relative w-full pt-1">
+          <div className="absolute left-3.5 top-4 pointer-events-none text-gray-400 flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5" />
+          </div>
+          <select
+            value={selectedRubro}
+            onChange={(e) => setSelectedRubro(e.target.value)}
+            className="w-full pl-9 pr-8 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-amber-500 focus:outline-none appearance-none cursor-pointer"
+          >
+            <option value="">Rubro: Todos ({promociones.length})</option>
+            {rubrosConOfertas.map((r) => (
+              <option key={r.id} value={r.id}>
+                Rubro: {r.nombre} ({r.cantidadPromos})
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-3.5 top-4 pointer-events-none text-gray-400 text-[10px]">
+            ▼
+          </div>
+        </div>
+
       </div>
 
       {/* GRILLA DE OFERTAS */}
