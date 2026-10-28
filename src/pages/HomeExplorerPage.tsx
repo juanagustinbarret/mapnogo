@@ -408,6 +408,15 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
+          <a
+            href="https://wa.me/5493435451818?text=Hola!%20Quiero%20sumar%20mi%20comercio%20a%20NOGOYORK"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-md transition active:scale-95 border border-amber-400/40"
+          >
+            <MessageCircle className="w-4 h-4" /> Sumar mi Comercio
+          </a>
+
           <button
             onClick={() => setModalGuiaUtilOpen(true)}
             className="flex-1 sm:flex-none px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-95 border border-sky-400/30"
