@@ -8,7 +8,7 @@
 //      "rechazada" (claramente explícita) no se guarda.
 //   4. "Reportar" desde la ficha y cola de revisión en el admin.
 //   5. Límites: subidas por usuario por hora, fotos por comercio y reportes
-//      por conexión por hora.
+//      por conexión y por comercio por hora.
 //
 // Acciones (POST JSON {accion, ...}):
 //   subir      { comercio_id, imagen }  dueño del comercio o admin
@@ -20,10 +20,12 @@
 // Secretos: SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (los pone Supabase).
 // Opcionales: MODERACION_PROVEEDOR (openai | google), OPENAI_API_KEY,
 // GOOGLE_VISION_API_KEY, LIMITE_SUBIDAS_POR_HORA (20), MAX_FOTOS_POR_COMERCIO
-// (6), LIMITE_REPORTES_POR_HORA (5), IMAGEN_MAX_BYTES (3000000), REPORTES_SAL.
+// (6), LIMITE_REPORTES_POR_HORA (5), LIMITE_REPORTES_POR_COMERCIO_HORA (10),
+// IMAGEN_MAX_BYTES (3000000), REPORTES_SAL.
 
 import { EXTENSION, MIME, REGLAS_POR_DEFECTO, validarImagen } from '../_shared/imagenes.ts';
 import { moderarImagen } from '../_shared/moderacion.ts';
+import { conCors, origenesPermitidos } from '../_shared/cors.ts';
 
 export interface Entorno {
   leer: (nombre: string) => string | undefined;
@@ -36,8 +38,8 @@ export interface Entorno {
 export const BUCKET = 'fotos-comercios';
 export const MOTIVOS_REPORTE = ['sexual', 'violencia', 'enganosa', 'otro'] as const;
 
+// Access-Control-Allow-Origin lo agrega conCors según el origen del pedido.
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -105,16 +107,24 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
     }
     if (fotoId && !/^[0-9a-f-]{36}$/i.test(fotoId)) return responder({ error: 'Foto inválida.' }, 400);
     if (!(MOTIVOS_REPORTE as readonly string[]).includes(motivo)) return responder({ error: 'Elegí un motivo.' }, 400);
+    if (fotoId && !((await rest(`fotos_comercio?select=id&id=eq.${fotoId}&comercio_id=eq.${comercioId}`)) ?? []).length) {
+      return responder({ error: 'Esa foto no existe.' }, 404);
+    }
     const ip = (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || '').trim();
-    const huella = ip ? await sha256Hex(`${ip}|${entorno.leer('REPORTES_SAL') ?? servicio}`) : null;
-    if (huella) {
-      const recientes = ((await rest(`reportes_contenido?select=id,foto_id,indice_galeria,comercio_id&ip_hash=eq.${huella}&created_at=gte.${haceUnaHora}`)) ?? []) as { foto_id: string | null; indice_galeria: number | null; comercio_id: string }[];
-      if (recientes.some((r) => r.comercio_id === comercioId && (fotoId ? r.foto_id === fotoId : r.indice_galeria === indice))) {
-        return responder({ ok: true, mensaje: 'Ya habías reportado esta foto. Gracias.' });
-      }
-      if (recientes.length >= entero(entorno.leer('LIMITE_REPORTES_POR_HORA'), 5)) {
-        return responder({ error: 'Hiciste muchos reportes seguidos. Probá más tarde.' }, 429);
-      }
+    // Sin IP no se saltea el tope: todos los pedidos sin IP comparten una huella.
+    const huella = await sha256Hex(`${ip || 'sin-ip'}|${entorno.leer('REPORTES_SAL') ?? servicio}`);
+    const recientes = ((await rest(`reportes_contenido?select=id,foto_id,indice_galeria,comercio_id&ip_hash=eq.${huella}&created_at=gte.${haceUnaHora}`)) ?? []) as { foto_id: string | null; indice_galeria: number | null; comercio_id: string }[];
+    if (recientes.some((r) => r.comercio_id === comercioId && (fotoId ? r.foto_id === fotoId : r.indice_galeria === indice))) {
+      return responder({ ok: true, mensaje: 'Ya habías reportado esta foto. Gracias.' });
+    }
+    if (recientes.length >= entero(entorno.leer('LIMITE_REPORTES_POR_HORA'), 5)) {
+      return responder({ error: 'Hiciste muchos reportes seguidos. Probá más tarde.' }, 429);
+    }
+    // Tope por comercio que no depende de la IP: cambiar de IP no sirve para llenarlo de reportes.
+    const delComercio = ((await rest(`reportes_contenido?select=id&comercio_id=eq.${comercioId}&created_at=gte.${haceUnaHora}`)) ?? []) as unknown[];
+    if (delComercio.length >= entero(entorno.leer('LIMITE_REPORTES_POR_COMERCIO_HORA'), 10)) {
+      entorno.log({ evento: 'reporte_descartado_tope_comercio', comercio: comercioId });
+      return responder({ ok: true, mensaje: 'Ya recibimos varios reportes de este comercio. Un administrador lo está revisando.' });
     }
     await rest('reportes_contenido', {
       method: 'POST',
@@ -257,6 +267,6 @@ if (deno) {
     }).catch((e) => {
       console.error(JSON.stringify({ evento: 'error', error: String(e?.message ?? e) }));
       return responder({ error: 'No se pudo procesar la imagen. Probá de nuevo.' }, 500);
-    }),
+    }).then((res) => conCors(req, res, origenesPermitidos(deno.env.get('ORIGENES_PERMITIDOS')))),
   );
 }

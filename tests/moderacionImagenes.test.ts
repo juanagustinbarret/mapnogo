@@ -227,6 +227,27 @@ test('reportar: cualquiera puede, sin repetir la misma foto y con tope por hora 
   assert.equal((await rep({}, '200.5.5.7')).status, 400);
 });
 
+test('reportar: sin IP también hay tope, y cambiar de IP no llena de reportes a un comercio', async () => {
+  const m = mundo();
+  const rep = (extra: object, ip?: string) => manejar(pedido({ accion: 'reportar', comercio_id: C1, motivo: 'sexual', ...extra }, undefined, ip), entorno(m));
+  for (let i = 0; i < 5; i++) assert.equal((await rep({ indice_galeria: i }, '')).status, 200);
+  assert.equal((await rep({ indice_galeria: 5 }, '')).status, 429, 'los pedidos sin IP comparten el tope');
+  for (let i = 5; i < 12; i++) assert.equal((await rep({ indice_galeria: i }, `200.9.9.${i}`)).status, 200);
+  assert.equal(m.reportes_contenido.length, 10, 'tope de 10 por comercio por hora, venga de la IP que venga');
+  assert.match((await (await rep({ indice_galeria: 20 }, '200.9.9.99')).json()).mensaje, /varios reportes/);
+  assert.equal((await manejar(pedido({ accion: 'reportar', comercio_id: C2, indice_galeria: 0, motivo: 'sexual' }, undefined, '200.9.9.100'), entorno(m))).status, 200, 'otro comercio no se ve afectado');
+});
+
+test('reportar: la foto tiene que ser de ese comercio', async () => {
+  const m = mundo();
+  const { foto: f } = await (await subir(m)).json();
+  const rep = (comercio: string, foto: string) => manejar(pedido({ accion: 'reportar', comercio_id: comercio, foto_id: foto, motivo: 'sexual' }), entorno(m));
+  assert.equal((await rep(C2, f.id)).status, 404);
+  assert.equal((await rep(C1, '00000000-0000-4000-8000-999999999999')).status, 404);
+  assert.equal(m.reportes_contenido.length, 0);
+  assert.equal((await rep(C1, f.id)).status, 200);
+});
+
 test('borrar: el dueño borra su foto (archivo y registro); otro comercio no puede', async () => {
   const m = mundo();
   const { foto: f } = await (await subir(m)).json();

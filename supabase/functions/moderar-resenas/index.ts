@@ -15,6 +15,7 @@
 // Secretos: SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (los pone Supabase).
 
 import { LIMITE_SOLICITUDES_POR_DIA, validarMotivo, validarNota } from '../_shared/moderacionResenas.ts';
+import { conCors, origenesPermitidos } from '../_shared/cors.ts';
 
 export interface Entorno {
   leer: (nombre: string) => string | undefined;
@@ -23,8 +24,8 @@ export interface Entorno {
   log: (evento: Record<string, unknown>) => void;
 }
 
+// Access-Control-Allow-Origin lo agrega conCors según el origen del pedido.
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -148,6 +149,6 @@ if (deno) {
     }).catch((e) => {
       console.error(JSON.stringify({ evento: 'error', error: String(e?.message ?? e) }));
       return responder({ error: 'No se pudo procesar el pedido. Probá de nuevo.' }, 500);
-    }),
+    }).then((res) => conCors(req, res, origenesPermitidos(deno.env.get('ORIGENES_PERMITIDOS')))),
   );
 }

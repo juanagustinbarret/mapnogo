@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { conCors, origenesPermitidos } from '../_shared/cors.ts'
 
 // Cambia la contraseña del dueño de un comercio. SOLO para administradores.
 //
@@ -11,8 +12,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 //      con ese email comercial; nunca la de un admin.
 //   3. No crea usuarios nuevos.
 
+// Access-Control-Allow-Origin lo agrega conCors según el origen del pedido.
 const cors = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
@@ -20,7 +21,7 @@ const cors = {
 const responder = (cuerpo: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
-Deno.serve(async (req) => {
+const atender = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return responder({ error: 'Método no permitido.' }, 405)
 
@@ -80,4 +81,6 @@ Deno.serve(async (req) => {
   }
 
   return responder({ ok: true, mensaje: 'Contraseña actualizada correctamente.' })
-})
+}
+
+Deno.serve(async (req) => conCors(req, await atender(req), origenesPermitidos(Deno.env.get('ORIGENES_PERMITIDOS'))))
