@@ -30,9 +30,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estrategia Stale-While-Revalidate corregida para evitar fallos de Response
+// Interceptor de peticiones
 self.addEventListener('fetch', (event) => {
-  // Ignorar peticiones de la API de Supabase o servicios externos
+  // 1. Ignorar métodos que no sean GET o llamadas a API externas
   if (
     event.request.method !== 'GET' ||
     event.request.url.includes('supabase.co') ||
@@ -42,6 +42,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 2. Manejar Navegación SPA (React Router)
+  // Si se solicita una ruta HTML (como /panel, /admin, /comercio/slug)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Si falla la red (offline/error), se sirve la cáscara /index.html precargada
+        return caches.match('/index.html').then((response) => response || Response.error());
+      })
+    );
+    return;
+  }
+
+  // 3. Estrategia Stale-While-Revalidate para assets estáticos (CSS, JS, imágenes)
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const respuestaCache = await cache.match(event.request);
@@ -57,9 +70,7 @@ self.addEventListener('fetch', (event) => {
 
       const respuestaRedFinal = await peticionRed;
 
-      // Garantizar que SIEMPRE devuelva una Response válida para la API del Service Worker
       return respuestaRedFinal || respuestaCache || Response.error();
     })
   );
 });
-
