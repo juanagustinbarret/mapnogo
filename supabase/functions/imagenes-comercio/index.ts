@@ -25,6 +25,7 @@
 
 import { EXTENSION, MIME, REGLAS_POR_DEFECTO, validarImagen } from '../_shared/imagenes.ts';
 import { moderarImagen } from '../_shared/moderacion.ts';
+import { conCors, origenesPermitidos } from '../_shared/cors.ts';
 
 export interface Entorno {
   leer: (nombre: string) => string | undefined;
@@ -37,8 +38,8 @@ export interface Entorno {
 export const BUCKET = 'fotos-comercios';
 export const MOTIVOS_REPORTE = ['sexual', 'violencia', 'enganosa', 'otro'] as const;
 
+// Access-Control-Allow-Origin lo agrega conCors según el origen del pedido.
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -266,6 +267,6 @@ if (deno) {
     }).catch((e) => {
       console.error(JSON.stringify({ evento: 'error', error: String(e?.message ?? e) }));
       return responder({ error: 'No se pudo procesar la imagen. Probá de nuevo.' }, 500);
-    }),
+    }).then((res) => conCors(req, res, origenesPermitidos(deno.env.get('ORIGENES_PERMITIDOS')))),
   );
 }

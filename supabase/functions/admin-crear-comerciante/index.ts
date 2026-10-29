@@ -1,5 +1,7 @@
+import { conCors, origenesPermitidos } from "../_shared/cors.ts";
+
+// Access-Control-Allow-Origin lo agrega conCors según el origen del pedido.
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -49,7 +51,7 @@ function makeSlug(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-Deno.serve(async (req: Request) => {
+const atender = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -517,4 +519,12 @@ Deno.serve(async (req: Request) => {
         : "Ocurrió un error interno. Revisá los registros de la función.",
     }, status);
   }
-});
+};
+
+Deno.serve(async (req: Request) =>
+  conCors(
+    req,
+    await atender(req),
+    origenesPermitidos(Deno.env.get("ORIGENES_PERMITIDOS")),
+  )
+);
