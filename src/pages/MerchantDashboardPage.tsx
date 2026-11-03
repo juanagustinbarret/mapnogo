@@ -601,6 +601,7 @@ export const MerchantDashboardPage: React.FC = () => {
   };
 
   const handleDeleteHorario = async (id: string) => {
+    if (!confirm('¿Eliminar este turno? Se borra del horario publicado.')) return;
     const { error } = await supabase.from('horarios_atencion').delete().eq('id', id);
     if (error) {
       console.error(error);
