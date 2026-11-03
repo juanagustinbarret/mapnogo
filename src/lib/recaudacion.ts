@@ -9,17 +9,39 @@ export interface Recaudacion {
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
-export function leerRecaudacion(datos: unknown): Recaudacion | null {
-  if (!datos || typeof datos !== 'object') return null;
+/** Genera las fechas límites del mes actual en formato YYYY-MM-DD */
+function fechasMesActual(): { desde: string; hasta: string } {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const ultimoDia = new Date(anio, hoy.getMonth() + 1, 0).getDate();
+  
+  return {
+    desde: `${anio}-${mes}-01`,
+    hasta: `${anio}-${mes}-${String(ultimoDia).padStart(2, '0')}`,
+  };
+}
+
+export function leerRecaudacion(datos: unknown): Recaudacion {
+  const fechasDefault = fechasMesActual();
+
+  if (!datos || typeof datos !== 'object') {
+    return { total: 0, ...fechasDefault };
+  }
 
   const d = datos as { total?: unknown; total_centavos?: unknown; desde?: unknown; hasta?: unknown };
   const numRaw = d.total ?? d.total_centavos;
-  const valor = numRaw !== null && numRaw !== undefined ? Number(numRaw) : NaN;
+  const valor = numRaw !== null && numRaw !== undefined ? Number(numRaw) : 0;
   
-  if (!Number.isFinite(valor) || valor < 0) return null;
-  if (typeof d.desde !== 'string' || !FECHA.test(d.desde) || typeof d.hasta !== 'string' || !FECHA.test(d.hasta)) return null;
+  const totalLimpio = Number.isFinite(valor) && valor >= 0 ? Math.round(valor) : 0;
+  const desdeLimpio = typeof d.desde === 'string' && FECHA.test(d.desde) ? d.desde : fechasDefault.desde;
+  const hastaLimpio = typeof d.hasta === 'string' && FECHA.test(d.hasta) ? d.hasta : fechasDefault.hasta;
   
-  return { total: Math.round(valor), desde: d.desde, hasta: d.hasta };
+  return {
+    total: totalLimpio,
+    desde: desdeLimpio,
+    hasta: hastaLimpio,
+  };
 }
 
 /** "noviembre de 2026" a partir del primer día del mes */
