@@ -17,9 +17,6 @@ importers:
       autoprefixer:
         specifier: ^10.4.19
         version: 10.6.1(postcss@8.5.30)
-      clsx:
-        specifier: ^2.1.0
-        version: 2.1.1
       jspdf:
         specifier: ^4.2.1
         version: 4.2.1
