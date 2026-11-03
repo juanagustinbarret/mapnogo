@@ -42,6 +42,7 @@ function calcularAntiguedadMeses(fechaCreacion: string) {
 
 interface PagoAuditoria {
   id: string;
+  comercioId: string | null;
   comercioNombre: string;
   importe: number;
   metodo_pago: string;
@@ -112,7 +113,7 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingAuditoria(true);
 
     try {
-      // 1. Obtener todos los pagos
+      // 1. Obtener todos los pagos registrados
       const { data: pagosData, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
@@ -120,7 +121,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
       if (errPagos || !pagosData) throw errPagos;
 
-      // 2. Traer periodos, suscripciones y comercios para vincular sin depender de JOINs DB
+      // 2. Traer de forma plana periodos, suscripciones y comercios para relacionarlos manualmente sin romper JOINs RLS
       const { data: periodosData } = await supabase
         .from('periodos_suscripcion')
         .select('id, periodo_facturado, suscripcion_id');
@@ -134,22 +135,28 @@ export const AdminPaymentsPage: React.FC = () => {
         .select('id, nombre');
 
       const mapaComercios = Object.fromEntries((comsData ?? []).map((c) => [c.id, c.nombre]));
-      const mapaSubs = Object.fromEntries((subsData ?? []).map((s) => [s.id, mapaComercios[s.comercio_id] || 'Comercio Registrado']));
-      const mapaPeriodos = Object.fromEntries((periodosData ?? []).map((p) => [
-        p.id, 
-        { 
-          periodo: p.periodo_facturado, 
-          comercioNombre: mapaSubs[p.suscripcion_id] || 'Comercio Registrado' 
-        }
-      ]));
+      const mapaSubs = Object.fromEntries((subsData ?? []).map((s) => [s.id, { comercioId: s.comercio_id, nombre: mapaComercios[s.comercio_id] || 'Comercio Registrado' }]));
+      const mapaPeriodos = Object.fromEntries((periodosData ?? []).map((p) => {
+        const subInfo = mapaSubs[p.suscripcion_id];
+        return [
+          p.id,
+          {
+            periodo: p.periodo_facturado,
+            comercioId: subInfo?.comercioId || null,
+            comercioNombre: subInfo?.nombre || 'Comercio Registrado'
+          }
+        ];
+      }));
 
       const formateados: PagoAuditoria[] = pagosData.map((item: any) => {
-        const periodoId = item.periodo_id || item.periodo_suscripcion_id;
-        const infoPeriodo = mapaPeriodos[periodoId];
+        const pId = item.periodo_id || item.periodo_suscripcion_id;
+        const infoPeriodo = mapaPeriodos[pId];
         const nombreComercioDirecto = item.comercio_id ? mapaComercios[item.comercio_id] : null;
+        const idComercioFinal = item.comercio_id || infoPeriodo?.comercioId || null;
 
         return {
           id: item.id,
+          comercioId: idComercioFinal,
           comercioNombre: infoPeriodo?.comercioNombre || nombreComercioDirecto || 'Comercio Registrado',
           importe: Number(item.importe),
           metodo_pago: item.metodo_pago,
@@ -241,13 +248,15 @@ export const AdminPaymentsPage: React.FC = () => {
         metodoEnum = 'mercadopago';
       }
 
-      const { error } = await supabase.rpc('editar_pago_comercio', {
+      // Intentar primero vía RPC
+      const { error: rpcError } = await supabase.rpc('editar_pago_comercio', {
         p_pago_id: pagoAEditar.id,
         p_nuevo_importe: nuevoImporte,
         p_nuevo_metodo: metodoEnum
       });
 
-      if (error) {
+      if (rpcError) {
+        // Fallback directo sobre la tabla pagos
         const { error: errorDirecto } = await supabase
           .from('pagos')
           .update({ importe: nuevoImporte, metodo_pago: metodoEnum })
@@ -256,12 +265,12 @@ export const AdminPaymentsPage: React.FC = () => {
         if (errorDirecto) {
           alert('Error al editar el pago: ' + errorDirecto.message);
         } else {
-          alert(`✅ Registro de pago corregido exitosamente.`);
+          alert('✅ Registro de pago corregido exitosamente.');
           setPagoAEditar(null);
           fetchAuditoriaGlobal();
         }
       } else {
-        alert(`✅ Registro de pago corregido exitosamente.`);
+        alert('✅ Registro de pago corregido exitosamente.');
         setPagoAEditar(null);
         fetchAuditoriaGlobal();
       }
@@ -278,11 +287,12 @@ export const AdminPaymentsPage: React.FC = () => {
     }
 
     try {
-      const { error } = await supabase.rpc('eliminar_pago_comercio', {
+      const { error: rpcError } = await supabase.rpc('eliminar_pago_comercio', {
         p_pago_id: pago.id
       });
 
-      if (error) {
+      if (rpcError) {
+        // Fallback eliminación directa sobre la tabla pagos
         const { error: errorDirecto } = await supabase
           .from('pagos')
           .delete()
@@ -310,7 +320,7 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingHistorialIndividual(true);
 
     try {
-      // 1. Intentar por suscripción
+      // 1. Obtener la suscripción del comercio
       const { data: sub } = await supabase
         .from('suscripciones')
         .select('id')
@@ -332,24 +342,26 @@ export const AdminPaymentsPage: React.FC = () => {
         );
       }
 
-      // 2. Traer los pagos tanto si apuntan a un período como si apuntan directo al comercio_id
-      let query = supabase.from('pagos').select('*');
-
-      if (idsPeriodos.length > 0) {
-        query = query.or(`comercio_id.eq.${comercio.id},periodo_id.in.(${idsPeriodos.join(',')}),periodo_suscripcion_id.in.(${idsPeriodos.join(',')})`);
-      } else {
-        query = query.eq('comercio_id', comercio.id);
-      }
-
-      const { data: pagosData, error } = await query.order('created_at', { ascending: false });
+      // 2. Traer todos los pagos asociados (por periodo o directo por comercio_id)
+      const { data: pagosData, error } = await supabase
+        .from('pagos')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error || !pagosData) {
         setHistorialIndividual([]);
       } else {
-        const formateados: PagoAuditoria[] = pagosData.map((item: any) => {
+        // Filtrar en memoria para asegurar que traiga todos sin fallas en filtros PostgREST
+        const pagosDelComercio = pagosData.filter((item: any) => {
+          const pId = item.periodo_id || item.periodo_suscripcion_id;
+          return item.comercio_id === comercio.id || (pId && idsPeriodos.includes(pId));
+        });
+
+        const formateados: PagoAuditoria[] = pagosDelComercio.map((item: any) => {
           const pId = item.periodo_id || item.periodo_suscripcion_id;
           return {
             id: item.id,
+            comercioId: comercio.id,
             comercioNombre: comercio.nombre,
             importe: Number(item.importe),
             metodo_pago: item.metodo_pago,
