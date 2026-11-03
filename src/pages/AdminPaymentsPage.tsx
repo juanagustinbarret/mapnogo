@@ -89,8 +89,8 @@ export const AdminPaymentsPage: React.FC = () => {
   const [loadingAuditoria, setLoadingAuditoria] = useState(false);
 
   useEffect(() => {
-    fetchComercios();
-    fetchAuditoriaGlobal();
+    void fetchComercios();
+    void fetchAuditoriaGlobal();
   }, []);
 
   const fetchComercios = async () => {
@@ -171,7 +171,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
   const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
     await supabase.from('comercios').update({ habilitado_admin: !estadoActual }).eq('id', id);
-    fetchComercios();
+    await fetchComercios();
   };
 
   const handleConfirmarPago = async (e: React.FormEvent) => {
@@ -213,8 +213,7 @@ export const AdminPaymentsPage: React.FC = () => {
       } else {
         alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatCurrency(importe)} (${modalidadPago.toUpperCase()})`);
         setComercioModalPago(null);
-        fetchComercios();
-        fetchAuditoriaGlobal();
+        await Promise.all([fetchComercios(), fetchAuditoriaGlobal()]);
       }
     } catch (err: any) {
       alert('Error inesperado: ' + err.message);
@@ -253,8 +252,8 @@ export const AdminPaymentsPage: React.FC = () => {
       } else {
         alert('✅ Registro de pago corregido exitosamente.');
         setPagoAEditar(null);
-        fetchAuditoriaGlobal();
-        if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
+        await fetchAuditoriaGlobal();
+        if (comercioModalHistorial) await handleAbrirHistorialIndividual(comercioModalHistorial);
       }
     } catch (err: any) {
       alert('Error inesperado: ' + err.message);
@@ -277,9 +276,8 @@ export const AdminPaymentsPage: React.FC = () => {
         alert('Error al eliminar el pago: ' + rpcError.message);
       } else {
         alert('✅ Registro de pago eliminado correctamente.');
-        fetchAuditoriaGlobal();
-        fetchComercios();
-        if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
+        await Promise.all([fetchAuditoriaGlobal(), fetchComercios()]);
+        if (comercioModalHistorial) await handleAbrirHistorialIndividual(comercioModalHistorial);
       }
     } catch (err: any) {
       alert('Error inesperado: ' + err.message);
@@ -389,7 +387,7 @@ export const AdminPaymentsPage: React.FC = () => {
           </div>
 
           <button
-            onClick={() => { signOut(); navigate('/admin/login'); }}
+            onClick={() => { void signOut(); navigate('/admin/login'); }}
             className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition"
           >
             <LogOut className="w-4 h-4" /> Cerrar Sesión

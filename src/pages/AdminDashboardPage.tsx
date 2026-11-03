@@ -134,7 +134,6 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
   });
 
-  // undefined = cargando; null = no se pudo leer
   const [recaudacion, setRecaudacion] = useState<Recaudacion | null | undefined>(undefined);
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
@@ -159,8 +158,6 @@ export const AdminDashboardPage: React.FC = () => {
   const [verClave, setVerClave] = useState(false);
 
   const fetchComerciosYStats = async () => {
-    setLoading(true);
-
     try {
       const { data, count, error } = await supabase
         .from('comercios')
@@ -176,16 +173,9 @@ export const AdminDashboardPage: React.FC = () => {
         totalComercios: count ?? lista.length,
       });
 
-      fetchFarmaciaDeTurno(fechaTurno);
+      await fetchFarmaciaDeTurno(fechaTurno);
     } catch (err) {
       console.error('Error al cargar el panel de administración:', err);
-      alert(
-        `No se pudo cargar el panel: ${
-          err instanceof Error ? err.message : 'Error desconocido'
-        }`
-      );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -212,20 +202,18 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    void cargarRecaudacion();
-    const alVolver = () => {
-      if (document.visibilityState === 'visible') void cargarRecaudacion();
-    };
-    window.addEventListener('focus', alVolver);
-    document.addEventListener('visibilitychange', alVolver);
-    return () => {
-      window.removeEventListener('focus', alVolver);
-      document.removeEventListener('visibilitychange', alVolver);
-    };
-  }, []);
+    let montado = true;
 
-  useEffect(() => {
-    void fetchComerciosYStats();
+    const inicializar = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchComerciosYStats(),
+        cargarRecaudacion()
+      ]);
+      if (montado) setLoading(false);
+    };
+
+    void inicializar();
 
     const channel = supabase
       .channel('realtime_comercios')
@@ -239,6 +227,7 @@ export const AdminDashboardPage: React.FC = () => {
       .subscribe();
 
     return () => {
+      montado = false;
       void supabase.removeChannel(channel);
     };
   }, []);

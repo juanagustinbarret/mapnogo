@@ -13,14 +13,12 @@ export function leerRecaudacion(datos: unknown): Recaudacion | null {
   if (!datos || typeof datos !== 'object') return null;
 
   const d = datos as { total?: unknown; total_centavos?: unknown; desde?: unknown; hasta?: unknown };
-
-  // Lee total o total_centavos convirtiéndolo de forma segura a number
   const numRaw = d.total ?? d.total_centavos;
   const valor = numRaw !== null && numRaw !== undefined ? Number(numRaw) : NaN;
-
+  
   if (!Number.isFinite(valor) || valor < 0) return null;
   if (typeof d.desde !== 'string' || !FECHA.test(d.desde) || typeof d.hasta !== 'string' || !FECHA.test(d.hasta)) return null;
-
+  
   return { total: Math.round(valor), desde: d.desde, hasta: d.hasta };
 }
 
