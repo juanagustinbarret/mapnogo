@@ -66,10 +66,12 @@ export const AdminLoginPage: React.FC = () => {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold mb-1">Email Administrador</label>
+            <label htmlFor="admin-email" className="block text-xs font-semibold mb-1">Email Administrador</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
               <input
+                id="admin-email"
+                autoComplete="email"
                 type="email"
                 required
                 value={email}
@@ -81,10 +83,12 @@ export const AdminLoginPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold mb-1">Contraseña</label>
+            <label htmlFor="admin-clave" className="block text-xs font-semibold mb-1">Contraseña</label>
             <div className="relative">
               <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
               <input
+                id="admin-clave"
+                autoComplete="current-password"
                 type="password"
                 required
                 value={password}

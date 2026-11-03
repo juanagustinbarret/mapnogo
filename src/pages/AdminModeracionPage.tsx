@@ -68,6 +68,7 @@ export const AdminModeracionPage: React.FC = () => {
   }, []);
 
   const revisar = async (foto: FotoComercio, estado: 'aprobada' | 'rechazada') => {
+    if (estado === 'rechazada' && !confirm('¿Rechazar esta foto? Se borra el archivo y no se puede deshacer.')) return;
     setTrabajando(foto.id);
     const r = await revisarFoto(foto.id, estado);
     setTrabajando(null);

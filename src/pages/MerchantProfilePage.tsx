@@ -188,6 +188,7 @@ export const MerchantProfilePage: React.FC = () => {
     setSuccess(false);
 
     if (id) {
+      if (!confirm('¿Eliminar este horario? Se borra del horario publicado.')) return;
       const horario = horarios[index];
 
       if (!horario || !comercio) return;

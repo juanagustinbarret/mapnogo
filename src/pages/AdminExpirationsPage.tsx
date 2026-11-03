@@ -148,7 +148,7 @@ export const AdminExpirationsPage: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 xl:hidden">
             {filtrados.map((c) => {
               const tieneWhatsApp = normalizeWhatsAppNumber(c.whatsapp).isValid;
               const tieneSuscripcion = Boolean(suscripciones[c.id]);
@@ -195,7 +195,7 @@ export const AdminExpirationsPage: React.FC = () => {
             })}
           </div>
 
-          <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="hidden xl:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
             <table className="w-full text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase tracking-wider">

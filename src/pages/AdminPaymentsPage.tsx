@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
-import { formatCurrency, formatDate } from '@/lib/formatters';
+import { aCentavos, formatearCentavos, formatDate } from '@/lib/formatters';
 import { leerImporte } from '@/lib/importes';
 import { fechaCalendario } from '@/lib/fechasArgentina';
 import {
@@ -72,6 +72,11 @@ export const AdminPaymentsPage: React.FC = () => {
   const [montoPago, setMontoPago] = useState('10000');
   const [metodoPago, setMetodoPago] = useState('Transferencia');
   const [savingPayment, setSavingPayment] = useState(false);
+  // Una clave por cada apertura del modal: un doble clic o un reintento no registra dos veces
+  const clavePago = useRef<string | null>(null);
+  useEffect(() => {
+    clavePago.current = comercioModalPago ? crypto.randomUUID() : null;
+  }, [comercioModalPago]);
 
   // Modal para editar un pago existente
   const [pagoAEditar, setPagoAEditar] = useState<PagoAuditoria | null>(null);
@@ -175,17 +180,34 @@ export const AdminPaymentsPage: React.FC = () => {
         metodoEnum = 'mercadopago';
       }
 
-      const { error } = await supabase.rpc('registrar_pago_comercio', {
+      // registrar_pago_seguro (supabase/propuestas/20261103_recaudacion_pagos.sql) toma el admin
+      // de la sesión y no registra dos veces la misma clave. Mientras ese SQL no esté corrido,
+      // se usa la función anterior.
+      let { data, error } = await supabase.rpc('registrar_pago_seguro', {
+        p_clave: clavePago.current,
         p_comercio_id: comercioModalPago.id,
         p_importe: importe,
-        p_metodo_pago: metodoEnum,
-        p_registrado_por: user.id
+        p_metodo_pago: metodoEnum
       });
+      if (error?.code === 'PGRST202') {
+        console.warn('Falta correr 20261103_recaudacion_pagos.sql: se usa registrar_pago_comercio.');
+        ({ data, error } = await supabase.rpc('registrar_pago_comercio', {
+          p_comercio_id: comercioModalPago.id,
+          p_importe: importe,
+          p_metodo_pago: metodoEnum,
+          p_registrado_por: user.id
+        }));
+      }
 
       if (error) {
         alert('Error al registrar el pago: ' + error.message);
+      } else if ((data as { duplicado?: boolean } | null)?.duplicado) {
+        alert('Ese pago ya estaba registrado: no se sumó otra vez.');
+        setComercioModalPago(null);
+        fetchComercios();
+        fetchAuditoriaGlobal();
       } else {
-        alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatCurrency(importe)}`);
+        alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatearCentavos(aCentavos(importe))}`);
         setComercioModalPago(null);
         fetchComercios();
         fetchAuditoriaGlobal();
@@ -237,7 +259,7 @@ export const AdminPaymentsPage: React.FC = () => {
   };
 
   const handleEliminarPago = async (pago: PagoAuditoria) => {
-    if (!confirm(`¿Estás seguro de eliminar el pago de ${formatCurrency(pago.importe)} de "${pago.comercioNombre}"? Esta acción no se puede deshacer.`)) {
+    if (!confirm(`¿Estás seguro de eliminar el pago de ${formatearCentavos(aCentavos(pago.importe))} de "${pago.comercioNombre}"? Esta acción no se puede deshacer.`)) {
       return;
     }
 
@@ -325,7 +347,8 @@ export const AdminPaymentsPage: React.FC = () => {
     return coincideTexto && coincideDesde && coincideHasta;
   });
 
-  const totalFiltrado = filtradosAuditoria.reduce((acc, curr) => acc + curr.importe, 0);
+  // En centavos: sumar importes con decimales como números de coma flotante da errores
+  const totalFiltrado = filtradosAuditoria.reduce((acc, curr) => acc + aCentavos(curr.importe), 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
@@ -399,7 +422,7 @@ export const AdminPaymentsPage: React.FC = () => {
             <div className="p-12 text-center text-gray-500 font-semibold">Cargando registros...</div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:hidden">
                 {filtradosComercios.map((c) => (
                   <div key={c.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
                     <div className="flex justify-between items-start">
@@ -441,7 +464,7 @@ export const AdminPaymentsPage: React.FC = () => {
                 ))}
               </div>
 
-              <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+              <div className="hidden lg:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-left border-collapse table-fixed">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -531,7 +554,7 @@ export const AdminPaymentsPage: React.FC = () => {
               </div>
 
               <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 font-bold">
-                Total en rango: <span className="text-green-600 text-sm">{formatCurrency(totalFiltrado)}</span>
+                Total en rango: <span className="text-green-600 text-sm">{formatearCentavos(totalFiltrado)}</span>
               </div>
             </div>
 
@@ -558,7 +581,7 @@ export const AdminPaymentsPage: React.FC = () => {
                         <td className="p-3.5 font-bold text-gray-900 dark:text-white truncate">{pago.comercioNombre}</td>
                         <td className="p-3.5 text-xs text-gray-600 dark:text-gray-300 truncate">{formatDate(pago.created_at)}</td>
                         <td className="p-3.5 text-xs font-semibold capitalize truncate">{pago.metodo_pago}</td>
-                        <td className="p-3.5 text-xs font-bold text-green-600 truncate">{formatCurrency(pago.importe)}</td>
+                        <td className="p-3.5 text-xs font-bold text-green-600 truncate">{formatearCentavos(aCentavos(pago.importe))}</td>
                         <td className="p-3.5 text-xs font-bold text-brand-600 flex items-center gap-1.5 truncate">
                           <UserCheck className="w-4 h-4 text-brand-600 shrink-0" />
                           {pago.registrado_por_nombre}
@@ -568,6 +591,7 @@ export const AdminPaymentsPage: React.FC = () => {
                             onClick={() => abrirModalEditar(pago)}
                             className="p-1.5 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                             title="Editar este registro"
+                            aria-label="Editar este registro"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -575,6 +599,7 @@ export const AdminPaymentsPage: React.FC = () => {
                             onClick={() => handleEliminarPago(pago)}
                             className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                             title="Eliminar este pago"
+                            aria-label="Eliminar este pago"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -593,7 +618,7 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* MODAL REGISTRAR PAGO */}
       {comercioModalPago && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">
               Registrar Cuota para {comercioModalPago.nombre}
             </h3>
@@ -649,7 +674,7 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* MODAL EDITAR PAGO */}
       {pagoAEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">
               Editar Cobro de {pagoAEditar.comercioNombre}
             </h3>
@@ -705,7 +730,7 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* MODAL HISTORIAL INDIVIDUAL */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
                 <History className="w-5 h-5 text-blue-500" />
@@ -742,7 +767,7 @@ export const AdminPaymentsPage: React.FC = () => {
                       </p>
                     </div>
                     <span className="font-bold text-green-600 dark:text-green-400 text-sm">
-                      {formatCurrency(pago.importe)}
+                      {formatearCentavos(aCentavos(pago.importe))}
                     </span>
                   </div>
                 ))}

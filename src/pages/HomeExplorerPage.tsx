@@ -474,6 +474,7 @@ export const HomeExplorerPage: React.FC = () => {
           </div>
 
           <select
+            aria-label="Ordenar comercios"
             value={ordenamiento}
             onChange={(e) => {
               const valor = e.target.value as 'cercania' | 'nombre';

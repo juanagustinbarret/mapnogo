@@ -601,6 +601,7 @@ export const MerchantDashboardPage: React.FC = () => {
   };
 
   const handleDeleteHorario = async (id: string) => {
+    if (!confirm('¿Eliminar este turno? Se borra del horario publicado.')) return;
     const { error } = await supabase.from('horarios_atencion').delete().eq('id', id);
     if (error) {
       console.error(error);
@@ -934,7 +935,7 @@ export const MerchantDashboardPage: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
-                <span className="text-[10px] text-gray-400 block">{new Date(r.created_at).toLocaleDateString()}</span>
+                <span className="text-[10px] text-gray-400 block">{formatDate(r.created_at)}</span>
                 {eliminacion.disponible && (
                   <SolicitarEliminacionResena
                     resenaId={r.id}
@@ -1264,7 +1265,7 @@ export const MerchantDashboardPage: React.FC = () => {
       {/* MODAL CREAR PUBLICACIÓN/OFERTA CON PRECIO ANTERIOR Y PROMOCIONAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Publicar Oferta o Novedad</h3>
             <form onSubmit={handleCreatePromo} className="space-y-3">
               

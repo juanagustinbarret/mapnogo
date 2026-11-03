@@ -66,6 +66,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
+          aria-label="Buscar comercios"
           placeholder="Buscar por negocio, servicio, comida o calle..."
           value={searchQuery}
           onChange={(e) => {

@@ -370,6 +370,7 @@ export const CommerceDetailPage: React.FC = () => {
                 : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200'
             }`}
             title={esFavorito ? "Quitar de favoritos" : "Guardar en favoritos"}
+            aria-label={esFavorito ? "Quitar de favoritos" : "Guardar en favoritos"}
           >
             <Heart className={`w-4 h-4 ${esFavorito ? 'fill-white' : ''}`} />
             <span className="hidden sm:inline">{esFavorito ? 'Guardado' : 'Favorito'}</span>
@@ -386,6 +387,7 @@ export const CommerceDetailPage: React.FC = () => {
             onClick={handleCompartir}
             className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-xl transition text-gray-700 dark:text-gray-200"
             title="Compartir Ficha"
+            aria-label="Compartir Ficha"
           >
             <Share2 className="w-4 h-4" />
           </button>
@@ -642,6 +644,7 @@ export const CommerceDetailPage: React.FC = () => {
                 type="text"
                 required
                 maxLength={LARGO_NOMBRE}
+                aria-label="Tu nombre"
                 placeholder="Tu nombre (ej. Carlos G.)"
                 value={nombreResena}
                 onChange={(e) => setNombreResena(e.target.value)}
@@ -655,7 +658,9 @@ export const CommerceDetailPage: React.FC = () => {
                     key={star}
                     type="button"
                     onClick={() => setEstrellasResena(star)}
-                    className="p-0.5 focus:outline-none"
+                    aria-label={`${star} ${star === 1 ? 'estrella' : 'estrellas'}`}
+                    aria-pressed={star <= estrellasResena}
+                    className="p-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                   >
                     <Star className={`w-4 h-4 ${star <= estrellasResena ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
                   </button>
@@ -667,6 +672,7 @@ export const CommerceDetailPage: React.FC = () => {
               required
               rows={2}
               maxLength={LARGO_COMENTARIO}
+              aria-label="Tu reseña"
               placeholder="Escribí tu reseña sobre la atención, los productos..."
               value={comentarioResena}
               onChange={(e) => setComentarioResena(e.target.value)}
@@ -722,7 +728,7 @@ export const CommerceDetailPage: React.FC = () => {
 
       {modalReporteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" /> Reportar Información Incorrecta

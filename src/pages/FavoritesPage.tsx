@@ -101,6 +101,7 @@ export const FavoritesPage: React.FC = () => {
                     onClick={() => quitarFavorito(comercio.id)}
                     className="p-1.5 text-gray-400 hover:text-rose-500 rounded-lg transition"
                     title="Quitar de favoritos"
+                    aria-label="Quitar de favoritos"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

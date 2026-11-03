@@ -33,6 +33,7 @@ export const ModeracionResenasAdmin: React.FC = () => {
   }, []);
 
   const resolver = async (s: SolicitudEliminacion, aprobar: boolean) => {
+    if (aprobar && !confirm('¿Aprobar y eliminar esta reseña? Deja de verse en la ficha del comercio.')) return;
     setTrabajando(s.id);
     setError('');
     const r = await resolverSolicitud(s.id, aprobar, notas[s.id]);

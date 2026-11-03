@@ -91,6 +91,7 @@ export const FiltroDeliveryBotonConsulta: React.FC<FiltroDeliveryConsultaProps> 
             }}
             className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition shrink-0"
             title="Volver a la hora actual"
+            aria-label="Volver a la hora actual"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -114,6 +115,7 @@ export const FiltroDeliveryBotonConsulta: React.FC<FiltroDeliveryConsultaProps> 
               <button
                 type="button"
                 onClick={() => setAbierto(false)}
+                aria-label="Cerrar"
                 className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition"
               >
                 <X className="w-4 h-4" />

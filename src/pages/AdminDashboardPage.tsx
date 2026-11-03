@@ -4,7 +4,8 @@ import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { AdminNav } from '@/components/AdminNav';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
-import { formatCurrency } from '@/lib/formatters';
+import { formatearCentavos } from '@/lib/formatters';
+import { leerRecaudacion, nombreDelMes, type Recaudacion } from '@/lib/recaudacion';
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { obtenerMetricasComercio } from '@/lib/metrics';
@@ -131,12 +132,10 @@ export const AdminDashboardPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState({
     totalComercios: 0,
-    ingresosMes: 0,
   });
 
-  const [overrideRecaudacion, setOverrideRecaudacion] = useState<number | null>(null);
-  const [editandoRecaudacion, setEditandoRecaudacion] = useState(false);
-  const [tempMontoRecaudacion, setTempMontoRecaudacion] = useState('');
+  // undefined = cargando; null = no se pudo leer
+  const [recaudacion, setRecaudacion] = useState<Recaudacion | null | undefined>(undefined);
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
@@ -173,22 +172,8 @@ export const AdminDashboardPage: React.FC = () => {
       const lista = (data ?? []) as unknown as Comercio[];
       setComercios(lista);
 
-      const { data: suscripciones, error: errorSuscripciones } =
-        await supabase
-          .from('suscripciones')
-          .select('precio_acordado')
-          .eq('estado', 'activa');
-
-      if (errorSuscripciones) throw errorSuscripciones;
-
-      const totalRecaudado = (suscripciones ?? []).reduce(
-        (acc, curr) => acc + (Number(curr.precio_acordado) || 0),
-        0
-      );
-
       setStats({
         totalComercios: count ?? lista.length,
-        ingresosMes: totalRecaudado,
       });
 
       fetchFarmaciaDeTurno(fechaTurno);
@@ -219,6 +204,27 @@ export const AdminDashboardPage: React.FC = () => {
       setFarmaciaSeleccionadaId('');
     }
   };
+
+  // La suma la hace el servidor desde los pagos. Se vuelve a leer al abrir el
+  // panel y al volver a esta pestaña o ventana (sin consultas periódicas).
+  const cargarRecaudacion = async () => {
+    const { data, error } = await supabase.rpc('recaudacion_mes_actual');
+    if (error) console.error('No se pudo leer la recaudación:', error.message);
+    setRecaudacion(error ? null : leerRecaudacion(data));
+  };
+
+  useEffect(() => {
+    void cargarRecaudacion();
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') void cargarRecaudacion();
+    };
+    window.addEventListener('focus', alVolver);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      window.removeEventListener('focus', alVolver);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, []);
 
   useEffect(() => {
     void fetchComerciosYStats();
@@ -613,49 +619,15 @@ export const AdminDashboardPage: React.FC = () => {
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación activa</p>
             
-            {editandoRecaudacion ? (
-              <div className="flex items-center gap-2 mt-1">
-                <input
-                  type="number"
-                  value={tempMontoRecaudacion}
-                  onChange={(e) => setTempMontoRecaudacion(e.target.value)}
-                  className="w-28 px-2.5 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Monto $"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOverrideRecaudacion(Number(tempMontoRecaudacion));
-                    setEditandoRecaudacion(false);
-                  }}
-                  className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg font-bold transition shadow-sm"
-                >
-                  Guardar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditandoRecaudacion(false)}
-                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-semibold"
-                >
-                  Cancelar
-                </button>
-              </div>
+            {recaudacion === undefined ? (
+              <div className="h-8 w-32 mt-1 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" role="status" aria-label="Cargando recaudación" />
+            ) : recaudacion === null ? (
+              <p className="text-sm font-semibold text-gray-500 mt-1">Sin datos</p>
             ) : (
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(overrideRecaudacion ?? stats.ingresosMes)}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTempMontoRecaudacion(String(overrideRecaudacion ?? stats.ingresosMes));
-                    setEditandoRecaudacion(true);
-                  }}
-                  className="text-[11px] text-brand-600 hover:underline font-semibold"
-                >
-                  Modificar
-                </button>
-              </div>
+              <>
+                <p className="text-2xl font-bold text-green-600 mt-1">{formatearCentavos(recaudacion.centavos)}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Pagos registrados en {nombreDelMes(recaudacion.desde)}</p>
+              </>
             )}
           </div>
           <DollarSign className="w-7 h-7 text-green-600 shrink-0" />
@@ -916,7 +888,7 @@ export const AdminDashboardPage: React.FC = () => {
       {/* MODAL DE EDICIÓN COMPLETA */}
       {modalEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[94vh] overflow-y-auto p-5 sm:p-6 space-y-6 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[94dvh] overflow-y-auto p-5 sm:p-6 space-y-6 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">

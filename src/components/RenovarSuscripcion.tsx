@@ -89,13 +89,13 @@ export const RenovarSuscripcion: React.FC<Props> = ({ propietarioId, actual }) =
 
       {abierto && (
         <div
-          className="fixed inset-0 z-[1100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[1100] flex items-end sm:items-center justify-center pb-[env(safe-area-inset-bottom)] sm:p-4 bg-black/60 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="titulo-renovar"
           onClick={(e) => e.target === e.currentTarget && setAbierto(false)}
         >
-          <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md max-h-[90dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 id="titulo-renovar" className="text-lg font-black text-gray-900 dark:text-white">Renovar suscripción</h2>

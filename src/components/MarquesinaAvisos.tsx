@@ -107,7 +107,7 @@ export const MarquesinaAvisos: React.FC = () => {
                 type="button"
                 onClick={() => setAbierto(ev)}
                 aria-haspopup="dialog"
-                className="text-left after:absolute after:inset-0 after:rounded-2xl focus:outline-none"
+                className="text-left after:absolute after:inset-0 after:rounded-2xl focus:outline-none focus-visible:after:ring-2 focus-visible:after:ring-amber-500"
               >
                 {ev.titulo}
               </button>
