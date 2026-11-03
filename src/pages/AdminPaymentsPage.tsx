@@ -113,12 +113,18 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingAuditoria(true);
 
     try {
+      // 1. Obtener todos los pagos registrados
       const { data: pagosData, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (errPagos || !pagosData) throw errPagos;
+
+      // 2. Mapeo de tablas de apoyo
+      const { data: comsData } = await supabase
+        .from('comercios')
+        .select('id, nombre');
 
       const { data: periodosData } = await supabase
         .from('periodos_suscripcion')
@@ -127,10 +133,6 @@ export const AdminPaymentsPage: React.FC = () => {
       const { data: subsData } = await supabase
         .from('suscripciones')
         .select('id, comercio_id');
-
-      const { data: comsData } = await supabase
-        .from('comercios')
-        .select('id, nombre');
 
       const mapaComercios = Object.fromEntries((comsData ?? []).map((c) => [c.id, c.nombre]));
       const mapaSubs = Object.fromEntries((subsData ?? []).map((s) => [s.id, { comercioId: s.comercio_id, nombre: mapaComercios[s.comercio_id] || 'Comercio Registrado' }]));
@@ -155,12 +157,12 @@ export const AdminPaymentsPage: React.FC = () => {
         return {
           id: item.id,
           comercioId: idComercioFinal,
-          comercioNombre: infoPeriodo?.comercioNombre || nombreComercioDirecto || 'Comercio Registrado',
+          comercioNombre: nombreComercioDirecto || infoPeriodo?.comercioNombre || 'Comercio Registrado',
           importe: Number(item.importe),
           metodo_pago: item.metodo_pago,
           referencia: item.referencia,
           created_at: item.created_at,
-          periodo_facturado: infoPeriodo?.periodo || 'General',
+          periodo_facturado: infoPeriodo?.periodo || 'Cuota Mensual',
           registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
         };
       });
@@ -319,6 +321,7 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingHistorialIndividual(true);
 
     try {
+      // 1. Mapeo de periodos de suscripción
       const { data: sub } = await supabase
         .from('suscripciones')
         .select('id')
@@ -340,6 +343,7 @@ export const AdminPaymentsPage: React.FC = () => {
         );
       }
 
+      // 2. Traer pagos directamente
       const { data: pagosData, error } = await supabase
         .from('pagos')
         .select('*')
@@ -348,6 +352,7 @@ export const AdminPaymentsPage: React.FC = () => {
       if (error || !pagosData) {
         setHistorialIndividual([]);
       } else {
+        // Filtrado exhaustivo que chequea tanto comercio_id directo como vinculación por períodos
         const pagosDelComercio = pagosData.filter((item: any) => {
           const pId = item.periodo_id || item.periodo_suscripcion_id;
           return item.comercio_id === comercio.id || (pId && idsPeriodos.includes(pId));
@@ -363,7 +368,7 @@ export const AdminPaymentsPage: React.FC = () => {
             metodo_pago: item.metodo_pago,
             referencia: item.referencia,
             created_at: item.created_at,
-            periodo_facturado: mapaPeriodos[pId] || 'General',
+            periodo_facturado: mapaPeriodos[pId] || 'Cuota Mensual',
             registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
           };
         });
@@ -779,7 +784,7 @@ export const AdminPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL HISTORIAL INDIVIDUAL CON ACCIONES DE EDICIÓN Y ELIMINACIÓN */}
+      {/* MODAL HISTORIAL INDIVIDUAL CON ACCIONES */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
