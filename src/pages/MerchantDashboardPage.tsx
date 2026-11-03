@@ -934,7 +934,7 @@ export const MerchantDashboardPage: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-300">{r.comentario}</p>
-                <span className="text-[10px] text-gray-400 block">{new Date(r.created_at).toLocaleDateString()}</span>
+                <span className="text-[10px] text-gray-400 block">{formatDate(r.created_at)}</span>
                 {eliminacion.disponible && (
                   <SolicitarEliminacionResena
                     resenaId={r.id}

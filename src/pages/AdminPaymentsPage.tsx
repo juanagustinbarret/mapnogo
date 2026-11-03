@@ -591,6 +591,7 @@ export const AdminPaymentsPage: React.FC = () => {
                             onClick={() => abrirModalEditar(pago)}
                             className="p-1.5 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                             title="Editar este registro"
+                            aria-label="Editar este registro"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -598,6 +599,7 @@ export const AdminPaymentsPage: React.FC = () => {
                             onClick={() => handleEliminarPago(pago)}
                             className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                             title="Eliminar este pago"
+                            aria-label="Eliminar este pago"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

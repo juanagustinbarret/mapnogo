@@ -94,10 +94,12 @@ export const MerchantLoginPage: React.FC = () => {
         {!isResetMode ? (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold mb-1">Correo Electrónico Comercial</label>
+              <label htmlFor="login-email" className="block text-xs font-semibold mb-1">Correo Electrónico Comercial</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                 <input
+                  id="login-email"
+                  autoComplete="email"
                   type="email"
                   required
                   value={email}
@@ -110,7 +112,7 @@ export const MerchantLoginPage: React.FC = () => {
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-semibold">Contraseña</label>
+                <label htmlFor="login-clave" className="block text-xs font-semibold">Contraseña</label>
                 <button
                   type="button"
                   onClick={() => {
@@ -126,6 +128,8 @@ export const MerchantLoginPage: React.FC = () => {
               <div className="relative">
                 <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                 <input
+                  id="login-clave"
+                  autoComplete="current-password"
                   type="password"
                   required
                   value={password}
@@ -148,10 +152,12 @@ export const MerchantLoginPage: React.FC = () => {
           /* MODO RECUPERAR CONTRASEÑA */
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold mb-1">Correo Electrónico Registrado</label>
+              <label htmlFor="reset-email" className="block text-xs font-semibold mb-1">Correo Electrónico Registrado</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                 <input
+                  id="reset-email"
+                  autoComplete="email"
                   type="email"
                   required
                   value={email}

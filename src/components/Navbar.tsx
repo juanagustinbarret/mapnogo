@@ -146,7 +146,7 @@ export const Navbar: React.FC = () => {
                   </button>
                 )}
 
-                <button onClick={handleSignOut} className="text-gray-500 hover:text-red-600 p-2 rounded-xl" title="Cerrar Sesión">
+                <button onClick={handleSignOut} className="text-gray-500 hover:text-red-600 p-2 rounded-xl" title="Cerrar Sesión" aria-label="Cerrar sesión">
                   <LogOut className="w-5 h-5" />
                 </button>
               </div>
@@ -176,7 +176,7 @@ export const Navbar: React.FC = () => {
             <button onClick={toggleTheme} className="p-2 text-gray-500" aria-label="Cambiar tema">
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-400" />}
             </button>
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-700 dark:text-gray-200" aria-label="Abrir menú">
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-700 dark:text-gray-200" aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"} aria-expanded={mobileMenuOpen}>
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
