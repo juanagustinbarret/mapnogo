@@ -4,7 +4,7 @@ import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { AdminNav } from '@/components/AdminNav';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
-import { formatearCentavos } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
 import { leerRecaudacion, nombreDelMes, type Recaudacion } from '@/lib/recaudacion';
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
@@ -205,8 +205,6 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // La suma la hace el servidor desde los pagos. Se vuelve a leer al abrir el
-  // panel y al volver a esta pestaña o ventana (sin consultas periódicas).
   const cargarRecaudacion = async () => {
     const { data, error } = await supabase.rpc('recaudacion_mes_actual');
     if (error) console.error('No se pudo leer la recaudación:', error.message);
@@ -310,8 +308,7 @@ export const AdminDashboardPage: React.FC = () => {
       alert('Ingresá una contraseña de al menos 6 caracteres.');
       return;
     }
-    // Antes se le sacaban los espacios sin avisar: la clave guardada quedaba
-    // distinta de la que el admin le dictaba al comercio.
+
     if (nuevaPasswordDirecta !== nuevaPasswordDirecta.trim()) {
       alert('La contraseña no puede empezar ni terminar con espacios.');
       return;
@@ -338,8 +335,6 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // Link de recuperación: primero se crea y después el admin elige por dónde
-  // mandarlo (ver PanelLinkRecuperacion; así funciona también en el iPhone).
   const handleGenerarLinkRecuperacion = async () => {
     if (!modalEditar?.id) return;
     setEnviandoToken(true);
@@ -495,8 +490,6 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    // Siempre se guarda limpio ("bien-criollo-pizzas"): con espacios o
-    // mayúsculas el link y el QR del comercio quedaban con %20
     if (!slugLimpio(modalEditar.slug)) {
       setErrorEdicion('El slug del comercio es obligatorio (letras o números).');
       return;
@@ -625,7 +618,7 @@ export const AdminDashboardPage: React.FC = () => {
               <p className="text-sm font-semibold text-gray-500 mt-1">Sin datos</p>
             ) : (
               <>
-                <p className="text-2xl font-bold text-green-600 mt-1">{formatearCentavos(recaudacion.centavos)}</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(recaudacion.total)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Pagos registrados en {nombreDelMes(recaudacion.desde)}</p>
               </>
             )}

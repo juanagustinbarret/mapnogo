@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
-import { aCentavos, formatearCentavos, formatDate } from '@/lib/formatters';
+import { formatCurrency, formatDate } from '@/lib/formatters';
 import { leerImporte } from '@/lib/importes';
 import { fechaCalendario } from '@/lib/fechasArgentina';
 import {
@@ -22,7 +22,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { AdminNav } from '@/components/AdminNav';
 
-// Mapeo directo de UUIDs a Nombres de Administradores
 const MAPA_ADMINISTRADORES: Record<string, string> = {
   'b722d6b4-0f07-4142-bd7d-26b2cf1c1836': 'Agustín Allende Vera',
   'd6b17662-fbab-4409-b2a2-f42cee3dba3d': 'Juan Agustín Barreto',
@@ -61,15 +60,13 @@ export const AdminPaymentsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Control de sub-pestaña activa
   const [pestanaActiva, setPestanaActiva] = useState<'gestion' | 'historial_global'>('gestion');
 
-  // Filtros de fecha para Auditoría (YYYY-MM-DD)
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
 
-  // Modal para registrar pago
   const [comercioModalPago, setComercioModalPago] = useState<Comercio | null>(null);
+  const [modalidadPago, setModalidadPago] = useState<'mensual' | 'anual'>('mensual');
   const [montoPago, setMontoPago] = useState('10000');
   const [metodoPago, setMetodoPago] = useState('Transferencia');
   const [savingPayment, setSavingPayment] = useState(false);
@@ -79,18 +76,15 @@ export const AdminPaymentsPage: React.FC = () => {
     clavePago.current = comercioModalPago ? crypto.randomUUID() : null;
   }, [comercioModalPago]);
 
-  // Modal para editar un pago existente
   const [pagoAEditar, setPagoAEditar] = useState<PagoAuditoria | null>(null);
   const [montoEditado, setMontoEditado] = useState('');
   const [metodoEditado, setMetodoEditado] = useState('Transferencia');
   const [savingEdition, setSavingEdition] = useState(false);
 
-  // Modal para ver historial individual
   const [comercioModalHistorial, setComercioModalHistorial] = useState<Comercio | null>(null);
   const [historialIndividual, setHistorialIndividual] = useState<PagoAuditoria[]>([]);
   const [loadingHistorialIndividual, setLoadingHistorialIndividual] = useState(false);
 
-  // Auditoría general
   const [auditoriaPagos, setAuditoriaPagos] = useState<PagoAuditoria[]>([]);
   const [loadingAuditoria, setLoadingAuditoria] = useState(false);
 
@@ -114,7 +108,6 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingAuditoria(true);
 
     try {
-      // 1. Obtener todos los pagos registrados
       const { data: pagosData, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
@@ -122,7 +115,6 @@ export const AdminPaymentsPage: React.FC = () => {
 
       if (errPagos || !pagosData) throw errPagos;
 
-      // 2. Mapeo de tablas de apoyo
       const { data: comsData } = await supabase
         .from('comercios')
         .select('id, nombre');
@@ -159,7 +151,7 @@ export const AdminPaymentsPage: React.FC = () => {
           id: item.id,
           comercioId: idComercioFinal,
           comercioNombre: nombreComercioDirecto || infoPeriodo?.comercioNombre || 'Comercio Registrado',
-          importe: Number(item.importe),
+          importe: Math.round(Number(item.importe)),
           metodo_pago: item.metodo_pago,
           referencia: item.referencia,
           created_at: item.created_at,
@@ -187,7 +179,7 @@ export const AdminPaymentsPage: React.FC = () => {
     if (!comercioModalPago) return;
     const importe = leerImporte(montoPago);
     if (importe === null) {
-      alert('Ingresá un importe válido mayor a $ 0 (por ejemplo 10.000).');
+      alert('Ingresá un importe válido mayor a $ 0.');
       return;
     }
     setSavingPayment(true);
@@ -208,17 +200,18 @@ export const AdminPaymentsPage: React.FC = () => {
         metodoEnum = 'mercadopago';
       }
 
-      const { data, error } = await supabase.rpc('registrar_pago_comercio', {
+      const { error } = await supabase.rpc('registrar_pago_comercio', {
         p_comercio_id: comercioModalPago.id,
         p_importe: importe,
         p_metodo_pago: metodoEnum,
-        p_registrado_por: user.id
+        p_registrado_por: user.id,
+        p_modalidad: modalidadPago
       });
 
       if (error) {
         alert('Error al registrar el pago: ' + error.message);
       } else {
-        alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatearCentavos(aCentavos(importe))}`);
+        alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatCurrency(importe)} (${modalidadPago.toUpperCase()})`);
         setComercioModalPago(null);
         fetchComercios();
         fetchAuditoriaGlobal();
@@ -235,7 +228,7 @@ export const AdminPaymentsPage: React.FC = () => {
     if (!pagoAEditar) return;
     const nuevoImporte = leerImporte(montoEditado);
     if (nuevoImporte === null) {
-      alert('Ingresá un importe válido mayor a $ 0 (por ejemplo 10.000).');
+      alert('Ingresá un importe válido mayor a $ 0.');
       return;
     }
     setSavingEdition(true);
@@ -255,8 +248,6 @@ export const AdminPaymentsPage: React.FC = () => {
         p_nuevo_metodo: metodoEnum
       });
 
-      // Sin reintento directo sobre la tabla: RLS no deja escribir pagos desde el
-      // navegador, el update no cambia nada y no da error (era un "✅" falso).
       if (rpcError) {
         alert('Error al editar el pago: ' + rpcError.message);
       } else {
@@ -273,7 +264,7 @@ export const AdminPaymentsPage: React.FC = () => {
   };
 
   const handleEliminarPago = async (pago: PagoAuditoria) => {
-    if (!confirm(`¿Estás seguro de eliminar el pago de ${formatearCentavos(aCentavos(pago.importe))} de "${pago.comercioNombre}"? Esta acción no se puede deshacer.`)) {
+    if (!confirm(`¿Estás seguro de eliminar el pago de ${formatCurrency(pago.importe)} de "${pago.comercioNombre}"? Esta acción no se puede deshacer.`)) {
       return;
     }
 
@@ -282,7 +273,6 @@ export const AdminPaymentsPage: React.FC = () => {
         p_pago_id: pago.id
       });
 
-      // Sin reintento directo sobre la tabla (mismo motivo que al editar)
       if (rpcError) {
         alert('Error al eliminar el pago: ' + rpcError.message);
       } else {
@@ -301,7 +291,6 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingHistorialIndividual(true);
 
     try {
-      // 1. Mapeo de periodos de suscripción
       const { data: sub } = await supabase
         .from('suscripciones')
         .select('id')
@@ -323,7 +312,6 @@ export const AdminPaymentsPage: React.FC = () => {
         );
       }
 
-      // 2. Traer pagos directamente
       const { data: pagosData, error } = await supabase
         .from('pagos')
         .select('*')
@@ -332,7 +320,6 @@ export const AdminPaymentsPage: React.FC = () => {
       if (error || !pagosData) {
         setHistorialIndividual([]);
       } else {
-        // Filtrado exhaustivo que chequea tanto comercio_id directo como vinculación por períodos
         const pagosDelComercio = pagosData.filter((item: any) => {
           const pId = item.periodo_id || item.periodo_suscripcion_id;
           return item.comercio_id === comercio.id || (pId && idsPeriodos.includes(pId));
@@ -344,7 +331,7 @@ export const AdminPaymentsPage: React.FC = () => {
             id: item.id,
             comercioId: comercio.id,
             comercioNombre: comercio.nombre,
-            importe: Number(item.importe),
+            importe: Math.round(Number(item.importe)),
             metodo_pago: item.metodo_pago,
             referencia: item.referencia,
             created_at: item.created_at,
@@ -378,7 +365,6 @@ export const AdminPaymentsPage: React.FC = () => {
       p.registrado_por_nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.metodo_pago.toLowerCase().includes(search.toLowerCase());
 
-    // Día del pago en Argentina (cortar created_at en UTC pasa los pagos de las 21 h al día siguiente)
     const fechaPagoStr = p.created_at ? fechaCalendario(p.created_at) : '';
 
     const coincideDesde = !fechaDesde || fechaPagoStr >= fechaDesde;
@@ -387,12 +373,10 @@ export const AdminPaymentsPage: React.FC = () => {
     return coincideTexto && coincideDesde && coincideHasta;
   });
 
-  const totalFiltrado = filtradosAuditoria.reduce((acc, curr) => acc + aCentavos(curr.importe), 0);
+  const totalFiltrado = filtradosAuditoria.reduce((acc, curr) => acc + curr.importe, 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
-      
-      {/* HEADER PRINCIPAL Y NAVEGACIÓN */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
@@ -415,9 +399,7 @@ export const AdminPaymentsPage: React.FC = () => {
         <AdminNav />
       </div>
 
-      {/* SECCIÓN PAGOS */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-        
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b dark:border-gray-700 pb-4">
           <div className="flex gap-2">
             <button
@@ -455,7 +437,6 @@ export const AdminPaymentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* VISTA 1: GESTIÓN DE COBROS */}
         {pestanaActiva === 'gestion' && (
           loading ? (
             <div className="p-12 text-center text-gray-500 font-semibold">Cargando registros...</div>
@@ -555,10 +536,8 @@ export const AdminPaymentsPage: React.FC = () => {
           )
         )}
 
-        {/* VISTA 2: AUDITORÍA GLOBAL DE PAGOS */}
         {pestanaActiva === 'historial_global' && (
           <div className="space-y-4">
-            
             <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-end justify-between gap-4 text-xs">
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                 <div>
@@ -592,7 +571,7 @@ export const AdminPaymentsPage: React.FC = () => {
               </div>
 
               <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 font-bold">
-                Total en rango: <span className="text-green-600 text-sm">{formatearCentavos(totalFiltrado)}</span>
+                Total en rango: <span className="text-green-600 text-sm">{formatCurrency(totalFiltrado)}</span>
               </div>
             </div>
 
@@ -619,7 +598,7 @@ export const AdminPaymentsPage: React.FC = () => {
                         <td className="p-3.5 font-bold text-gray-900 dark:text-white truncate">{pago.comercioNombre}</td>
                         <td className="p-3.5 text-xs text-gray-600 dark:text-gray-300 truncate">{formatDate(pago.created_at)}</td>
                         <td className="p-3.5 text-xs font-semibold capitalize truncate">{pago.metodo_pago}</td>
-                        <td className="p-3.5 text-xs font-bold text-green-600 truncate">{formatearCentavos(aCentavos(pago.importe))}</td>
+                        <td className="p-3.5 text-xs font-bold text-green-600 truncate">{formatCurrency(pago.importe)}</td>
                         <td className="p-3.5 text-xs font-bold text-brand-600 flex items-center gap-1.5 truncate">
                           <UserCheck className="w-4 h-4 text-brand-600 shrink-0" />
                           {pago.registrado_por_nombre}
@@ -650,10 +629,8 @@ export const AdminPaymentsPage: React.FC = () => {
             )}
           </div>
         )}
-
       </div>
 
-      {/* MODAL REGISTRAR PAGO */}
       {comercioModalPago && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -663,12 +640,28 @@ export const AdminPaymentsPage: React.FC = () => {
 
             <form onSubmit={handleConfirmarPago} className="space-y-4">
               <div>
+                <label className="text-xs font-semibold block mb-1">Duración de la Suscripción</label>
+                <select
+                  value={modalidadPago}
+                  onChange={(e) => {
+                    const mode = e.target.value as 'mensual' | 'anual';
+                    setModalidadPago(mode);
+                    setMontoPago(mode === 'anual' ? '100000' : '10000');
+                  }}
+                  className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900 font-semibold"
+                >
+                  <option value="mensual">Mensual (Vence en 1 mes)</option>
+                  <option value="anual">Anual (Vence en 1 año)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs font-semibold block mb-1">Monto Cobrado ($)</label>
                 <input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   required
-                  placeholder="10.000"
+                  placeholder="10000"
                   value={montoPago}
                   onChange={(e) => setMontoPago(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
@@ -709,7 +702,6 @@ export const AdminPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL EDITAR PAGO */}
       {pagoAEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -722,9 +714,9 @@ export const AdminPaymentsPage: React.FC = () => {
                 <label className="text-xs font-semibold block mb-1">Monto Correcto ($)</label>
                 <input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   required
-                  placeholder="10.000"
+                  placeholder="10000"
                   value={montoEditado}
                   onChange={(e) => setMontoEditado(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"
@@ -765,7 +757,6 @@ export const AdminPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL HISTORIAL INDIVIDUAL CON ACCIONES */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -806,7 +797,7 @@ export const AdminPaymentsPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-green-600 dark:text-green-400 text-sm">
-                        {formatearCentavos(aCentavos(pago.importe))}
+                        {formatCurrency(pago.importe)}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
@@ -841,7 +832,6 @@ export const AdminPaymentsPage: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };
