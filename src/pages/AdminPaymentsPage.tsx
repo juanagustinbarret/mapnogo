@@ -453,7 +453,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
                     <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
                       <button
-                        onClick={() => handleToggleEstadoPago(c.id, c.habilitado_admin)}
+                        onClick={() => void handleToggleEstadoPago(c.id, c.habilitado_admin)}
                         className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 ${
                           c.habilitado_admin ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
                         }`}
@@ -464,7 +464,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleAbrirHistorialIndividual(c)}
+                          onClick={() => void handleAbrirHistorialIndividual(c)}
                           className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition"
                         >
                           <History className="w-3.5 h-3.5" /> Historial
@@ -501,7 +501,7 @@ export const AdminPaymentsPage: React.FC = () => {
                         <td className="p-3.5 text-xs font-semibold text-brand-600 truncate">{calcularAntiguedadMeses(c.created_at)}</td>
                         <td className="p-3.5">
                           <button
-                            onClick={() => handleToggleEstadoPago(c.id, c.habilitado_admin)}
+                            onClick={() => void handleToggleEstadoPago(c.id, c.habilitado_admin)}
                             className={`px-2.5 py-1 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition ${
                               c.habilitado_admin ? 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
                             }`}
@@ -512,7 +512,7 @@ export const AdminPaymentsPage: React.FC = () => {
                         </td>
                         <td className="p-3.5 text-right whitespace-nowrap space-x-2">
                           <button
-                            onClick={() => handleAbrirHistorialIndividual(c)}
+                            onClick={() => void handleAbrirHistorialIndividual(c)}
                             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold rounded-xl text-xs inline-flex items-center gap-1 shadow-sm transition"
                           >
                             <History className="w-3.5 h-3.5" /> Historial
@@ -611,7 +611,7 @@ export const AdminPaymentsPage: React.FC = () => {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleEliminarPago(pago)}
+                            onClick={() => void handleEliminarPago(pago)}
                             className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                             title="Eliminar este pago"
                             aria-label="Eliminar este pago"
@@ -636,7 +636,7 @@ export const AdminPaymentsPage: React.FC = () => {
               Registrar Cuota para {comercioModalPago.nombre}
             </h3>
 
-            <form onSubmit={handleConfirmarPago} className="space-y-4">
+            <form onSubmit={(e) => void handleConfirmarPago(e)} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold block mb-1">Duración de la Suscripción</label>
                 <select
@@ -707,7 +707,7 @@ export const AdminPaymentsPage: React.FC = () => {
               Editar Cobro de {pagoAEditar.comercioNombre}
             </h3>
 
-            <form onSubmit={handleGuardarEdicionPago} className="space-y-4">
+            <form onSubmit={(e) => void handleGuardarEdicionPago(e)} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold block mb-1">Monto Correcto ($)</label>
                 <input
@@ -806,7 +806,7 @@ export const AdminPaymentsPage: React.FC = () => {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleEliminarPago(pago)}
+                          onClick={() => void handleEliminarPago(pago)}
                           className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                           title="Eliminar este pago"
                         >
