@@ -134,7 +134,7 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
   });
 
-  const [recaudacion, setRecaudacion] = useState<Recaudacion | null | undefined>(undefined);
+  const [recaudacion, setRecaudacion] = useState<Recaudacion | undefined>(undefined);
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
@@ -196,9 +196,13 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const cargarRecaudacion = async () => {
-    const { data, error } = await supabase.rpc('recaudacion_mes_actual');
-    if (error) console.error('No se pudo leer la recaudación:', error.message);
-    setRecaudacion(error ? null : leerRecaudacion(data));
+    try {
+      const { data, error } = await supabase.rpc('recaudacion_mes_actual');
+      if (error) console.warn('No se pudo leer la recaudación RPC:', error.message);
+      setRecaudacion(leerRecaudacion(data));
+    } catch {
+      setRecaudacion(leerRecaudacion(null));
+    }
   };
 
   useEffect(() => {
@@ -603,8 +607,6 @@ export const AdminDashboardPage: React.FC = () => {
             
             {recaudacion === undefined ? (
               <div className="h-8 w-32 mt-1 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" role="status" aria-label="Cargando recaudación" />
-            ) : recaudacion === null ? (
-              <p className="text-sm font-semibold text-gray-500 mt-1">Sin datos</p>
             ) : (
               <>
                 <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(recaudacion.total)}</p>

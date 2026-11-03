@@ -9,7 +9,7 @@ export interface Recaudacion {
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Genera las fechas límites del mes actual en formato YYYY-MM-DD */
+/** Obtiene primer y último día del mes corriente local */
 function fechasMesActual(): { desde: string; hasta: string } {
   const hoy = new Date();
   const anio = hoy.getFullYear();
