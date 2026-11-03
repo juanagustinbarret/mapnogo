@@ -1,3 +1,5 @@
+// src/pages/admin/AdminDashboardPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { OpcionesRubros } from '@/components/OpcionesRubros';
@@ -197,10 +199,40 @@ export const AdminDashboardPage: React.FC = () => {
 
   const cargarRecaudacion = async () => {
     try {
-      const { data, error } = await supabase.rpc('recaudacion_mes_actual');
-      if (error) console.warn('No se pudo leer la recaudación RPC:', error.message);
-      setRecaudacion(leerRecaudacion(data));
-    } catch {
+      const hoy = new Date();
+      const anio = hoy.getFullYear();
+      const mes = hoy.getMonth();
+
+      // Rango del mes actual
+      const primerDia = new Date(anio, mes, 1, 0, 0, 0, 0).toISOString();
+      const ultimoDia = new Date(anio, mes + 1, 0, 23, 59, 59, 999).toISOString();
+
+      // Consulta directa a la tabla pagos sin pasar por RPC
+      const { data, error } = await supabase
+        .from('pagos')
+        .select('*')
+        .gte('created_at', primerDia)
+        .lte('created_at', ultimoDia);
+
+      if (error) throw error;
+
+      // Suma dinámica contemplando variantes de nombres de columnas
+      const totalSuma = (data ?? []).reduce((acc, pago: Record<string, unknown>) => {
+        const val = Number(pago.monto ?? pago.importe ?? pago.total ?? 0);
+        return acc + (Number.isFinite(val) ? val : 0);
+      }, 0);
+
+      const fechaDesdeStr = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
+      const ultimoDiaNum = new Date(anio, mes + 1, 0).getDate();
+      const fechaHastaStr = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(ultimoDiaNum).padStart(2, '0')}`;
+
+      setRecaudacion({
+        total: Math.round(totalSuma),
+        desde: fechaDesdeStr,
+        hasta: fechaHastaStr,
+      });
+    } catch (err) {
+      console.warn('Error al calcular recaudación directa:', err);
       setRecaudacion(leerRecaudacion(null));
     }
   };
