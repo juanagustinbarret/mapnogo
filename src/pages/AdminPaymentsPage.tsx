@@ -422,7 +422,7 @@ export const AdminPaymentsPage: React.FC = () => {
             <div className="p-12 text-center text-gray-500 font-semibold">Cargando registros...</div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:hidden">
                 {filtradosComercios.map((c) => (
                   <div key={c.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
                     <div className="flex justify-between items-start">
@@ -464,7 +464,7 @@ export const AdminPaymentsPage: React.FC = () => {
                 ))}
               </div>
 
-              <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+              <div className="hidden lg:block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-left border-collapse table-fixed">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -616,7 +616,7 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* MODAL REGISTRAR PAGO */}
       {comercioModalPago && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">
               Registrar Cuota para {comercioModalPago.nombre}
             </h3>
@@ -672,7 +672,7 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* MODAL EDITAR PAGO */}
       {pagoAEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">
               Editar Cobro de {pagoAEditar.comercioNombre}
             </h3>
@@ -728,7 +728,7 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* MODAL HISTORIAL INDIVIDUAL */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
                 <History className="w-5 h-5 text-blue-500" />

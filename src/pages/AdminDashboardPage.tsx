@@ -888,7 +888,7 @@ export const AdminDashboardPage: React.FC = () => {
       {/* MODAL DE EDICIÓN COMPLETA */}
       {modalEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[94vh] overflow-y-auto p-5 sm:p-6 space-y-6 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[94dvh] overflow-y-auto p-5 sm:p-6 space-y-6 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">

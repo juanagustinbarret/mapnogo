@@ -722,7 +722,7 @@ export const CommerceDetailPage: React.FC = () => {
 
       {modalReporteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" /> Reportar Información Incorrecta

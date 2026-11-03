@@ -1264,7 +1264,7 @@ export const MerchantDashboardPage: React.FC = () => {
       {/* MODAL CREAR PUBLICACIÓN/OFERTA CON PRECIO ANTERIOR Y PROMOCIONAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Publicar Oferta o Novedad</h3>
             <form onSubmit={handleCreatePromo} className="space-y-3">
               

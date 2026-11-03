@@ -97,13 +97,13 @@ export const FichaEvento: React.FC<Props> = ({ evento, onClose }) => {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[1100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[1100] flex items-end sm:items-center justify-center pb-[env(safe-area-inset-bottom)] sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="titulo-ficha-evento"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl border border-amber-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl border border-amber-200 dark:border-gray-700">
         {evento.imagen_url && !imagenRota && (
           <img
             src={evento.imagen_url}
