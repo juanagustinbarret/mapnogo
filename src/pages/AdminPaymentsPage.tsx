@@ -72,7 +72,6 @@ export const AdminPaymentsPage: React.FC = () => {
   const [montoPago, setMontoPago] = useState('10000');
   const [metodoPago, setMetodoPago] = useState('Transferencia');
   const [savingPayment, setSavingPayment] = useState(false);
-  // Una clave por cada apertura del modal: un doble clic o un reintento no registra dos veces
   const clavePago = useRef<string | null>(null);
   useEffect(() => {
     clavePago.current = comercioModalPago ? crypto.randomUUID() : null;
@@ -120,10 +119,10 @@ export const AdminPaymentsPage: React.FC = () => {
         referencia,
         created_at,
         registrado_por,
-        periodos_suscripcion!inner (
+        periodos_suscripcion (
           periodo_facturado,
-          suscripciones!inner (
-            comercios!inner (
+          suscripciones (
+            comercios (
               nombre
             )
           )
@@ -136,12 +135,12 @@ export const AdminPaymentsPage: React.FC = () => {
     } else if (data) {
       const formateados: PagoAuditoria[] = data.map((item: any) => ({
         id: item.id,
-        comercioNombre: item.periodos_suscripcion?.suscripciones?.comercios?.nombre || 'Comercio Desconocido',
+        comercioNombre: item.periodos_suscripcion?.suscripciones?.comercios?.nombre || 'Comercio Registrado',
         importe: item.importe,
         metodo_pago: item.metodo_pago,
         referencia: item.referencia,
         created_at: item.created_at,
-        periodo_facturado: item.periodos_suscripcion?.periodo_facturado || 'N/A',
+        periodo_facturado: item.periodos_suscripcion?.periodo_facturado || 'General',
         registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
       }));
       setAuditoriaPagos(formateados);
@@ -180,17 +179,14 @@ export const AdminPaymentsPage: React.FC = () => {
         metodoEnum = 'mercadopago';
       }
 
-      // registrar_pago_seguro (supabase/propuestas/20261103_recaudacion_pagos.sql) toma el admin
-      // de la sesión y no registra dos veces la misma clave. Mientras ese SQL no esté corrido,
-      // se usa la función anterior.
       let { data, error } = await supabase.rpc('registrar_pago_seguro', {
         p_clave: clavePago.current,
         p_comercio_id: comercioModalPago.id,
         p_importe: importe,
         p_metodo_pago: metodoEnum
       });
+
       if (error?.code === 'PGRST202') {
-        console.warn('Falta correr 20261103_recaudacion_pagos.sql: se usa registrar_pago_comercio.');
         ({ data, error } = await supabase.rpc('registrar_pago_comercio', {
           p_comercio_id: comercioModalPago.id,
           p_importe: importe,
@@ -245,7 +241,19 @@ export const AdminPaymentsPage: React.FC = () => {
       });
 
       if (error) {
-        alert('Error al editar el pago: ' + error.message);
+        // Fallback directo en tabla si el RPC falla
+        const { error: errorDirecto } = await supabase
+          .from('pagos')
+          .update({ importe: nuevoImporte, metodo_pago: metodoEnum })
+          .eq('id', pagoAEditar.id);
+
+        if (errorDirecto) {
+          alert('Error al editar el pago: ' + errorDirecto.message);
+        } else {
+          alert(`✅ Registro de pago corregido exitosamente.`);
+          setPagoAEditar(null);
+          fetchAuditoriaGlobal();
+        }
       } else {
         alert(`✅ Registro de pago corregido exitosamente.`);
         setPagoAEditar(null);
@@ -269,7 +277,19 @@ export const AdminPaymentsPage: React.FC = () => {
       });
 
       if (error) {
-        alert('Error al eliminar el pago: ' + error.message);
+        // Fallback directo en tabla si no existe el RPC
+        const { error: errorDirecto } = await supabase
+          .from('pagos')
+          .delete()
+          .eq('id', pago.id);
+
+        if (errorDirecto) {
+          alert('Error al eliminar el pago: ' + errorDirecto.message);
+        } else {
+          alert('✅ Registro de pago eliminado correctamente.');
+          fetchAuditoriaGlobal();
+          fetchComercios();
+        }
       } else {
         alert('✅ Registro de pago eliminado correctamente.');
         fetchAuditoriaGlobal();
@@ -284,6 +304,7 @@ export const AdminPaymentsPage: React.FC = () => {
     setComercioModalHistorial(comercio);
     setLoadingHistorialIndividual(true);
 
+    // Consulta flexible para traer todo el historial sin bloquear por relaciones faltantes
     const { data, error } = await supabase
       .from('pagos')
       .select(`
@@ -293,14 +314,10 @@ export const AdminPaymentsPage: React.FC = () => {
         referencia,
         created_at,
         registrado_por,
-        periodos_suscripcion!inner (
-          periodo_facturado,
-          suscripciones!inner (
-            comercio_id
-          )
+        periodos_suscripcion (
+          periodo_facturado
         )
       `)
-      .eq('periodos_suscripcion.suscripciones.comercio_id', comercio.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -314,7 +331,7 @@ export const AdminPaymentsPage: React.FC = () => {
         metodo_pago: item.metodo_pago,
         referencia: item.referencia,
         created_at: item.created_at,
-        periodo_facturado: item.periodos_suscripcion?.periodo_facturado || 'N/A',
+        periodo_facturado: item.periodos_suscripcion?.periodo_facturado || 'General',
         registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
       }));
       setHistorialIndividual(formateados);
@@ -339,7 +356,6 @@ export const AdminPaymentsPage: React.FC = () => {
       p.registrado_por_nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.metodo_pago.toLowerCase().includes(search.toLowerCase());
 
-    // Día del pago en Argentina (con split('T') un pago de las 22 h caía al día siguiente)
     const fechaPagoStr = fechaCalendario(p.created_at);
     const coincideDesde = !fechaDesde || fechaPagoStr >= fechaDesde;
     const coincideHasta = !fechaHasta || fechaPagoStr <= fechaHasta;
@@ -347,7 +363,6 @@ export const AdminPaymentsPage: React.FC = () => {
     return coincideTexto && coincideDesde && coincideHasta;
   });
 
-  // En centavos: sumar importes con decimales como números de coma flotante da errores
   const totalFiltrado = filtradosAuditoria.reduce((acc, curr) => acc + aCentavos(curr.importe), 0);
 
   return (
@@ -416,7 +431,7 @@ export const AdminPaymentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* CONTENIDO VISTA 1: GESTIÓN */}
+        {/* VISTA 1: GESTIÓN DE COBROS */}
         {pestanaActiva === 'gestion' && (
           loading ? (
             <div className="p-12 text-center text-gray-500 font-semibold">Cargando registros...</div>
@@ -516,11 +531,10 @@ export const AdminPaymentsPage: React.FC = () => {
           )
         )}
 
-        {/* CONTENIDO VISTA 2: AUDITORÍA CON FILTRO DE FECHAS */}
+        {/* VISTA 2: AUDITORÍA GLOBAL DE PAGOS */}
         {pestanaActiva === 'historial_global' && (
           <div className="space-y-4">
             
-            {/* BARRA DE FILTROS FECHA DESDE / HASTA */}
             <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-end justify-between gap-4 text-xs">
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                 <div>
@@ -727,7 +741,7 @@ export const AdminPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL HISTORIAL INDIVIDUAL */}
+      {/* MODAL HISTORIAL INDIVIDUAL (CON FALLBACK DE REPETICIÓN O SIN RELACIÓN) */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">

@@ -9,17 +9,15 @@ export const fetchHistorialComercio = async (comercioId: string) => {
       importe,
       metodo_pago,
       referencia,
-      fecha_pago,
       created_at,
-      periodos_suscripcion!inner (
-        periodo_facturado,
-        vencimiento,
-        suscripciones!inner (
-          comercio_id
-        )
+      registrado_por,
+      comercio_id,
+      periodo_id,
+      periodos_suscripcion (
+        periodo_facturado
       )
     `)
-    .eq('periodos_suscripcion.suscripciones.comercio_id', comercioId)
+    .or(`comercio_id.eq.${comercioId},periodos_suscripcion.suscripciones.comercio_id.eq.${comercioId}`)
     .order('created_at', { ascending: false });
 
   if (error) {
