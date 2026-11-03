@@ -112,7 +112,7 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingAuditoria(true);
 
     try {
-      // 1. Obtener los pagos
+      // 1. Obtener todos los pagos
       const { data: pagosData, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
@@ -120,7 +120,7 @@ export const AdminPaymentsPage: React.FC = () => {
 
       if (errPagos || !pagosData) throw errPagos;
 
-      // 2. Obtener referencias de períodos y suscripciones para mapear nombres de comercios sin romper JOINs
+      // 2. Traer periodos, suscripciones y comercios para vincular sin depender de JOINs DB
       const { data: periodosData } = await supabase
         .from('periodos_suscripcion')
         .select('id, periodo_facturado, suscripcion_id');
@@ -144,11 +144,14 @@ export const AdminPaymentsPage: React.FC = () => {
       ]));
 
       const formateados: PagoAuditoria[] = pagosData.map((item: any) => {
-        const infoPeriodo = mapaPeriodos[item.periodo_suscripcion_id];
+        const periodoId = item.periodo_id || item.periodo_suscripcion_id;
+        const infoPeriodo = mapaPeriodos[periodoId];
+        const nombreComercioDirecto = item.comercio_id ? mapaComercios[item.comercio_id] : null;
+
         return {
           id: item.id,
-          comercioNombre: infoPeriodo?.comercioNombre || 'Comercio Registrado',
-          importe: item.importe,
+          comercioNombre: infoPeriodo?.comercioNombre || nombreComercioDirecto || 'Comercio Registrado',
+          importe: Number(item.importe),
           metodo_pago: item.metodo_pago,
           referencia: item.referencia,
           created_at: item.created_at,
@@ -307,54 +310,55 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingHistorialIndividual(true);
 
     try {
+      // 1. Intentar por suscripción
       const { data: sub } = await supabase
         .from('suscripciones')
         .select('id')
         .eq('comercio_id', comercio.id)
         .maybeSingle();
 
-      if (!sub) {
-        setHistorialIndividual([]);
-        setLoadingHistorialIndividual(false);
-        return;
+      let idsPeriodos: string[] = [];
+      let mapaPeriodos: Record<string, string> = {};
+
+      if (sub) {
+        const { data: periodos } = await supabase
+          .from('periodos_suscripcion')
+          .select('id, periodo_facturado')
+          .eq('suscripcion_id', sub.id);
+
+        idsPeriodos = (periodos ?? []).map((p) => p.id);
+        mapaPeriodos = Object.fromEntries(
+          (periodos ?? []).map((p) => [p.id, p.periodo_facturado])
+        );
       }
 
-      const { data: periodos } = await supabase
-        .from('periodos_suscripcion')
-        .select('id, periodo_facturado')
-        .eq('suscripcion_id', sub.id);
+      // 2. Traer los pagos tanto si apuntan a un período como si apuntan directo al comercio_id
+      let query = supabase.from('pagos').select('*');
 
-      const idsPeriodos = (periodos ?? []).map((p) => p.id);
-
-      if (idsPeriodos.length === 0) {
-        setHistorialIndividual([]);
-        setLoadingHistorialIndividual(false);
-        return;
+      if (idsPeriodos.length > 0) {
+        query = query.or(`comercio_id.eq.${comercio.id},periodo_id.in.(${idsPeriodos.join(',')}),periodo_suscripcion_id.in.(${idsPeriodos.join(',')})`);
+      } else {
+        query = query.eq('comercio_id', comercio.id);
       }
 
-      const mapaPeriodos = Object.fromEntries(
-        (periodos ?? []).map((p) => [p.id, p.periodo_facturado])
-      );
-
-      const { data: pagosData, error } = await supabase
-        .from('pagos')
-        .select('*')
-        .in('periodo_suscripcion_id', idsPeriodos)
-        .order('created_at', { ascending: false });
+      const { data: pagosData, error } = await query.order('created_at', { ascending: false });
 
       if (error || !pagosData) {
         setHistorialIndividual([]);
       } else {
-        const formateados: PagoAuditoria[] = pagosData.map((item: any) => ({
-          id: item.id,
-          comercioNombre: comercio.nombre,
-          importe: item.importe,
-          metodo_pago: item.metodo_pago,
-          referencia: item.referencia,
-          created_at: item.created_at,
-          periodo_facturado: mapaPeriodos[item.periodo_suscripcion_id] || 'General',
-          registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
-        }));
+        const formateados: PagoAuditoria[] = pagosData.map((item: any) => {
+          const pId = item.periodo_id || item.periodo_suscripcion_id;
+          return {
+            id: item.id,
+            comercioNombre: comercio.nombre,
+            importe: Number(item.importe),
+            metodo_pago: item.metodo_pago,
+            referencia: item.referencia,
+            created_at: item.created_at,
+            periodo_facturado: mapaPeriodos[pId] || 'General',
+            registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
+          };
+        });
         setHistorialIndividual(formateados);
       }
     } catch (err) {
@@ -381,7 +385,6 @@ export const AdminPaymentsPage: React.FC = () => {
       p.registrado_por_nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.metodo_pago.toLowerCase().includes(search.toLowerCase());
 
-    // Obtener fecha en formato ISO YYYY-MM-DD para poder comparar correctamente con los inputs type="date"
     const fechaPagoISO = p.created_at ? p.created_at.substring(0, 10) : '';
 
     const coincideDesde = !fechaDesde || fechaPagoISO >= fechaDesde;
