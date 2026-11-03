@@ -113,7 +113,6 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingAuditoria(true);
 
     try {
-      // 1. Obtener todos los pagos registrados
       const { data: pagosData, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
@@ -121,7 +120,6 @@ export const AdminPaymentsPage: React.FC = () => {
 
       if (errPagos || !pagosData) throw errPagos;
 
-      // 2. Traer de forma plana periodos, suscripciones y comercios para relacionarlos manualmente sin romper JOINs RLS
       const { data: periodosData } = await supabase
         .from('periodos_suscripcion')
         .select('id, periodo_facturado, suscripcion_id');
@@ -248,7 +246,6 @@ export const AdminPaymentsPage: React.FC = () => {
         metodoEnum = 'mercadopago';
       }
 
-      // Intentar primero vía RPC
       const { error: rpcError } = await supabase.rpc('editar_pago_comercio', {
         p_pago_id: pagoAEditar.id,
         p_nuevo_importe: nuevoImporte,
@@ -256,7 +253,6 @@ export const AdminPaymentsPage: React.FC = () => {
       });
 
       if (rpcError) {
-        // Fallback directo sobre la tabla pagos
         const { error: errorDirecto } = await supabase
           .from('pagos')
           .update({ importe: nuevoImporte, metodo_pago: metodoEnum })
@@ -268,11 +264,13 @@ export const AdminPaymentsPage: React.FC = () => {
           alert('✅ Registro de pago corregido exitosamente.');
           setPagoAEditar(null);
           fetchAuditoriaGlobal();
+          if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
         }
       } else {
         alert('✅ Registro de pago corregido exitosamente.');
         setPagoAEditar(null);
         fetchAuditoriaGlobal();
+        if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
       }
     } catch (err: any) {
       alert('Error inesperado: ' + err.message);
@@ -292,7 +290,6 @@ export const AdminPaymentsPage: React.FC = () => {
       });
 
       if (rpcError) {
-        // Fallback eliminación directa sobre la tabla pagos
         const { error: errorDirecto } = await supabase
           .from('pagos')
           .delete()
@@ -304,11 +301,13 @@ export const AdminPaymentsPage: React.FC = () => {
           alert('✅ Registro de pago eliminado correctamente.');
           fetchAuditoriaGlobal();
           fetchComercios();
+          if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
         }
       } else {
         alert('✅ Registro de pago eliminado correctamente.');
         fetchAuditoriaGlobal();
         fetchComercios();
+        if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
       }
     } catch (err: any) {
       alert('Error inesperado: ' + err.message);
@@ -320,7 +319,6 @@ export const AdminPaymentsPage: React.FC = () => {
     setLoadingHistorialIndividual(true);
 
     try {
-      // 1. Obtener la suscripción del comercio
       const { data: sub } = await supabase
         .from('suscripciones')
         .select('id')
@@ -342,7 +340,6 @@ export const AdminPaymentsPage: React.FC = () => {
         );
       }
 
-      // 2. Traer todos los pagos asociados (por periodo o directo por comercio_id)
       const { data: pagosData, error } = await supabase
         .from('pagos')
         .select('*')
@@ -351,7 +348,6 @@ export const AdminPaymentsPage: React.FC = () => {
       if (error || !pagosData) {
         setHistorialIndividual([]);
       } else {
-        // Filtrar en memoria para asegurar que traiga todos sin fallas en filtros PostgREST
         const pagosDelComercio = pagosData.filter((item: any) => {
           const pId = item.periodo_id || item.periodo_suscripcion_id;
           return item.comercio_id === comercio.id || (pId && idsPeriodos.includes(pId));
@@ -783,7 +779,7 @@ export const AdminPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL HISTORIAL INDIVIDUAL */}
+      {/* MODAL HISTORIAL INDIVIDUAL CON ACCIONES DE EDICIÓN Y ELIMINACIÓN */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -822,9 +818,27 @@ export const AdminPaymentsPage: React.FC = () => {
                         Registrado por: {pago.registrado_por_nombre}
                       </p>
                     </div>
-                    <span className="font-bold text-green-600 dark:text-green-400 text-sm">
-                      {formatearCentavos(aCentavos(pago.importe))}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-green-600 dark:text-green-400 text-sm">
+                        {formatearCentavos(aCentavos(pago.importe))}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => abrirModalEditar(pago)}
+                          className="p-1.5 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                          title="Editar este registro"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEliminarPago(pago)}
+                          className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                          title="Eliminar este pago"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
