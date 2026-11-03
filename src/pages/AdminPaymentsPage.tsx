@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { aCentavos, formatearCentavos, formatDate } from '@/lib/formatters';
 import { leerImporte } from '@/lib/importes';
-import { fechaCalendario } from '@/lib/fechasArgentina';
 import {
   CreditCard,
   CheckCircle,
@@ -63,7 +62,7 @@ export const AdminPaymentsPage: React.FC = () => {
   // Control de sub-pestaña activa
   const [pestanaActiva, setPestanaActiva] = useState<'gestion' | 'historial_global'>('gestion');
 
-  // Filtros de fecha para Auditoría
+  // Filtros de fecha para Auditoría (YYYY-MM-DD)
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
 
@@ -73,6 +72,7 @@ export const AdminPaymentsPage: React.FC = () => {
   const [metodoPago, setMetodoPago] = useState('Transferencia');
   const [savingPayment, setSavingPayment] = useState(false);
   const clavePago = useRef<string | null>(null);
+
   useEffect(() => {
     clavePago.current = comercioModalPago ? crypto.randomUUID() : null;
   }, [comercioModalPago]);
@@ -110,42 +110,60 @@ export const AdminPaymentsPage: React.FC = () => {
 
   const fetchAuditoriaGlobal = async () => {
     setLoadingAuditoria(true);
-    const { data, error } = await supabase
-      .from('pagos')
-      .select(`
-        id,
-        importe,
-        metodo_pago,
-        referencia,
-        created_at,
-        registrado_por,
-        periodos_suscripcion (
-          periodo_facturado,
-          suscripciones (
-            comercios (
-              nombre
-            )
-          )
-        )
-      `)
-      .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error al cargar auditoría global:', error.message);
-    } else if (data) {
-      const formateados: PagoAuditoria[] = data.map((item: any) => ({
-        id: item.id,
-        comercioNombre: item.periodos_suscripcion?.suscripciones?.comercios?.nombre || 'Comercio Registrado',
-        importe: item.importe,
-        metodo_pago: item.metodo_pago,
-        referencia: item.referencia,
-        created_at: item.created_at,
-        periodo_facturado: item.periodos_suscripcion?.periodo_facturado || 'General',
-        registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
-      }));
+    try {
+      // 1. Obtener los pagos
+      const { data: pagosData, error: errPagos } = await supabase
+        .from('pagos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (errPagos || !pagosData) throw errPagos;
+
+      // 2. Obtener referencias de períodos y suscripciones para mapear nombres de comercios sin romper JOINs
+      const { data: periodosData } = await supabase
+        .from('periodos_suscripcion')
+        .select('id, periodo_facturado, suscripcion_id');
+
+      const { data: subsData } = await supabase
+        .from('suscripciones')
+        .select('id, comercio_id');
+
+      const { data: comsData } = await supabase
+        .from('comercios')
+        .select('id, nombre');
+
+      const mapaComercios = Object.fromEntries((comsData ?? []).map((c) => [c.id, c.nombre]));
+      const mapaSubs = Object.fromEntries((subsData ?? []).map((s) => [s.id, mapaComercios[s.comercio_id] || 'Comercio Registrado']));
+      const mapaPeriodos = Object.fromEntries((periodosData ?? []).map((p) => [
+        p.id, 
+        { 
+          periodo: p.periodo_facturado, 
+          comercioNombre: mapaSubs[p.suscripcion_id] || 'Comercio Registrado' 
+        }
+      ]));
+
+      const formateados: PagoAuditoria[] = pagosData.map((item: any) => {
+        const infoPeriodo = mapaPeriodos[item.periodo_suscripcion_id];
+        return {
+          id: item.id,
+          comercioNombre: infoPeriodo?.comercioNombre || 'Comercio Registrado',
+          importe: item.importe,
+          metodo_pago: item.metodo_pago,
+          referencia: item.referencia,
+          created_at: item.created_at,
+          periodo_facturado: infoPeriodo?.periodo || 'General',
+          registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
+        };
+      });
+
       setAuditoriaPagos(formateados);
+    } catch (error: any) {
+      console.error('Error al cargar auditoría global:', error?.message);
+      setAuditoriaPagos([]);
+    } finally {
+      setLoadingAuditoria(false);
     }
-    setLoadingAuditoria(false);
   };
 
   const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
@@ -179,29 +197,15 @@ export const AdminPaymentsPage: React.FC = () => {
         metodoEnum = 'mercadopago';
       }
 
-      let { data, error } = await supabase.rpc('registrar_pago_seguro', {
-        p_clave: clavePago.current,
+      const { data, error } = await supabase.rpc('registrar_pago_comercio', {
         p_comercio_id: comercioModalPago.id,
         p_importe: importe,
-        p_metodo_pago: metodoEnum
+        p_metodo_pago: metodoEnum,
+        p_registrado_por: user.id
       });
-
-      if (error?.code === 'PGRST202') {
-        ({ data, error } = await supabase.rpc('registrar_pago_comercio', {
-          p_comercio_id: comercioModalPago.id,
-          p_importe: importe,
-          p_metodo_pago: metodoEnum,
-          p_registrado_por: user.id
-        }));
-      }
 
       if (error) {
         alert('Error al registrar el pago: ' + error.message);
-      } else if ((data as { duplicado?: boolean } | null)?.duplicado) {
-        alert('Ese pago ya estaba registrado: no se sumó otra vez.');
-        setComercioModalPago(null);
-        fetchComercios();
-        fetchAuditoriaGlobal();
       } else {
         alert(`✅ Pago registrado exitosamente por ${obtenerNombreAdmin(user.id)} para "${comercioModalPago.nombre}" por ${formatearCentavos(aCentavos(importe))}`);
         setComercioModalPago(null);
@@ -241,7 +245,6 @@ export const AdminPaymentsPage: React.FC = () => {
       });
 
       if (error) {
-        // Fallback directo en tabla si el RPC falla
         const { error: errorDirecto } = await supabase
           .from('pagos')
           .update({ importe: nuevoImporte, metodo_pago: metodoEnum })
@@ -277,7 +280,6 @@ export const AdminPaymentsPage: React.FC = () => {
       });
 
       if (error) {
-        // Fallback directo en tabla si no existe el RPC
         const { error: errorDirecto } = await supabase
           .from('pagos')
           .delete()
@@ -304,40 +306,63 @@ export const AdminPaymentsPage: React.FC = () => {
     setComercioModalHistorial(comercio);
     setLoadingHistorialIndividual(true);
 
-    // Consulta flexible para traer todo el historial sin bloquear por relaciones faltantes
-    const { data, error } = await supabase
-      .from('pagos')
-      .select(`
-        id,
-        importe,
-        metodo_pago,
-        referencia,
-        created_at,
-        registrado_por,
-        periodos_suscripcion (
-          periodo_facturado
-        )
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data: sub } = await supabase
+        .from('suscripciones')
+        .select('id')
+        .eq('comercio_id', comercio.id)
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error al cargar historial individual:', error.message);
+      if (!sub) {
+        setHistorialIndividual([]);
+        setLoadingHistorialIndividual(false);
+        return;
+      }
+
+      const { data: periodos } = await supabase
+        .from('periodos_suscripcion')
+        .select('id, periodo_facturado')
+        .eq('suscripcion_id', sub.id);
+
+      const idsPeriodos = (periodos ?? []).map((p) => p.id);
+
+      if (idsPeriodos.length === 0) {
+        setHistorialIndividual([]);
+        setLoadingHistorialIndividual(false);
+        return;
+      }
+
+      const mapaPeriodos = Object.fromEntries(
+        (periodos ?? []).map((p) => [p.id, p.periodo_facturado])
+      );
+
+      const { data: pagosData, error } = await supabase
+        .from('pagos')
+        .select('*')
+        .in('periodo_suscripcion_id', idsPeriodos)
+        .order('created_at', { ascending: false });
+
+      if (error || !pagosData) {
+        setHistorialIndividual([]);
+      } else {
+        const formateados: PagoAuditoria[] = pagosData.map((item: any) => ({
+          id: item.id,
+          comercioNombre: comercio.nombre,
+          importe: item.importe,
+          metodo_pago: item.metodo_pago,
+          referencia: item.referencia,
+          created_at: item.created_at,
+          periodo_facturado: mapaPeriodos[item.periodo_suscripcion_id] || 'General',
+          registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
+        }));
+        setHistorialIndividual(formateados);
+      }
+    } catch (err) {
+      console.error('Error al cargar historial individual:', err);
       setHistorialIndividual([]);
-    } else if (data) {
-      const formateados: PagoAuditoria[] = data.map((item: any) => ({
-        id: item.id,
-        comercioNombre: comercio.nombre,
-        importe: item.importe,
-        metodo_pago: item.metodo_pago,
-        referencia: item.referencia,
-        created_at: item.created_at,
-        periodo_facturado: item.periodos_suscripcion?.periodo_facturado || 'General',
-        registrado_por_nombre: obtenerNombreAdmin(item.registrado_por)
-      }));
-      setHistorialIndividual(formateados);
+    } finally {
+      setLoadingHistorialIndividual(false);
     }
-
-    setLoadingHistorialIndividual(false);
   };
 
   const abrirModalEditar = (pago: PagoAuditoria) => {
@@ -356,9 +381,11 @@ export const AdminPaymentsPage: React.FC = () => {
       p.registrado_por_nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.metodo_pago.toLowerCase().includes(search.toLowerCase());
 
-    const fechaPagoStr = fechaCalendario(p.created_at);
-    const coincideDesde = !fechaDesde || fechaPagoStr >= fechaDesde;
-    const coincideHasta = !fechaHasta || fechaPagoStr <= fechaHasta;
+    // Obtener fecha en formato ISO YYYY-MM-DD para poder comparar correctamente con los inputs type="date"
+    const fechaPagoISO = p.created_at ? p.created_at.substring(0, 10) : '';
+
+    const coincideDesde = !fechaDesde || fechaPagoISO >= fechaDesde;
+    const coincideHasta = !fechaHasta || fechaPagoISO <= fechaHasta;
 
     return coincideTexto && coincideDesde && coincideHasta;
   });
@@ -741,7 +768,7 @@ export const AdminPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL HISTORIAL INDIVIDUAL (CON FALLBACK DE REPETICIÓN O SIN RELACIÓN) */}
+      {/* MODAL HISTORIAL INDIVIDUAL */}
       {comercioModalHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
