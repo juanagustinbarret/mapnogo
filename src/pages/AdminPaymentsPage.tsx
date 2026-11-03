@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Comercio } from '@/types/database.types';
 import { aCentavos, formatearCentavos, formatDate } from '@/lib/formatters';
 import { leerImporte } from '@/lib/importes';
+import { fechaCalendario } from '@/lib/fechasArgentina';
 import {
   CreditCard,
   CheckCircle,
@@ -254,20 +255,10 @@ export const AdminPaymentsPage: React.FC = () => {
         p_nuevo_metodo: metodoEnum
       });
 
+      // Sin reintento directo sobre la tabla: RLS no deja escribir pagos desde el
+      // navegador, el update no cambia nada y no da error (era un "✅" falso).
       if (rpcError) {
-        const { error: errorDirecto } = await supabase
-          .from('pagos')
-          .update({ importe: nuevoImporte, metodo_pago: metodoEnum })
-          .eq('id', pagoAEditar.id);
-
-        if (errorDirecto) {
-          alert('Error al editar el pago: ' + errorDirecto.message);
-        } else {
-          alert('✅ Registro de pago corregido exitosamente.');
-          setPagoAEditar(null);
-          fetchAuditoriaGlobal();
-          if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
-        }
+        alert('Error al editar el pago: ' + rpcError.message);
       } else {
         alert('✅ Registro de pago corregido exitosamente.');
         setPagoAEditar(null);
@@ -291,20 +282,9 @@ export const AdminPaymentsPage: React.FC = () => {
         p_pago_id: pago.id
       });
 
+      // Sin reintento directo sobre la tabla (mismo motivo que al editar)
       if (rpcError) {
-        const { error: errorDirecto } = await supabase
-          .from('pagos')
-          .delete()
-          .eq('id', pago.id);
-
-        if (errorDirecto) {
-          alert('Error al eliminar el pago: ' + errorDirecto.message);
-        } else {
-          alert('✅ Registro de pago eliminado correctamente.');
-          fetchAuditoriaGlobal();
-          fetchComercios();
-          if (comercioModalHistorial) handleAbrirHistorialIndividual(comercioModalHistorial);
-        }
+        alert('Error al eliminar el pago: ' + rpcError.message);
       } else {
         alert('✅ Registro de pago eliminado correctamente.');
         fetchAuditoriaGlobal();
@@ -398,10 +378,11 @@ export const AdminPaymentsPage: React.FC = () => {
       p.registrado_por_nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.metodo_pago.toLowerCase().includes(search.toLowerCase());
 
-    const fechaPagoISO = p.created_at ? p.created_at.substring(0, 10) : '';
+    // Día del pago en Argentina (cortar created_at en UTC pasa los pagos de las 21 h al día siguiente)
+    const fechaPagoStr = p.created_at ? fechaCalendario(p.created_at) : '';
 
-    const coincideDesde = !fechaDesde || fechaPagoISO >= fechaDesde;
-    const coincideHasta = !fechaHasta || fechaPagoISO <= fechaHasta;
+    const coincideDesde = !fechaDesde || fechaPagoStr >= fechaDesde;
+    const coincideHasta = !fechaHasta || fechaPagoStr <= fechaHasta;
 
     return coincideTexto && coincideDesde && coincideHasta;
   });
