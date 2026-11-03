@@ -1,38 +1,40 @@
 {
   "short_name": "NOGOYORK",
   "name": "NOGOYORK — Comercios de Nogoyá",
+  "id": "/",
   "icons": [
     {
-      "src": "/pwa-192x192.png?v=2",
+      "src": "/pwa-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/pwa-512x512.png?v=2",
+      "src": "/pwa-512x512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "/pwa-maskable-192x192.png?v=2",
+      "src": "/pwa-maskable-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "maskable"
     },
     {
-      "src": "/pwa-maskable-512x512.png?v=2",
+      "src": "/pwa-maskable-512x512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
     },
     {
-      "src": "/favicon.svg?v=2",
+      "src": "/favicon.svg",
       "type": "image/svg+xml",
       "sizes": "any"
     }
   ],
   "start_url": "/",
+  "scope": "/",
   "background_color": "#15803d",
   "theme_color": "#16a34a",
   "display": "standalone",
