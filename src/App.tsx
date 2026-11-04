@@ -10,6 +10,7 @@ import { HomeExplorerPage } from '@/pages/HomeExplorerPage';
 import { CommerceDetailPage } from '@/pages/CommerceDetailPage';
 import { diferida } from '@/components/CargaDiferida';
 import { ScrollToTopButton } from '@/components/ScrollToTopButton';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 
 const PanelComercio = diferida(() => import('@/pages/PanelComercio'), 'PanelComercio');
 const AdminDashboardPage = diferida(() => import('@/pages/AdminDashboardPage'), 'AdminDashboardPage');
@@ -138,6 +139,9 @@ export const App: React.FC = () => {
                 />
               </Routes>
             </div>
+
+            {/* Componente flotante de estado offline y sincronización */}
+            <OfflineIndicator />
             {/* Botón flotante global presente en absolutamente todas las pantallas */}
             <ScrollToTopButton />
             <Footer />
