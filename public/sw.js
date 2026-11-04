@@ -1,7 +1,6 @@
 // public/sw.js
-const CACHE_NAME = 'nogoyork-v7';
+const CACHE_NAME = 'nogoyork-v8';
 
-// Archivos estáticos fundamentales del cascarón
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -33,12 +32,11 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Omitir peticiones que no sean GET o que vayan fuera de tu dominio (Supabase, Leaflet, etc.)
   if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
-  // A) NAVEGACIÓN SPA (Rutas HTML como /comercio/slug)
+  // 1. Navegación SPA (páginas HTML)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -50,22 +48,19 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Si falla el fetch por estar offline, capturamos el error y devolvemos index.html del caché
-          return caches.match('/index.html').then((response) => response || caches.match('/'));
+          return caches.match('/index.html').then((res) => res || caches.match('/'));
         })
     );
     return;
   }
 
-  // B) ASSETS Y SCRIPTS JS/CSS
+  // 2. Assets (JS, CSS, Imágenes)
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      // 1. Si ya está en la memoria caché, devolverlo al instante (sin ir a la red)
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // 2. Si no está en caché, intentamos buscarlo en la red
       return fetch(request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
@@ -74,10 +69,20 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch((err) => {
-          // CAPTURA DEL ERROR: Evita el "Uncaught (in promise) TypeError: Failed to fetch"
-          console.warn('Recurso no disponible offline:', request.url);
-          // Retornar una respuesta vacía válida (204 No Content) para que la consola no explote
+        .catch(() => {
+          // Fallback con cabeceras MIME válidas para evitar errores de consola en el navegador
+          if (request.url.endsWith('.js')) {
+            return new Response('/* Script no disponible offline */', {
+              status: 200,
+              headers: { 'Content-Type': 'application/javascript' }
+            });
+          }
+          if (request.url.endsWith('.css')) {
+            return new Response('/* Estilo no disponible offline */', {
+              status: 200,
+              headers: { 'Content-Type': 'text/css' }
+            });
+          }
           return new Response(null, { status: 204, statusText: 'Offline No Content' });
         });
     })
