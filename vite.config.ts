@@ -55,9 +55,9 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Guarda en caché automáticamente todos los JS, CSS e imágenes compiladas en dist/
+        // Precachea todos los .js, .css e imágenes generadas en la carpeta dist/
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        // Redirecciona rutas SPA (/comercio/:slug) a /index.html en modo offline
+        // Redirección SPA para rutas como /comercio/:slug
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
@@ -68,7 +68,7 @@ export default defineConfig({
               cacheName: 'supabase-api-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 1 día
+                maxAgeSeconds: 60 * 60 * 24
               }
             }
           }
