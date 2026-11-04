@@ -1,3 +1,5 @@
+// src/pages/merchant/MerchantDashboardPage.tsx
+
 import React, { useEffect, useRef, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
@@ -109,6 +111,9 @@ export const MerchantDashboardPage: React.FC = () => {
   const esFarmaciaDeTurno = proximoTurno !== null;
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
+
+  // Selector de tipus de pla per a la suscripció
+  const [tipoPlanSeleccionado, setTipoPlanSeleccionado] = useState<'mensual' | 'anual'>('mensual');
 
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [guardandoRespuesta, setGuardandoRespuesta] = useState<string | null>(null);
@@ -279,6 +284,9 @@ export const MerchantDashboardPage: React.FC = () => {
         if (s) {
           setSuscripcion(s);
           setDiasParaVencer(diasHastaVencer(s));
+          if (s.precio_acordado && s.precio_acordado >= 100000) {
+            setTipoPlanSeleccionado('anual');
+          }
         }
         cargadoEn.current = Date.now();
       }
@@ -616,8 +624,10 @@ export const MerchantDashboardPage: React.FC = () => {
     navigate('/login');
   };
 
+  const montoActualPlan = tipoPlanSeleccionado === 'anual' ? 100000 : 10000;
+
   const mensajeWhatsAppAdmin = encodeURIComponent(
-    `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre}`
+    `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre} (Plan ${tipoPlanSeleccionado === 'anual' ? 'Anual $100.000' : 'Mensual $10.000'})`
   );
   const linkWhatsAppAdmin = `https://wa.me/${CONTACTO.whatsappSoporte}?text=${mensajeWhatsAppAdmin}`;
 
@@ -856,6 +866,7 @@ export const MerchantDashboardPage: React.FC = () => {
           </Link>
         </div>
 
+        {/* TARJETA DE SUSCRIPCIÓN CON SELECTOR DE PLAN (MENSUAL / ANUAL) */}
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b dark:border-gray-700 pb-3">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -871,10 +882,42 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
 
           <div className="space-y-3 text-xs">
+            {/* Selector de Plan Mensual / Anual */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Elegir modalidad de plan:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTipoPlanSeleccionado('mensual')}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-extrabold border transition ${
+                    tipoPlanSeleccionado === 'mensual'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  Mensual ($10.000)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoPlanSeleccionado('anual')}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-extrabold border transition relative ${
+                    tipoPlanSeleccionado === 'anual'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  Anual ($100.000)
+                  <span className="block text-[9px] font-normal text-emerald-600 dark:text-emerald-400">Ahorrás $20.000</span>
+                </button>
+              </div>
+            </div>
+
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
-              <span className="text-gray-500">Monto del Plan:</span>
+              <span className="text-gray-500">Monto del Plan ({tipoPlanSeleccionado === 'anual' ? 'Anual' : 'Mensual'}):</span>
               <span className="font-bold text-gray-900 dark:text-white">
-                {cargandoDetalle ? <Esqueleto /> : suscripcion ? formatCurrency(suscripcion.precio_acordado) : 'Sin datos'}
+                {cargandoDetalle ? <Esqueleto /> : formatCurrency(montoActualPlan)}
               </span>
             </div>
 
@@ -890,7 +933,7 @@ export const MerchantDashboardPage: React.FC = () => {
               id: comercio.id,
               nombre: comercio.nombre,
               direccion: comercio.direccion,
-              precio: suscripcion?.precio_acordado ?? null,
+              precio: montoActualPlan,
               vencimiento: suscripcion?.proximo_vencimiento ?? null,
               estado: suscripcion?.estado ?? null,
             }}
