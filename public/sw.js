@@ -1,7 +1,7 @@
 // public/sw.js
-const CACHE_NAME = 'nogoyork-v6';
+const CACHE_NAME = 'nogoyork-v7';
 
-// 1. Recursos base
+// Archivos estáticos fundamentales del cascarón
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -33,48 +33,53 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Solo peticiones GET al propio dominio (ignorar extensiones de Chrome y APIs externas)
+  // Omitir peticiones que no sean GET o que vayan fuera de tu dominio (Supabase, Leaflet, etc.)
   if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
-  // A) NAVEGACIÓN SPA (Rutas HTML)
+  // A) NAVEGACIÓN SPA (Rutas HTML como /comercio/slug)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', responseClone));
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', responseClone));
+          }
           return networkResponse;
         })
-        .catch(() => caches.match('/index.html') || caches.match('/'))
+        .catch(() => {
+          // Si falla el fetch por estar offline, capturamos el error y devolvemos index.html del caché
+          return caches.match('/index.html').then((response) => response || caches.match('/'));
+        })
     );
     return;
   }
 
-  // B) RECURSOS Y SCRIPTS (archivos .js, .css, etc.)
+  // B) ASSETS Y SCRIPTS JS/CSS
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      // Si el JS/CSS ya está en caché, entregarlo inmediatamente (evita la pantalla en blanco)
+      // 1. Si ya está en la memoria caché, devolverlo al instante (sin ir a la red)
       if (cachedResponse) {
-        // En segundo plano busca si hay versión nueva si hay red
-        fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
-          }
-        }).catch(() => {/* Offline */});
-
         return cachedResponse;
       }
 
-      // Si no está en caché, ir a buscarlo a la red y guardarlo para la próxima
-      return fetch(request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-        }
-        return networkResponse;
-      });
+      // 2. Si no está en caché, intentamos buscarlo en la red
+      return fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch((err) => {
+          // CAPTURA DEL ERROR: Evita el "Uncaught (in promise) TypeError: Failed to fetch"
+          console.warn('Recurso no disponible offline:', request.url);
+          // Retornar una respuesta vacía válida (204 No Content) para que la consola no explote
+          return new Response(null, { status: 204, statusText: 'Offline No Content' });
+        });
     })
   );
 });
