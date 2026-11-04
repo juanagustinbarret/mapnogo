@@ -1,7 +1,7 @@
 // public/sw.js
-const CACHE_NAME = 'nogoyork-v2';
+const CACHE_NAME = 'nogoyork-v4';
 
-// 1. Archivos esenciales del shell
+// Recursos base de la App Shell
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -9,16 +9,15 @@ const APP_SHELL = [
   '/favicon.ico'
 ];
 
-// Instalación: Guardar el cascarón de la app
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Forzar activación inmediata
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(APP_SHELL);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
-// Activación: Limpiar cachés viejos y tomar control inmediato
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -33,43 +32,41 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Intercepción de Peticiones
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
-  // Solo nos interesan peticiones GET dentro de nuestro dominio (no Supabase / apis externas)
+  // Filtrar peticiones no GET o externas (Supabase, Leaflet CDN, etc.)
   if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) {
     return;
   }
 
-  // A) NAVEGACIÓN DE RUTAS (F5 en /comercio/slug, ingresar a una sub-ruta directamente)
+  // A) NAVEGACIÓN SPA (Rutas de la App: /comercio/algo, /favoritos, etc.)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
-          // Si hay red, guardamos copia en caché y devolvemos la respuesta
           return caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, networkResponse.clone());
             return networkResponse;
           });
         })
         .catch(() => {
-          // SI NO HAY RED O FALLA: Retornar SIEMPRE el index.html en caché para que React Router tome la ruta
+          // Si estás offline o la red falla, SIEMPRE sirve index.html
           return caches.match('/index.html') || caches.match('/');
         })
     );
     return;
   }
 
-  // B) ASSETS ESTÁTICOS (JS, CSS, Imágenes, Fuentes)
+  // B) ASSETS Y CHUNKS JS / CSS / IMÁGENES
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
+      // 1. Si ya lo tenemos guardado en caché local, usarlo directamente
       if (cachedResponse) {
-        // Devolver desde el caché local inmediatamente
         return cachedResponse;
       }
 
-      // Si no está en caché, ir a buscarlo a la red y cachearlo para la próxima
+      // 2. Si no está en caché, ir a buscarlo a la red y guardar una copia para el futuro
       return fetch(request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
@@ -80,9 +77,8 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
-          // Si el asset no está y no hay red, no podemos hacer mucho más para esa imagen/script puntual
-          console.warn('Asset offline no disponible en caché:', request.url);
+        .catch((err) => {
+          console.warn('Asset no disponible offline:', request.url, err);
         });
     })
   );
