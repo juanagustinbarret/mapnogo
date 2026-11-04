@@ -1,66 +1,89 @@
 // public/sw.js
-const CACHE_NAME = 'nogoyork-v1';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'nogoyork-v2';
+
+// 1. Archivos esenciales del shell
+const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.ico'
-  // Vite genera hashes dinámicos para los JS/CSS en dist/, por eso atrapamos los fetchs abajo
 ];
 
-// Instalar SW y precachear el entry point
+// Instalación: Guardar el cascarón de la app
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(APP_SHELL);
     }).then(() => self.skipWaiting())
   );
 });
 
-// Activar SW y limpiar cachés viejos
+// Activación: Limpiar cachés viejos y tomar control inmediato
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) return caches.delete(key);
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
         })
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Interceptar peticiones de red
+// Intercepción de Peticiones
 self.addEventListener('fetch', (event) => {
-  // Ignorar peticiones que no sean GET o que vayan a Supabase / APIs externas
-  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+  const request = event.request;
+
+  // Solo nos interesan peticiones GET dentro de nuestro dominio (no Supabase / apis externas)
+  if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) {
     return;
   }
 
+  // A) NAVEGACIÓN DE RUTAS (F5 en /comercio/slug, ingresar a una sub-ruta directamente)
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          // Si hay red, guardamos copia en caché y devolvemos la respuesta
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, networkResponse.clone());
+            return networkResponse;
+          });
+        })
+        .catch(() => {
+          // SI NO HAY RED O FALLA: Retornar SIEMPRE el index.html en caché para que React Router tome la ruta
+          return caches.match('/index.html') || caches.match('/');
+        })
+    );
+    return;
+  }
+
+  // B) ASSETS ESTÁTICOS (JS, CSS, Imágenes, Fuentes)
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
-        return cachedResponse; // Devolver desde caché si existe
+        // Devolver desde el caché local inmediatamente
+        return cachedResponse;
       }
 
-      // Si no está en caché, buscar en la red y guardar una copia
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+      // Si no está en caché, ir a buscarlo a la red y cachearlo para la próxima
+      return fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+            });
+          }
           return networkResponse;
-        }
-
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+        })
+        .catch(() => {
+          // Si el asset no está y no hay red, no podemos hacer mucho más para esa imagen/script puntual
+          console.warn('Asset offline no disponible en caché:', request.url);
         });
-
-        return networkResponse;
-      }).catch(() => {
-        // Si falla la red y es una navegación de página, devolver el index.html precacheado (SPA Routing)
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      });
     })
   );
 });
