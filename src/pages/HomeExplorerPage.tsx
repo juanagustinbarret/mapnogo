@@ -125,6 +125,17 @@ export const HomeExplorerPage: React.FC = () => {
 
     if (navigator.onLine) {
       try {
+        // Precachear silenciosamente la Guía Útil para tenerla disponible sin señal
+        supabase
+          .from('guia_util')
+          .select('*')
+          .order('urgencia', { ascending: false })
+          .order('orden', { ascending: true })
+          .order('nombre', { ascending: true })
+          .then(({ data: guiaData }) => {
+            if (guiaData) void setCachedData('guia_util_global', guiaData);
+          });
+
         const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
         const pedirComercios = (columnas: string) =>
           supabase
@@ -172,26 +183,29 @@ export const HomeExplorerPage: React.FC = () => {
           void setCachedData('rubros_global', rubrosData);
         }
 
-        if (comerciosData) {
-          setComercios(comerciosData);
-          void setCachedData('comercios_listado_global', comerciosData);
-
-          // Precachear individualmente los comercios por slug para acelerar la ficha offline
-          comerciosData.forEach((c) => {
-            if (c.slug) {
-              void setCachedData(`comercio_slug_${c.slug.toLowerCase()}`, c);
-            }
-          });
-        }
-
+        const mapaHorarios: Record<string, HorarioAtencion[]> = {};
         if (horariosData) {
-          const mapaHorarios: Record<string, HorarioAtencion[]> = {};
           horariosData.forEach((h) => {
             if (!mapaHorarios[h.comercio_id]) mapaHorarios[h.comercio_id] = [];
             mapaHorarios[h.comercio_id].push(h);
           });
           setHorarios(mapaHorarios);
           void setCachedData('mapa_horarios_global', mapaHorarios);
+        }
+
+        if (comerciosData) {
+          setComercios(comerciosData);
+          void setCachedData('comercios_listado_global', comerciosData);
+
+          // Guardar cada comercio y sus horarios individuales en IndexedDB
+          comerciosData.forEach((c) => {
+            if (c.slug) {
+              void setCachedData(`comercio_slug_${c.slug.toLowerCase()}`, c);
+            }
+            if (mapaHorarios[c.id]) {
+              void setCachedData(`horarios_${c.id}`, mapaHorarios[c.id]);
+            }
+          });
         }
 
         setLoadingComercios(false);

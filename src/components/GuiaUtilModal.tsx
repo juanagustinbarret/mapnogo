@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { setCachedData, getCachedData } from '@/lib/offlineStore';
 import { Phone, Flame, Stethoscope, Building2, Bus, MapPin, X, Navigation, Search, Info } from 'lucide-react';
 
 export interface InstitucionPublica {
@@ -9,6 +10,7 @@ export interface InstitucionPublica {
   telefono: string;
   direccion: string;
   urgencia: boolean;
+  orden?: number;
 }
 
 interface Props {
@@ -27,14 +29,35 @@ export const GuiaUtilModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
     const fetchGuia = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('guia_util')
-        .select('*')
-        .order('urgencia', { ascending: false })
-        .order('orden', { ascending: true })
-        .order('nombre', { ascending: true });
+      const CACHE_KEY = 'guia_util_global';
 
-      if (data) setInstituciones(data as InstitucionPublica[]);
+      // 1. SI HAY RED: Intentar traer de Supabase y guardar en IndexedDB
+      if (navigator.onLine) {
+        try {
+          const { data, error } = await supabase
+            .from('guia_util')
+            .select('*')
+            .order('urgencia', { ascending: false })
+            .order('orden', { ascending: true })
+            .order('nombre', { ascending: true });
+
+          if (!error && data) {
+            setInstituciones(data as InstitucionPublica[]);
+            await setCachedData(CACHE_KEY, data);
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('[GuiaUtilModal] Fallo de red. Buscando en caché local...', err);
+        }
+      }
+
+      // 2. SI ESTAMOS OFFLINE O FALLÓ LA RED: Cargar desde IndexedDB
+      const datosLocal = await getCachedData<InstitucionPublica[]>(CACHE_KEY);
+      if (datosLocal) {
+        setInstituciones(datosLocal);
+      }
+
       setLoading(false);
     };
 

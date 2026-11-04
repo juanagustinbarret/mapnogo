@@ -156,7 +156,7 @@ export const CommerceDetailPage: React.FC = () => {
 
     const cacheKey = `comercio_slug_${slug.toLowerCase()}`;
 
-    // 1. SI ESTAMOS EN LÍNEA: Buscar en Supabase y actualizar la memoria en IndexedDB
+    // 1. SI HAY INTERNET: Consultar Supabase y guardar en IndexedDB
     if (navigator.onLine) {
       try {
         const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
@@ -191,9 +191,7 @@ export const CommerceDetailPage: React.FC = () => {
           setEsperandoGaleria(conGaleriaVieja);
           setComercio(c);
 
-          // Guardar comercio en IndexedDB para cuando el usuario quede offline
           await setCachedData(cacheKey, c);
-
           setLoadingComercio(false);
 
           const hoyStr = hoyArgentina();
@@ -248,24 +246,31 @@ export const CommerceDetailPage: React.FC = () => {
           return;
         }
       } catch (err) {
-        console.warn('Fallo de red al buscar comercio en Supabase. Se recurre a la memoria caché local.', err);
+        console.warn('Fallo de red al buscar en Supabase, recurriendo a IndexedDB...', err);
       }
     }
 
-    // 2. SI ESTAMOS OFFLINE O FALLÓ LA RED: Cargar desde IndexedDB
+    // 2. SI ESTAMOS OFFLINE O FALLÓ LA RED: Leer de IndexedDB
     const cCache = await getCachedData<Comercio>(cacheKey);
     if (cCache) {
       setComercio(cCache);
       setNoEncontrado(false);
 
-      const [hCache, hdCache, pCache, rCache] = await Promise.all([
+      // Buscar horarios específicos del comercio O del mapa global de horarios precacheados
+      const [hCache, hdCache, pCache, rCache, mapaHorariosGlobal] = await Promise.all([
         getCachedData<HorarioAtencion[]>(`horarios_${cCache.id}`),
         getCachedData<HorarioDelivery[]>(`delivery_${cCache.id}`),
         getCachedData<Promocion[]>(`promociones_${cCache.id}`),
         getCachedData<Resena[]>(`resenas_${cCache.id}`),
+        getCachedData<Record<string, HorarioAtencion[]>>('mapa_horarios_global'),
       ]);
 
-      if (hCache) setHorarios(hCache);
+      if (hCache && hCache.length > 0) {
+        setHorarios(hCache);
+      } else if (mapaHorariosGlobal && mapaHorariosGlobal[cCache.id]) {
+        setHorarios(mapaHorariosGlobal[cCache.id]);
+      }
+
       if (hdCache) setHorariosDelivery(hdCache);
       if (pCache) setPromociones(pCache);
       if (rCache) setResenas(rCache);
@@ -369,7 +374,7 @@ export const CommerceDetailPage: React.FC = () => {
     void registrarInteraccion(comercio.id, 'como_llegar', { excluir: esPropioOAdmin(comercio) });
     const query = tieneCoordenadasPropias(comercio)
       ? `${comercio.latitud},${comercio.longitud}`
-      : encodeURIComponent(`${comercio.nombre}, ${comercio.direccion}, Nogoyá, Entre Ríos`);
+      : encodeURIComponent(`${comercio.nombre}, ${comercio.direccion || ''}, Nogoyá, Entre Ríos`);
     
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
   };
@@ -623,13 +628,15 @@ export const CommerceDetailPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-brand-500 shrink-0" /> {comercio.direccion || 'Nogoyá, Entre Ríos'}
             </div>
-            <button
-              onClick={handleCopiarDireccion}
-              className="text-xs text-brand-600 hover:underline flex items-center gap-1 font-bold ml-2"
-              title="Copiar dirección"
-            >
-              <Copy className="w-3 h-3" /> Copiar
-            </button>
+            {comercio.direccion && (
+              <button
+                onClick={handleCopiarDireccion}
+                className="text-xs text-brand-600 hover:underline flex items-center gap-1 font-bold ml-2"
+                title="Copiar dirección"
+              >
+                <Copy className="w-3 h-3" /> Copiar
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
