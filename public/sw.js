@@ -1,23 +1,26 @@
 // public/sw.js
-const CACHE_NAME = 'nogoyork-v4';
+const CACHE_NAME = 'nogoyork-v5';
 
-// Recursos base de la App Shell
-const APP_SHELL = [
+// Recursos críticos para precachear al instalar
+const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.ico'
+  '/favicon.ico',
+  '/favicon.svg'
 ];
 
+// 1. INSTALACIÓN
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Forzar activación inmediata
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL);
+      return cache.addAll(PRECACHE_ASSETS);
     })
   );
 });
 
+// 2. ACTIVACIÓN
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -32,54 +35,63 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// 3. INTERCEPCIÓN DE RED (FETCH)
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  const url = new URL(request.url);
 
-  // Filtrar peticiones no GET o externas (Supabase, Leaflet CDN, etc.)
-  if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) {
+  // Omitir peticiones que no sean GET o que vayan a dominios externos (ej: Supabase, OpenStreetMap)
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
-  // A) NAVEGACIÓN SPA (Rutas de la App: /comercio/algo, /favoritos, etc.)
+  // A) MANEJO DE NAVEGACIÓN (Rutas SPA como /comercio/algo, /favoritos, etc.)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, networkResponse.clone());
-            return networkResponse;
+          // Si hay red, guardamos una copia de index.html actualizada
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put('/index.html', responseClone);
           });
+          return networkResponse;
         })
         .catch(() => {
-          // Si estás offline o la red falla, SIEMPRE sirve index.html
+          // SI NO HAY RED (OFFLINE): Devolver siempre /index.html en caché
           return caches.match('/index.html') || caches.match('/');
         })
     );
     return;
   }
 
-  // B) ASSETS Y CHUNKS JS / CSS / IMÁGENES
+  // B) ASSETS ESTÁTICOS (Archivos .js, .css, .svg, .png, etc.)
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      // 1. Si ya lo tenemos guardado en caché local, usarlo directamente
+      // 1. Si está en caché local, servirlo al instante
       if (cachedResponse) {
+        // En segundo plano actualizamos el caché si hay red (Stale-While-Revalidate)
+        fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, networkResponse);
+            });
+          }
+        }).catch(() => {/* Red no disponible */});
+
         return cachedResponse;
       }
 
-      // 2. Si no está en caché, ir a buscarlo a la red y guardar una copia para el futuro
-      return fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch((err) => {
-          console.warn('Asset no disponible offline:', request.url, err);
-        });
+      // 2. Si no está en caché, buscar en red y guardar una copia
+      return fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
+          });
+        }
+        return networkResponse;
+      });
     })
   );
 });
