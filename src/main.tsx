@@ -1,21 +1,25 @@
-// src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import { App } from './App';
 import './index.css';
+import { migrarClavesLocales } from './lib/migrarClavesLocales';
 import { initSyncHandlers } from './lib/initSync';
 
-// 1. Inicializar manejadores de sincronización offline
+// 1. Inicializar manejadores para la cola de sincronización offline
 initSyncHandlers();
 
-// 2. Registrar el Service Worker de la PWA
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// 2. Registrar Service Worker para PWA
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((reg) => console.log('Service Worker cargado:', reg.scope))
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => console.log('Service Worker de NOGOYORK registrado con éxito:', reg.scope))
       .catch((err) => console.error('Error al registrar Service Worker:', err));
   });
 }
+
+// 3. Migración de claves locales previo a la lectura de datos
+migrarClavesLocales();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
