@@ -1,11 +1,11 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import { responderClima } from './src/lib/clima';
 import { responderAlertas } from './src/lib/alertasSmn';
 
-// Solo en desarrollo (pnpm dev): atiende /api/clima igual que la función de
-// Cloudflare Pages / Vercel, para que el widget del clima se vea en local.
+// Solo en desarrollo (pnpm dev): atiende /api/clima y /api/alertas
 const climaEnDesarrollo = (): Plugin => ({
   name: 'nogoyork-clima-desarrollo',
   apply: 'serve',
@@ -27,7 +27,55 @@ const climaEnDesarrollo = (): Plugin => ({
 });
 
 export default defineConfig({
-  plugins: [react(), climaEnDesarrollo()],
+  plugins: [
+    react(),
+    climaEnDesarrollo(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'manifest.json'],
+      manifest: {
+        name: 'NOGOYORK - Plataforma Comercial',
+        short_name: 'Nogoyork',
+        description: 'Guía comercial e interactiva de Nogoyá',
+        theme_color: '#2b6cb0',
+        background_color: '#ffffff',
+        display: 'standalone',
+        icons: [
+          {
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      },
+      workbox: {
+        // Guarda en caché automáticamente todos los JS, CSS e imágenes compiladas en dist/
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Redirecciona rutas SPA (/comercio/:slug) a /index.html en modo offline
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 // 1 día
+              }
+            }
+          }
+        ]
+      }
+    })
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
