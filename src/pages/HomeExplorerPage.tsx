@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { setCachedData, getCachedData } from '@/lib/offlineStore';
 import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
 import type { UbicacionUsuario } from '@/components/InteractiveMap';
 import { GuiaUtilModal } from '@/components/GuiaUtilModal';
@@ -121,55 +122,100 @@ export const HomeExplorerPage: React.FC = () => {
 
   const fetchData = async () => {
     setLoadingComercios(true);
-    const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
-    const pedirComercios = (columnas: string) =>
-      supabase
-        .from('comercios')
-        .select(`${columnas}, rubro:rubros(*)` as '*')
-        .eq('aprobado', true)
-        .eq('habilitado_admin', true);
-    let { data: comerciosData, error: errorComercios } = await pedirComercios(COLUMNAS_LISTADO_COMERCIO);
-    if (errorComercios) ({ data: comerciosData } = await pedirComercios('*'));
 
-    const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
+    if (navigator.onLine) {
+      try {
+        const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
+        const pedirComercios = (columnas: string) =>
+          supabase
+            .from('comercios')
+            .select(`${columnas}, rubro:rubros(*)` as '*')
+            .eq('aprobado', true)
+            .eq('habilitado_admin', true);
+        let { data: comerciosData, error: errorComercios } = await pedirComercios(COLUMNAS_LISTADO_COMERCIO);
+        if (errorComercios) ({ data: comerciosData } = await pedirComercios('*'));
 
-    const fechaHoy = hoyArgentina();
-    const pedirTurno = (columnas: string) =>
-      supabase
-        .from('farmacias_turno')
-        .select(`comercio_id, comercio:comercios(${columnas}, rubro:rubros(*))` as '*')
-        .eq('fecha', fechaHoy)
-        .maybeSingle();
-    let { data: turnoData, error: errorTurno } = await pedirTurno(COLUMNAS_LISTADO_COMERCIO);
-    if (errorTurno) ({ data: turnoData } = await pedirTurno('*'));
+        const { data: horariosData } = await supabase.from('horarios_atencion').select('*');
 
-    if (turnoData?.comercio) {
-      setFarmaciaDeTurno(turnoData.comercio as unknown as Comercio);
+        const fechaHoy = hoyArgentina();
+        const pedirTurno = (columnas: string) =>
+          supabase
+            .from('farmacias_turno')
+            .select(`comercio_id, comercio:comercios(${columnas}, rubro:rubros(*))` as '*')
+            .eq('fecha', fechaHoy)
+            .maybeSingle();
+        let { data: turnoData, error: errorTurno } = await pedirTurno(COLUMNAS_LISTADO_COMERCIO);
+        if (errorTurno) ({ data: turnoData } = await pedirTurno('*'));
+
+        if (turnoData?.comercio) {
+          const fTurno = turnoData.comercio as unknown as Comercio;
+          setFarmaciaDeTurno(fTurno);
+          void setCachedData('farmacia_turno_hoy', fTurno);
+        }
+
+        const { data: deliveryData, error: errorDelivery } = await supabase
+          .from('horarios_delivery')
+          .select('comercio_id, dia_semana, hora_inicio, hora_fin');
+        if (errorDelivery) console.warn('[delivery] No se pudieron leer los horarios de delivery:', errorDelivery.message);
+        
+        let mapaDelivery: Record<string, RangoDelivery[]> = {};
+        if (deliveryData) {
+          deliveryData.forEach((d) => {
+            (mapaDelivery[d.comercio_id] ??= []).push(d);
+          });
+          setDelivery(mapaDelivery);
+          void setCachedData('mapa_delivery_global', mapaDelivery);
+        }
+
+        if (rubrosData) {
+          setRubros(rubrosData);
+          void setCachedData('rubros_global', rubrosData);
+        }
+
+        if (comerciosData) {
+          setComercios(comerciosData);
+          void setCachedData('comercios_listado_global', comerciosData);
+
+          // Precachear individualmente los comercios por slug para acelerar la ficha offline
+          comerciosData.forEach((c) => {
+            if (c.slug) {
+              void setCachedData(`comercio_slug_${c.slug.toLowerCase()}`, c);
+            }
+          });
+        }
+
+        if (horariosData) {
+          const mapaHorarios: Record<string, HorarioAtencion[]> = {};
+          horariosData.forEach((h) => {
+            if (!mapaHorarios[h.comercio_id]) mapaHorarios[h.comercio_id] = [];
+            mapaHorarios[h.comercio_id].push(h);
+          });
+          setHorarios(mapaHorarios);
+          void setCachedData('mapa_horarios_global', mapaHorarios);
+        }
+
+        setLoadingComercios(false);
+        return;
+      } catch (err) {
+        console.warn('Fallo de red en HomeExplorerPage. Cargando desde IndexedDB...', err);
+      }
     }
 
-    const { data: deliveryData, error: errorDelivery } = await supabase
-      .from('horarios_delivery')
-      .select('comercio_id, dia_semana, hora_inicio, hora_fin');
-    if (errorDelivery) console.warn('[delivery] No se pudieron leer los horarios de delivery:', errorDelivery.message);
-    if (deliveryData) {
-      const mapaDelivery: Record<string, RangoDelivery[]> = {};
-      deliveryData.forEach((d) => {
-        (mapaDelivery[d.comercio_id] ??= []).push(d);
-      });
-      setDelivery(mapaDelivery);
-    }
+    // SI ESTAMOS OFFLINE O FALLÓ LA RED: Cargar desde IndexedDB
+    const [cLocal, rLocal, hLocal, dLocal, fLocal] = await Promise.all([
+      getCachedData<Comercio[]>('comercios_listado_global'),
+      getCachedData<Rubro[]>('rubros_global'),
+      getCachedData<Record<string, HorarioAtencion[]>>('mapa_horarios_global'),
+      getCachedData<Record<string, RangoDelivery[]>>('mapa_delivery_global'),
+      getCachedData<Comercio>('farmacia_turno_hoy'),
+    ]);
 
-    if (rubrosData) setRubros(rubrosData);
-    if (comerciosData) setComercios(comerciosData);
+    if (cLocal) setComercios(cLocal);
+    if (rLocal) setRubros(rLocal);
+    if (hLocal) setHorarios(hLocal);
+    if (dLocal) setDelivery(dLocal);
+    if (fLocal) setFarmaciaDeTurno(fLocal);
 
-    if (horariosData) {
-      const mapaHorarios: Record<string, HorarioAtencion[]> = {};
-      horariosData.forEach((h) => {
-        if (!mapaHorarios[h.comercio_id]) mapaHorarios[h.comercio_id] = [];
-        mapaHorarios[h.comercio_id].push(h);
-      });
-      setHorarios(mapaHorarios);
-    }
     setLoadingComercios(false);
   };
 

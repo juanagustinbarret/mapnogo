@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { setCachedData, getCachedData } from '@/lib/offlineStore';
 import { Comercio, HorarioAtencion, Promocion } from '@/types/database.types';
 import { 
   MapPin, 
@@ -146,83 +147,157 @@ export const CommerceDetailPage: React.FC = () => {
 
   const fetchComercio = async () => {
     setLoadingComercio(true);
-    const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
-      const pedir = (columnas: string) =>
-        filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
-      let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
-      if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
-      if (error) ({ data } = await pedir('*'));
-      return (data ?? []) as any[];
-    };
 
-    const hayGaleriaVieja = supabase.from('comercios').select('id').eq('slug', slug).neq('galeria_urls', '{}').limit(1)
-      .then(({ data }) => !!data?.length, () => false);
-
-    let c: any = (await buscar((q) => q.eq('slug', slug), 1))[0] ?? null;
-
-    if (!c && slug) {
-      const limpio = slugLimpio(slug);
-      if (limpio) c = elegirPorSlugLimpio(await buscar((q) => q.ilike('slug', patronSlugLimpio(limpio)), 25), limpio);
-    }
-    if (!c) {
+    if (!slug) {
       setNoEncontrado(true);
       setLoadingComercio(false);
       return;
     }
 
-    const fotosEmbebidas: (FotoComercio & { orden?: number | null })[] | null = Array.isArray(c.fotos_comercio) ? c.fotos_comercio : null;
-    setNoEncontrado(false);
-    setFotosAprobadas(
-      (fotosEmbebidas ?? [])
-        .filter((f) => f.estado !== 'rechazada')
-        .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.created_at.localeCompare(b.created_at)),
-    );
-    setGaleriaVieja(null);
-    const conGaleriaVieja = !('galeria_urls' in c) && (await hayGaleriaVieja);
-    setEsperandoGaleria(conGaleriaVieja);
-    setComercio(c);
+    const cacheKey = `comercio_slug_${slug.toLowerCase()}`;
+
+    // 1. SI ESTAMOS EN LÍNEA: Buscar en Supabase y actualizar la memoria en IndexedDB
+    if (navigator.onLine) {
+      try {
+        const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
+          const pedir = (columnas: string) =>
+            filtrar(supabase.from('comercios').select(`${columnas}, rubro:rubros(*)` as '*')).limit(limite);
+          let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
+          if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
+          if (error) ({ data } = await pedir('*'));
+          return (data ?? []) as any[];
+        };
+
+        const hayGaleriaVieja = supabase.from('comercios').select('id').eq('slug', slug).neq('galeria_urls', '{}').limit(1)
+          .then(({ data }) => !!data?.length, () => false);
+
+        let c: any = (await buscar((q) => q.eq('slug', slug), 1))[0] ?? null;
+
+        if (!c && slug) {
+          const limpio = slugLimpio(slug);
+          if (limpio) c = elegirPorSlugLimpio(await buscar((q) => q.ilike('slug', patronSlugLimpio(limpio)), 25), limpio);
+        }
+
+        if (c) {
+          const fotosEmbebidas: (FotoComercio & { orden?: number | null })[] | null = Array.isArray(c.fotos_comercio) ? c.fotos_comercio : null;
+          setNoEncontrado(false);
+          setFotosAprobadas(
+            (fotosEmbebidas ?? [])
+              .filter((f) => f.estado !== 'rechazada')
+              .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.created_at.localeCompare(b.created_at)),
+          );
+          setGaleriaVieja(null);
+          const conGaleriaVieja = !('galeria_urls' in c) && (await hayGaleriaVieja);
+          setEsperandoGaleria(conGaleriaVieja);
+          setComercio(c);
+
+          // Guardar comercio en IndexedDB para cuando el usuario quede offline
+          await setCachedData(cacheKey, c);
+
+          setLoadingComercio(false);
+
+          const hoyStr = hoyArgentina();
+          const avisar = (err: unknown) => console.error('Error cargando detalles secundarios:', err);
+
+          supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
+            .then(({ data: h }) => {
+              if (h) {
+                setHorarios(h);
+                void setCachedData(`horarios_${c.id}`, h);
+              }
+            }, avisar);
+
+          if (c.tiene_delivery) {
+            supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
+              .then(({ data: hd }) => {
+                if (hd) {
+                  setHorariosDelivery(hd);
+                  void setCachedData(`delivery_${c.id}`, hd);
+                }
+              }, avisar);
+          }
+
+          supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr)
+            .then(({ data: p }) => {
+              if (p) {
+                setPromociones(p);
+                void setCachedData(`promociones_${c.id}`, p);
+              }
+            }, avisar);
+
+          supabase
+            .from('resenas')
+            .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
+            .eq('comercio_id', c.id)
+            .order('created_at', { ascending: false })
+            .then(({ data: r }) => {
+              if (r) {
+                const aprobadas = r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado) as any;
+                setResenas(aprobadas);
+                void setCachedData(`resenas_${c.id}`, aprobadas);
+              }
+            }, avisar);
+
+          if (!fotosEmbebidas) cargarFotosComercio(c.id).then((fotosRes) => setFotosAprobadas(fotosRes.fotos), avisar);
+
+          if (conGaleriaVieja) {
+            supabase.from('comercios').select('galeria_urls').eq('id', c.id).maybeSingle()
+              .then(({ data: g }) => setGaleriaVieja(((g as { galeria_urls?: string[] | null } | null)?.galeria_urls) ?? []), avisar)
+              .then(() => setEsperandoGaleria(false));
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Fallo de red al buscar comercio en Supabase. Se recurre a la memoria caché local.', err);
+      }
+    }
+
+    // 2. SI ESTAMOS OFFLINE O FALLÓ LA RED: Cargar desde IndexedDB
+    const cCache = await getCachedData<Comercio>(cacheKey);
+    if (cCache) {
+      setComercio(cCache);
+      setNoEncontrado(false);
+
+      const [hCache, hdCache, pCache, rCache] = await Promise.all([
+        getCachedData<HorarioAtencion[]>(`horarios_${cCache.id}`),
+        getCachedData<HorarioDelivery[]>(`delivery_${cCache.id}`),
+        getCachedData<Promocion[]>(`promociones_${cCache.id}`),
+        getCachedData<Resena[]>(`resenas_${cCache.id}`),
+      ]);
+
+      if (hCache) setHorarios(hCache);
+      if (hdCache) setHorariosDelivery(hdCache);
+      if (pCache) setPromociones(pCache);
+      if (rCache) setResenas(rCache);
+
+      setLoadingComercio(false);
+      return;
+    }
+
+    setNoEncontrado(true);
     setLoadingComercio(false);
-
-    const hoyStr = hoyArgentina();
-    const avisar = (err: unknown) => console.error('Error cargando detalles secundarios:', err);
-    supabase.from('horarios_atencion').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
-      .then(({ data: h }) => { if (h) setHorarios(h); }, avisar);
-    if (c.tiene_delivery) {
-      supabase.from('horarios_delivery').select('*').eq('comercio_id', c.id).order('dia_semana', { ascending: true })
-        .then(({ data: hd }) => { if (hd) setHorariosDelivery(hd); }, avisar);
-    }
-    supabase.from('promociones').select('*').eq('comercio_id', c.id).eq('aprobada', true).gte('fecha_fin', hoyStr)
-      .then(({ data: p }) => { if (p) setPromociones(p); }, avisar);
-    supabase
-      .from('resenas')
-      .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
-      .eq('comercio_id', c.id)
-      .order('created_at', { ascending: false })
-      .then(({ data: r }) => {
-        if (r) setResenas(r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado) as any);
-      }, avisar);
-    if (!fotosEmbebidas) cargarFotosComercio(c.id).then((fotosRes) => setFotosAprobadas(fotosRes.fotos), avisar);
-
-    if (conGaleriaVieja) {
-      supabase.from('comercios').select('galeria_urls').eq('id', c.id).maybeSingle()
-        .then(({ data: g }) => setGaleriaVieja(((g as { galeria_urls?: string[] | null } | null)?.galeria_urls) ?? []), avisar)
-        .then(() => setEsperandoGaleria(false));
-    }
   };
 
   const fetchResenas = async (comercioId: string) => {
-    const { data: r, error } = await supabase
-      .from('resenas')
-      .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
-      .eq('comercio_id', comercioId)
-      .order('created_at', { ascending: false });
+    if (navigator.onLine) {
+      const { data: r, error } = await supabase
+        .from('resenas')
+        .select('id, nombre_usuario, estrellas, comentario, created_at, respuesta_comercio, estado')
+        .eq('comercio_id', comercioId)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error al traer reseñas:', error);
-    } else if (r) {
-      const aprobadas = r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado);
-      setResenas(aprobadas as any);
+      if (error) {
+        console.error('Error al traer reseñas:', error);
+      } else if (r) {
+        const aprobadas = r.filter((resena: any) => resena.estado === 'aprobado' || !resena.estado) as any;
+        setResenas(aprobadas);
+        await setCachedData(`resenas_${comercioId}`, aprobadas);
+        return;
+      }
     }
+
+    const rCache = await getCachedData<Resena[]>(`resenas_${comercioId}`);
+    if (rCache) setResenas(rCache);
   };
 
   const handleCrearResena = async (e: React.FormEvent) => {
