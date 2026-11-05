@@ -6,7 +6,7 @@ import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { AdminNav } from '@/components/AdminNav';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
-import { formatCurrency } from '@/lib/formatters';
+import { formatearCentavos } from '@/lib/formatters';
 import { leerRecaudacion, nombreDelMes, type Recaudacion } from '@/lib/recaudacion';
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
@@ -136,7 +136,7 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
   });
 
-  const [recaudacion, setRecaudacion] = useState<Recaudacion | undefined>(undefined);
+  const [recaudacion, setRecaudacion] = useState<Recaudacion | null | undefined>(undefined);
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
@@ -197,45 +197,26 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // La suma la hace el servidor desde los pagos (RPC recaudacion_mes_actual): en
+  // el navegador se cortaba en 1000 filas y usaba la hora del dispositivo.
   const cargarRecaudacion = async () => {
-    try {
-      const hoy = new Date();
-      const anio = hoy.getFullYear();
-      const mes = hoy.getMonth();
-
-      // Rango del mes actual
-      const primerDia = new Date(anio, mes, 1, 0, 0, 0, 0).toISOString();
-      const ultimoDia = new Date(anio, mes + 1, 0, 23, 59, 59, 999).toISOString();
-
-      // Consulta directa a la tabla pagos sin pasar por RPC
-      const { data, error } = await supabase
-        .from('pagos')
-        .select('*')
-        .gte('created_at', primerDia)
-        .lte('created_at', ultimoDia);
-
-      if (error) throw error;
-
-      // Suma dinámica contemplando variantes de nombres de columnas
-      const totalSuma = (data ?? []).reduce((acc, pago: Record<string, unknown>) => {
-        const val = Number(pago.monto ?? pago.importe ?? pago.total ?? 0);
-        return acc + (Number.isFinite(val) ? val : 0);
-      }, 0);
-
-      const fechaDesdeStr = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
-      const ultimoDiaNum = new Date(anio, mes + 1, 0).getDate();
-      const fechaHastaStr = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(ultimoDiaNum).padStart(2, '0')}`;
-
-      setRecaudacion({
-        total: Math.round(totalSuma),
-        desde: fechaDesdeStr,
-        hasta: fechaHastaStr,
-      });
-    } catch (err) {
-      console.warn('Error al calcular recaudación directa:', err);
-      setRecaudacion(leerRecaudacion(null));
-    }
+    const { data, error } = await supabase.rpc('recaudacion_mes_actual');
+    if (error) console.error('No se pudo leer la recaudación:', error.message);
+    setRecaudacion(error ? null : leerRecaudacion(data));
   };
+
+  // Se vuelve a leer al volver a esta pestaña o ventana (sin consultas periódicas)
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') void cargarRecaudacion();
+    };
+    window.addEventListener('focus', alVolver);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      window.removeEventListener('focus', alVolver);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, []);
 
   useEffect(() => {
     let montado = true;
@@ -639,9 +620,11 @@ export const AdminDashboardPage: React.FC = () => {
             
             {recaudacion === undefined ? (
               <div className="h-8 w-32 mt-1 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" role="status" aria-label="Cargando recaudación" />
+            ) : recaudacion === null ? (
+              <p className="text-sm font-semibold text-gray-500 mt-1">Sin datos</p>
             ) : (
               <>
-                <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(recaudacion.total)}</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{formatearCentavos(recaudacion.centavos)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Pagos registrados en {nombreDelMes(recaudacion.desde)}</p>
               </>
             )}
