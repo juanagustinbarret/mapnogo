@@ -11,6 +11,7 @@ import { leerRecaudacion, nombreDelMes, type Recaudacion } from '@/lib/recaudaci
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { obtenerMetricasComercio } from '@/lib/metrics';
+import { mensajeDeError } from '@/lib/fotosComercio';
 import {
   Store,
   DollarSign,
@@ -310,8 +311,8 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 6) {
-      alert('Ingresá una contraseña de al menos 6 caracteres.');
+    if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 8) {
+      alert('Ingresá una contraseña de al menos 8 caracteres.');
       return;
     }
 
@@ -325,12 +326,13 @@ export const AdminDashboardPage: React.FC = () => {
     setGuardandoClave(true);
 
     try {
-      const { error } = await supabase.rpc('admin_cambiar_password_directo', {
-        email_target: modalEditar.email_comercial.trim(),
-        nueva_password: nuevaPasswordDirecta,
+      // La Edge Function verifica en el servidor que quien pide sea admin y que la
+      // cuenta a cambiar sea la del dueño del comercio (nunca la de un admin)
+      const { error } = await supabase.functions.invoke('admin-cambiar-clave', {
+        body: { email: modalEditar.email_comercial.trim(), nuevaPassword: nuevaPasswordDirecta },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await mensajeDeError(error, 'No se pudo cambiar la contraseña.'));
 
       alert(`✅ Contraseña de ${modalEditar.email_comercial} actualizada correctamente.`);
       setNuevaPasswordDirecta('');
@@ -977,7 +979,7 @@ export const AdminDashboardPage: React.FC = () => {
                             value={nuevaPasswordDirecta}
                             onChange={(e) => setNuevaPasswordDirecta(e.target.value)}
                             className={`${campoClase} pr-16`}
-                            placeholder="Mínimo 6 caracteres"
+                            placeholder="Mínimo 8 caracteres"
                           />
                           <button
                             type="button"
