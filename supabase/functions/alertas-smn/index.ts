@@ -45,7 +45,11 @@ export async function manejar(req: Request, entorno: Entorno): Promise<Response>
       ...init,
       headers: { apikey: servicio, Authorization: `Bearer ${servicio}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     });
-    if (!r.ok) throw new Error(`Base: ${init.method ?? 'GET'} ${ruta.split('?')[0]} → ${r.status} ${await r.text().catch(() => '')}`);
+    if (!r.ok) {
+      // El detalle de la base queda en el registro; a la respuesta y al estado guardado va solo el código
+      entorno.log({ evento: 'alertas_smn_base_error', ruta: ruta.split('?')[0], status: r.status, detalle: (await r.text().catch(() => '')).slice(0, 300) });
+      throw new Error(`Base: ${init.method ?? 'GET'} ${ruta.split('?')[0]} → ${r.status}`);
+    }
     const texto = await r.text();
     return texto ? JSON.parse(texto) : null;
   };

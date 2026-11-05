@@ -58,7 +58,7 @@ const atender = async (req: Request): Promise<Response> => {
   const { data: comercio, error: errorComercio } = await supabaseAdmin
     .from('comercios')
     .select('id, propietario_id')
-    .ilike('email_comercial', email)
+    .ilike('email_comercial', email.replace(/[\\%_]/g, (c) => `\\${c}`)) // % y _ literales: solo ese email
     .maybeSingle()
   if (errorComercio) return responder({ error: 'No se pudo buscar el comercio.' }, 500)
   if (!comercio?.propietario_id) return responder({ error: 'No hay un comercio con dueño para ese email.' }, 404)
