@@ -6,11 +6,12 @@ import { OpcionesRubros } from '@/components/OpcionesRubros';
 import { AdminNav } from '@/components/AdminNav';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Rubro } from '@/types/database.types';
-import { formatCurrency } from '@/lib/formatters';
+import { formatearCentavos } from '@/lib/formatters';
 import { leerRecaudacion, nombreDelMes, type Recaudacion } from '@/lib/recaudacion';
 import { useAuth } from '@/context/AuthContext';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { obtenerMetricasComercio } from '@/lib/metrics';
+import { mensajeDeError } from '@/lib/fotosComercio';
 import {
   Store,
   DollarSign,
@@ -136,7 +137,7 @@ export const AdminDashboardPage: React.FC = () => {
     totalComercios: 0,
   });
 
-  const [recaudacion, setRecaudacion] = useState<Recaudacion | undefined>(undefined);
+  const [recaudacion, setRecaudacion] = useState<Recaudacion | null | undefined>(undefined);
 
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
@@ -197,45 +198,26 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // La suma la hace el servidor desde los pagos (RPC recaudacion_mes_actual): en
+  // el navegador se cortaba en 1000 filas y usaba la hora del dispositivo.
   const cargarRecaudacion = async () => {
-    try {
-      const hoy = new Date();
-      const anio = hoy.getFullYear();
-      const mes = hoy.getMonth();
-
-      // Rango del mes actual
-      const primerDia = new Date(anio, mes, 1, 0, 0, 0, 0).toISOString();
-      const ultimoDia = new Date(anio, mes + 1, 0, 23, 59, 59, 999).toISOString();
-
-      // Consulta directa a la tabla pagos sin pasar por RPC
-      const { data, error } = await supabase
-        .from('pagos')
-        .select('*')
-        .gte('created_at', primerDia)
-        .lte('created_at', ultimoDia);
-
-      if (error) throw error;
-
-      // Suma dinámica contemplando variantes de nombres de columnas
-      const totalSuma = (data ?? []).reduce((acc, pago: Record<string, unknown>) => {
-        const val = Number(pago.monto ?? pago.importe ?? pago.total ?? 0);
-        return acc + (Number.isFinite(val) ? val : 0);
-      }, 0);
-
-      const fechaDesdeStr = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
-      const ultimoDiaNum = new Date(anio, mes + 1, 0).getDate();
-      const fechaHastaStr = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(ultimoDiaNum).padStart(2, '0')}`;
-
-      setRecaudacion({
-        total: Math.round(totalSuma),
-        desde: fechaDesdeStr,
-        hasta: fechaHastaStr,
-      });
-    } catch (err) {
-      console.warn('Error al calcular recaudación directa:', err);
-      setRecaudacion(leerRecaudacion(null));
-    }
+    const { data, error } = await supabase.rpc('recaudacion_mes_actual');
+    if (error) console.error('No se pudo leer la recaudación:', error.message);
+    setRecaudacion(error ? null : leerRecaudacion(data));
   };
+
+  // Se vuelve a leer al volver a esta pestaña o ventana (sin consultas periódicas)
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') void cargarRecaudacion();
+    };
+    window.addEventListener('focus', alVolver);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      window.removeEventListener('focus', alVolver);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, []);
 
   useEffect(() => {
     let montado = true;
@@ -329,8 +311,8 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 6) {
-      alert('Ingresá una contraseña de al menos 6 caracteres.');
+    if (!nuevaPasswordDirecta || nuevaPasswordDirecta.length < 8) {
+      alert('Ingresá una contraseña de al menos 8 caracteres.');
       return;
     }
 
@@ -344,12 +326,13 @@ export const AdminDashboardPage: React.FC = () => {
     setGuardandoClave(true);
 
     try {
-      const { error } = await supabase.rpc('admin_cambiar_password_directo', {
-        email_target: modalEditar.email_comercial.trim(),
-        nueva_password: nuevaPasswordDirecta,
+      // La Edge Function verifica en el servidor que quien pide sea admin y que la
+      // cuenta a cambiar sea la del dueño del comercio (nunca la de un admin)
+      const { error } = await supabase.functions.invoke('admin-cambiar-clave', {
+        body: { email: modalEditar.email_comercial.trim(), nuevaPassword: nuevaPasswordDirecta },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await mensajeDeError(error, 'No se pudo cambiar la contraseña.'));
 
       alert(`✅ Contraseña de ${modalEditar.email_comercial} actualizada correctamente.`);
       setNuevaPasswordDirecta('');
@@ -639,9 +622,11 @@ export const AdminDashboardPage: React.FC = () => {
             
             {recaudacion === undefined ? (
               <div className="h-8 w-32 mt-1 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" role="status" aria-label="Cargando recaudación" />
+            ) : recaudacion === null ? (
+              <p className="text-sm font-semibold text-gray-500 mt-1">Sin datos</p>
             ) : (
               <>
-                <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(recaudacion.total)}</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{formatearCentavos(recaudacion.centavos)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Pagos registrados en {nombreDelMes(recaudacion.desde)}</p>
               </>
             )}
@@ -994,7 +979,7 @@ export const AdminDashboardPage: React.FC = () => {
                             value={nuevaPasswordDirecta}
                             onChange={(e) => setNuevaPasswordDirecta(e.target.value)}
                             className={`${campoClase} pr-16`}
-                            placeholder="Mínimo 6 caracteres"
+                            placeholder="Mínimo 8 caracteres"
                           />
                           <button
                             type="button"

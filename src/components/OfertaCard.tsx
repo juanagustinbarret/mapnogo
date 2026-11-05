@@ -190,6 +190,7 @@ export const OfertaCard: React.FC<Props> = ({ promo }) => {
           onClick={handleCompartir}
           className="p-2.5 bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition border border-gray-200 dark:border-gray-600/50"
           title="Compartir oferta"
+          aria-label="Compartir oferta"
         >
           {copiado ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
         </button>

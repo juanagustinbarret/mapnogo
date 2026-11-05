@@ -67,6 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     await supabase.auth.signOut();
     borrarCachePanel();
+    // Caché de respuestas de Supabase que dejaron versiones anteriores del service worker
+    if ('caches' in window) void caches.delete('supabase-api-cache').catch(() => undefined);
   };
 
   return (

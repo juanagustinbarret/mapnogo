@@ -170,7 +170,12 @@ export const AdminPaymentsPage: React.FC = () => {
   };
 
   const handleToggleEstadoPago = async (id: string, estadoActual: boolean) => {
-    await supabase.from('comercios').update({ habilitado_admin: !estadoActual }).eq('id', id);
+    const { error } = await supabase.from('comercios').update({ habilitado_admin: !estadoActual }).eq('id', id);
+    if (error) {
+      console.error('No se pudo cambiar la visibilidad del comercio:', error.message);
+      alert('No se pudo cambiar la visibilidad del comercio. Probá de nuevo.');
+      return;
+    }
     await fetchComercios();
   };
 

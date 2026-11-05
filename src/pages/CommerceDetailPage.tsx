@@ -178,7 +178,8 @@ export const CommerceDetailPage: React.FC = () => {
           let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
           if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
           if (error) ({ data } = await pedir('*'));
-          return (data ?? []) as any[];
+          // El email del comercio no se publica (ver /privacidad): ni se muestra ni se guarda sin conexión
+          return ((data ?? []) as any[]).map(({ email_comercial: _email, ...resto }) => resto);
         };
 
         const hayGaleriaVieja = supabase.from('comercios').select('id').eq('slug', slug).neq('galeria_urls', '{}').limit(1)
@@ -415,7 +416,7 @@ export const CommerceDetailPage: React.FC = () => {
         title: comercio?.nombre,
         text: `Mirá la ficha de ${comercio?.nombre} en NOGOYORK`,
         url: window.location.href,
-      });
+      }).catch(() => {}); // cancelar el menú de compartir no es un error
     } else {
       navigator.clipboard.writeText(window.location.href);
       alert('Enlace copiado al portapapeles');
@@ -465,7 +466,7 @@ export const CommerceDetailPage: React.FC = () => {
   const fotosFicha = fotosParaMostrar(fotosAprobadas, galeriaVieja ?? comercio.galeria_urls);
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
   const esGastronomicoOReservable = Boolean(
-    comercio.rubro?.nombre?.toLowerCase().includes('bar') ||
+    /bar(es)?/.test(comercio.rubro?.nombre?.toLowerCase() ?? '') ||
     comercio.rubro?.nombre?.toLowerCase().includes('restaurante') ||
     comercio.rubro?.nombre?.toLowerCase().includes('pizzería') ||
     comercio.rubro?.nombre?.toLowerCase().includes('comida') ||
@@ -573,6 +574,7 @@ export const CommerceDetailPage: React.FC = () => {
             onClick={handleImprimirPDF}
             className="p-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
             title="Imprimir o guardar en PDF"
+            aria-label="Imprimir o guardar en PDF"
           >
             <Printer className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
           </button>
@@ -581,6 +583,7 @@ export const CommerceDetailPage: React.FC = () => {
             onClick={() => setModalQrOpen(true)}
             className="p-2 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300 hover:bg-purple-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
             title="Ver Código QR de la Ficha"
+            aria-label="Ver código QR de la ficha"
           >
             <QrCode className="w-4 h-4" /> <span className="hidden sm:inline">QR</span>
           </button>

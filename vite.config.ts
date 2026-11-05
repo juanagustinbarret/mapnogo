@@ -60,19 +60,9 @@ export default defineConfig({
         // Redirección SPA para rutas como /comercio/:slug
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24
-              }
-            }
-          }
-        ]
+        // Sin caché de Supabase en el service worker: guardaba respuestas con la
+        // sesión del usuario y en un celular compartido las vería el siguiente.
+        // Los datos públicos sin conexión salen de offlineStore (IndexedDB).
       }
     })
   ],

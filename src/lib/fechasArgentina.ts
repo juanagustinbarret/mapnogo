@@ -84,7 +84,9 @@ export function formatearFechaHora(valor?: string | null): string {
   if (!valor) return '';
   const instante = new Date(valor);
   if (Number.isNaN(instante.getTime())) return '';
-  const hora = new Intl.DateTimeFormat('es-AR', { timeZone: ZONA, hour: '2-digit', minute: '2-digit', hour12: false }).format(instante);
+  const hora = new Intl.DateTimeFormat('es-AR', { timeZone: ZONA, hour: '2-digit', minute: '2-digit', hour12: false })
+    .format(instante)
+    .replace(/^24:/, '00:');
   return `${ddmmaaaa(hoyArgentina(instante))} ${hora}`;
 }
 

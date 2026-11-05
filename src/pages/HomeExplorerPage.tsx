@@ -450,7 +450,7 @@ export const HomeExplorerPage: React.FC = () => {
         if (!esDesayuno) return false;
       }
       if (momentoComida === 'almuerzo_cena') {
-        const esComida = rubroNombre.includes('pizzer') || rubroNombre.includes('restauran') || rubroNombre.includes('rotiser') || rubroNombre.includes('bar') || rubroNombre.includes('comida');
+        const esComida = rubroNombre.includes('pizzer') || rubroNombre.includes('restauran') || rubroNombre.includes('rotiser') || /bar(es)?/.test(rubroNombre) || rubroNombre.includes('comida');
         if (!esComida) return false;
       }
 
