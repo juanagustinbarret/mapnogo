@@ -178,7 +178,8 @@ export const CommerceDetailPage: React.FC = () => {
           let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
           if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
           if (error) ({ data } = await pedir('*'));
-          return (data ?? []) as any[];
+          // El email del comercio no se publica (ver /privacidad): ni se muestra ni se guarda sin conexión
+          return ((data ?? []) as any[]).map(({ email_comercial: _email, ...resto }) => resto);
         };
 
         const hayGaleriaVieja = supabase.from('comercios').select('id').eq('slug', slug).neq('galeria_urls', '{}').limit(1)
