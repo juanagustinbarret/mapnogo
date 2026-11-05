@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -30,19 +30,7 @@ const ResetPasswordPage = diferida(() => import('@/pages/ResetPasswordPage'), 'R
 const AdminSolicitudesPasswordPage = diferida(() => import('@/pages/admin/AdminSolicitudesPasswordPage'), 'AdminSolicitudesPasswordPage');
 
 export const App: React.FC = () => {
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => {
-          console.log('Service Worker de NOGOYORK registrado con éxito:', reg.scope);
-        })
-        .catch((err) => {
-          console.error('Error al registrar el Service Worker:', err);
-        });
-    }
-  }, []);
-
+  // El service worker lo registra vite-plugin-pwa (registerSW.js, vite.config.ts)
   return (
     <ThemeProvider>
       <AuthProvider>

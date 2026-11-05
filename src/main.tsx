@@ -8,15 +8,7 @@ import { initSyncHandlers } from './lib/initSync';
 // 1. Inicializar manejadores para la cola de sincronización offline
 initSyncHandlers();
 
-// 2. Registrar Service Worker para PWA
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((reg) => console.log('Service Worker de NOGOYORK registrado con éxito:', reg.scope))
-      .catch((err) => console.error('Error al registrar Service Worker:', err));
-  });
-}
+// 2. El service worker lo registra vite-plugin-pwa (registerSW.js, vite.config.ts)
 
 // 3. Migración de claves locales previo a la lectura de datos
 migrarClavesLocales();
