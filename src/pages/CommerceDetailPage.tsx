@@ -24,7 +24,10 @@ import {
   Send,
   Heart,
   CornerDownRight,
-  Sparkles
+  Sparkles,
+  QrCode,
+  Users,
+  Calendar
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
@@ -89,6 +92,14 @@ export const CommerceDetailPage: React.FC = () => {
   const [motivoReporte, setMotivoReporte] = useState('Horarios incorrectos');
   const [descReporte, setDescReporte] = useState('');
   const [enviandoReporte, setEnviandoReporte] = useState(false);
+
+  // Estados para Modal de Reserva
+  const [modalReservaOpen, setModalReservaOpen] = useState(false);
+  const [personasReserva, setPersonasReserva] = useState(2);
+  const [horaReserva, setHoraReserva] = useState('21:00');
+
+  // Estado para Modal de QR Dinámico
+  const [modalQrOpen, setModalQrOpen] = useState(false);
 
   const [nombreResena, setNombreResena] = useState('');
   const [estrellasResena, setEstrellasResena] = useState(5);
@@ -369,6 +380,18 @@ export const CommerceDetailPage: React.FC = () => {
     window.open(url, '_blank');
   };
 
+  const handleEnviarReservaWhatsApp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comercio) return;
+
+    void registrarInteraccion(comercio.id, 'whatsapp_reserva', { excluir: esPropioOAdmin(comercio) });
+    const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
+    const mensaje = `Hola *${comercio.nombre}*! 👋 Quisiera consultar si tienen disponibilidad de mesa para *${personasReserva} ${personasReserva === 1 ? 'persona' : 'personas'}* hoy a las *${horaReserva} hs*. ¡Muchas gracias! (Visto en NOGOYORK)`;
+    const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
+    setModalReservaOpen(false);
+    window.open(url, '_blank');
+  };
+
   const handleComoLlegarClick = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'como_llegar', { excluir: esPropioOAdmin(comercio) });
@@ -425,6 +448,15 @@ export const CommerceDetailPage: React.FC = () => {
 
   const fotosFicha = fotosParaMostrar(fotosAprobadas, galeriaVieja ?? comercio.galeria_urls);
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
+  const esGastronomicoOReservable = Boolean(
+    comercio.rubro?.nombre?.toLowerCase().includes('bar') ||
+    comercio.rubro?.nombre?.toLowerCase().includes('restaurante') ||
+    comercio.rubro?.nombre?.toLowerCase().includes('pizzería') ||
+    comercio.rubro?.nombre?.toLowerCase().includes('comida') ||
+    comercio.rubro?.nombre?.toLowerCase().includes('gastronomía') ||
+    comercio.servicios?.some(s => s.toLowerCase().includes('reserva') || s.toLowerCase().includes('mesas'))
+  );
+
   const estadoHorario = evaluarEstadoHorario(horarios);
   const estadoDeliveryAhora = aplicarPausa(
     estadoDelivery(rangosDeDelivery(horariosDelivery, horarios)),
@@ -434,6 +466,8 @@ export const CommerceDetailPage: React.FC = () => {
   const puntajePropio = calcularPuntaje(resenas.map((r) => r.estrellas));
   const promedioEstrellas = textoPuntaje(puntajePropio.puntaje, puntajePropio.total);
   const yaOpino = yaReseno(comercio.id);
+  const currentUrl = window.location.href;
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentUrl)}`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
@@ -454,6 +488,14 @@ export const CommerceDetailPage: React.FC = () => {
           >
             <Heart className={`w-4 h-4 ${esFavorito ? 'fill-white' : ''}`} />
             <span className="hidden sm:inline">{esFavorito ? 'Guardado' : 'Favorito'}</span>
+          </button>
+
+          <button
+            onClick={() => setModalQrOpen(true)}
+            className="p-2 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300 hover:bg-purple-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
+            title="Ver Código QR de la Ficha"
+          >
+            <QrCode className="w-4 h-4" /> <span className="hidden sm:inline">QR</span>
           </button>
 
           <button
@@ -639,13 +681,23 @@ export const CommerceDetailPage: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {tieneWhatsApp && (
               <button
                 onClick={handleWhatsAppClick}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
               >
                 <MessageCircle className="w-4 h-4" /> Consultar WhatsApp
+              </button>
+            )}
+
+            {tieneWhatsApp && esGastronomicoOReservable && (
+              <button
+                onClick={() => setModalReservaOpen(true)}
+                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center justify-center gap-1.5"
+                title="Consultar o reservar mesa por WhatsApp"
+              >
+                <Users className="w-4 h-4" /> Reservar Mesa
               </button>
             )}
 
@@ -808,6 +860,114 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </section>
 
+      {/* MODAL RESERVAR MESA VIA WHATSAPP */}
+      {modalReservaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
+              <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" /> Reservar Mesa en {comercio.nombre}
+              </h3>
+              <button onClick={() => setModalReservaOpen(false)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEnviarReservaWhatsApp} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
+                  Cantidad de personas
+                </label>
+                <select
+                  value={personasReserva}
+                  onChange={(e) => setPersonasReserva(Number(e.target.value))}
+                  className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
+                    <option key={n} value={n}>
+                      {n} {n === 1 ? 'persona' : 'personas'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
+                  Horario de llegada estimado
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={horaReserva}
+                  onChange={(e) => setHoraReserva(e.target.value)}
+                  className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold text-sm"
+                />
+              </div>
+
+              <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 text-[11px] text-purple-800 dark:text-purple-300">
+                Al presionar el botón se abrirá WhatsApp con la solicitud estructurada lista para enviar.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalReservaOpen(false)}
+                  className="px-4 py-2 border rounded-xl font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold shadow-sm inline-flex items-center gap-1.5"
+                >
+                  <MessageCircle className="w-4 h-4" /> Enviar por WhatsApp
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL QR DINAMICO EN PANTALLA */}
+      {modalQrOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
+              <h3 className="font-extrabold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-purple-600" /> Código QR del Comercio
+              </h3>
+              <button onClick={() => setModalQrOpen(false)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-2 flex flex-col items-center justify-center space-y-3">
+              <div className="p-3 bg-white rounded-2xl shadow-inner border border-gray-200">
+                <img
+                  src={qrApiUrl}
+                  alt={`QR para acceder a la ficha de ${comercio.nombre}`}
+                  className="w-48 h-48 object-contain"
+                />
+              </div>
+              <h4 className="font-bold text-sm text-gray-900 dark:text-white">{comercio.nombre}</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400 px-4">
+                Escaneá este código con la cámara del celular para abrir esta ficha de NOGOYORK directamente.
+              </p>
+            </div>
+
+            <div className="pt-2 border-t dark:border-gray-700">
+              <button
+                onClick={() => setModalQrOpen(false)}
+                className="w-full py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-800 dark:text-gray-200 font-bold rounded-xl text-xs transition"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REPORTE */}
       {modalReporteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
