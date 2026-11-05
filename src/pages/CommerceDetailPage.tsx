@@ -27,7 +27,10 @@ import {
   Sparkles,
   QrCode,
   Users,
-  Calendar
+  Printer,
+  Globe,
+  Instagram,
+  Facebook
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
@@ -167,7 +170,6 @@ export const CommerceDetailPage: React.FC = () => {
 
     const cacheKey = `comercio_slug_${slug.toLowerCase()}`;
 
-    // 1. SI HAY INTERNET: Consultar Supabase y guardar en IndexedDB
     if (navigator.onLine) {
       try {
         const buscar = async (filtrar: (consulta: any) => any, limite: number) => {
@@ -261,13 +263,11 @@ export const CommerceDetailPage: React.FC = () => {
       }
     }
 
-    // 2. SI ESTAMOS OFFLINE O FALLÓ LA RED: Leer de IndexedDB
     const cCache = await getCachedData<Comercio>(cacheKey);
     if (cCache) {
       setComercio(cCache);
       setNoEncontrado(false);
 
-      // Buscar horarios específicos del comercio O del mapa global de horarios precacheados
       const [hCache, hdCache, pCache, rCache, mapaHorariosGlobal] = await Promise.all([
         getCachedData<HorarioAtencion[]>(`horarios_${cCache.id}`),
         getCachedData<HorarioDelivery[]>(`delivery_${cCache.id}`),
@@ -384,7 +384,7 @@ export const CommerceDetailPage: React.FC = () => {
     e.preventDefault();
     if (!comercio) return;
 
-    void registrarInteraccion(comercio.id, 'whatsapp_reserva', { excluir: esPropioOAdmin(comercio) });
+    void registrarInteraccion(comercio.id, 'whatsapp_reserva' as any, { excluir: esPropioOAdmin(comercio) });
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
     const mensaje = `Hola *${comercio.nombre}*! 👋 Quisiera consultar si tienen disponibilidad de mesa para *${personasReserva} ${personasReserva === 1 ? 'persona' : 'personas'}* hoy a las *${horaReserva} hs*. ¡Muchas gracias! (Visto en NOGOYORK)`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
@@ -422,6 +422,22 @@ export const CommerceDetailPage: React.FC = () => {
     }
   };
 
+  const handleImprimirPDF = () => {
+    window.print();
+  };
+
+  const formatearUrlInstagram = (ig?: string | null) => {
+    if (!ig) return null;
+    const usuario = ig.trim().replace('@', '').replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '');
+    return usuario ? `https://instagram.com/${usuario}` : null;
+  };
+
+  const formatearUrlFacebook = (fb?: string | null) => {
+    if (!fb) return null;
+    if (fb.startsWith('http://') || fb.startsWith('https://')) return fb;
+    return `https://facebook.com/${fb.trim().replace('@', '')}`;
+  };
+
   if (!comercio && noEncontrado) {
     return (
       <div className="p-8 text-center space-y-3">
@@ -457,6 +473,10 @@ export const CommerceDetailPage: React.FC = () => {
     comercio.servicios?.some(s => s.toLowerCase().includes('reserva') || s.toLowerCase().includes('mesas'))
   );
 
+  const urlInstagram = formatearUrlInstagram((comercio as any).instagram);
+  const urlFacebook = formatearUrlFacebook((comercio as any).facebook);
+  const urlSitioWeb = (comercio as any).sitio_web;
+
   const estadoHorario = evaluarEstadoHorario(horarios);
   const estadoDeliveryAhora = aplicarPausa(
     estadoDelivery(rangosDeDelivery(horariosDelivery, horarios)),
@@ -470,8 +490,67 @@ export const CommerceDetailPage: React.FC = () => {
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentUrl)}`;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-in fade-in duration-300">
-      <div className="flex justify-between items-center">
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-4">
+      
+      {/* Estilos para impresión en PDF forzando renderizado de texto directo */}
+      <style>{`
+        @media print {
+          /* 1. Ocultar interfaz dinámica y navegaciones */
+          nav, header, footer, .no-imprimir, button, svg {
+            display: none !important;
+          }
+
+          /* 2. Reset del body y anular variables CSS de Tailwind */
+          html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            font-size: 12pt !important;
+          }
+
+          /* 3. Forzar visibilidad absoluta en todas las etiquetas de texto */
+          h1, h2, h3, h4, p, span, div, time, strong, label, a {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            animation: none !important;
+            transition: none !important;
+            background-color: transparent !important;
+          }
+
+          /* 4. Estilos de tarjetas e información */
+          .print-card, div[class*="rounded-2xl"], div[class*="rounded-xl"] {
+            background-color: #ffffff !important;
+            border: 1px solid #d1d5db !important;
+            box-shadow: none !important;
+            break-inside: avoid !important;
+            margin-bottom: 1rem !important;
+            padding: 1rem !important;
+          }
+
+          /* 5. Destacar títulos */
+          h1 {
+            font-size: 20pt !important;
+            font-weight: bold !important;
+          }
+          h2, h3 {
+            font-size: 14pt !important;
+            font-weight: bold !important;
+          }
+
+          /* 6. Enlaces e Insignias */
+          span[class*="rounded"] {
+            border: 1px solid #9ca3af !important;
+            padding: 2px 6px !important;
+            background-color: #f3f4f6 !important;
+          }
+        }
+      `}</style>
+
+      <div className="flex justify-between items-center no-imprimir">
         <Link to="/" className="inline-flex items-center gap-1 text-sm font-bold text-brand-600 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Volver al mapa público
         </Link>
@@ -488,6 +567,14 @@ export const CommerceDetailPage: React.FC = () => {
           >
             <Heart className={`w-4 h-4 ${esFavorito ? 'fill-white' : ''}`} />
             <span className="hidden sm:inline">{esFavorito ? 'Guardado' : 'Favorito'}</span>
+          </button>
+
+          <button
+            onClick={handleImprimirPDF}
+            className="p-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
+            title="Imprimir o guardar en PDF"
+          >
+            <Printer className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
           </button>
 
           <button
@@ -516,19 +603,26 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </div>
 
+      <div className="hidden print:block mb-4 border-b pb-2">
+        <h2 className="text-xl font-black text-brand-700">NOGOYORK — Guía & Directorio Comercial de Nogoyá</h2>
+        <p className="text-xs text-gray-500">Ficha impresa/descargada desde nogoyork.app</p>
+      </div>
+
       {fotosFicha.length === 0 && esperandoGaleria && (
-        <div className="w-full h-56 sm:h-72 rounded-2xl bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
+        <div className="w-full h-56 sm:h-72 rounded-2xl bg-gray-200 dark:bg-gray-700 animate-pulse no-imprimir" aria-hidden="true" />
       )}
       {fotosFicha.length > 0 && (
-        <CarruselFotosComercio
-          fotos={fotosFicha.map((f) => f.url)}
-          nombreComercio={comercio.nombre}
-          alReportar={(i) => setFotoAReportar(fotosFicha[i] ?? null)}
-        />
+        <div className="no-imprimir">
+          <CarruselFotosComercio
+            fotos={fotosFicha.map((f) => f.url)}
+            nombreComercio={comercio.nombre}
+            alReportar={(i) => setFotoAReportar(fotosFicha[i] ?? null)}
+          />
+        </div>
       )}
       {fotoAReportar && <ReportarFoto comercioId={comercio.id} foto={fotoAReportar} onCerrar={() => setFotoAReportar(null)} />}
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6 print-card">
         <div className="flex justify-between items-start flex-wrap gap-2">
           <div>
             <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
@@ -537,7 +631,7 @@ export const CommerceDetailPage: React.FC = () => {
               {promociones.length > 0 && (
                 <a
                   href="#promociones"
-                  className="text-xs bg-amber-500 text-white px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shadow-sm hover:bg-amber-600 transition"
+                  className="text-xs bg-amber-500 text-white px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shadow-sm hover:bg-amber-600 transition no-imprimir"
                   title="Ver ofertas vigentes"
                 >
                   <Sparkles className="w-3.5 h-3.5" /> ¡{promociones.length} {promociones.length === 1 ? 'oferta activa' : 'ofertas activas'}!
@@ -569,19 +663,76 @@ export const CommerceDetailPage: React.FC = () => {
           {comercio.descripcion_corta || 'Sin descripción disponible.'}
         </p>
 
+        {/* BOTONERA DE REDES SOCIALES DIRECTAS */}
+        {(urlInstagram || urlFacebook || urlSitioWeb) && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 no-imprimir">
+            <span className="text-xs font-bold text-gray-500 mr-1">Redes sociales:</span>
+            {urlInstagram && (
+              <a
+                href={urlInstagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Instagram className="w-3.5 h-3.5" /> Instagram
+              </a>
+            )}
+
+            {urlFacebook && (
+              <a
+                href={urlFacebook}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Facebook className="w-3.5 h-3.5" /> Facebook
+              </a>
+            )}
+
+            {urlSitioWeb && (
+              <a
+                href={urlSitioWeb.startsWith('http') ? urlSitioWeb : `https://${urlSitioWeb}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Globe className="w-3.5 h-3.5" /> Menú / Web
+              </a>
+            )}
+          </div>
+        )}
+
         {(comercio.servicios?.length || comercio.medios_pago?.length) ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
             {comercio.servicios && comercio.servicios.length > 0 && (
               <div>
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-600" /> Servicios
+                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-600" /> Servicios & Opciones
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {comercio.servicios.map((s, i) => (
-                    <span key={i} className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-xs font-medium rounded-lg">
-                      {s}
-                    </span>
-                  ))}
+                  {comercio.servicios.map((s, i) => {
+                    const sLower = s.toLowerCase();
+                    const esPago = sLower.includes('rapipago') || sLower.includes('pago facil') || sLower.includes('cobro') || sLower.includes('bapro');
+                    const esDietario = sLower.includes('tacc') || sLower.includes('vegan') || sLower.includes('celiaco') || sLower.includes('vegetari');
+                    const esAuxilio = sLower.includes('grúa') || sLower.includes('auxilio') || sLower.includes('gomería');
+
+                    return (
+                      <span
+                        key={i}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
+                          esPago
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                            : esDietario
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            : esAuxilio
+                            ? 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-800'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        {s}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -603,7 +754,7 @@ export const CommerceDetailPage: React.FC = () => {
           </div>
         ) : null}
 
-        <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl space-y-3 border dark:border-gray-700/60">
+        <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl space-y-3 border dark:border-gray-700/60 print-card">
           <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
             <Clock className="w-4 h-4 text-brand-600" /> Horarios de Atención Semanal
           </h3>
@@ -625,7 +776,7 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
 
         {comercio.tiene_delivery && (
-          <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-2xl space-y-3 border border-emerald-500/20">
+          <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-2xl space-y-3 border border-emerald-500/20 print-card">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b dark:border-emerald-800/40 pb-2">
               <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
                 <Truck className="w-4 h-4 text-emerald-500" /> Horarios de Envíos a Domicilio (Delivery)
@@ -673,7 +824,7 @@ export const CommerceDetailPage: React.FC = () => {
             {comercio.direccion && (
               <button
                 onClick={handleCopiarDireccion}
-                className="text-xs text-brand-600 hover:underline flex items-center gap-1 font-bold ml-2"
+                className="text-xs text-brand-600 hover:underline flex items-center gap-1 font-bold ml-2 no-imprimir"
                 title="Copiar dirección"
               >
                 <Copy className="w-3 h-3" /> Copiar
@@ -681,7 +832,7 @@ export const CommerceDetailPage: React.FC = () => {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 no-imprimir">
             {tieneWhatsApp && (
               <button
                 onClick={handleWhatsAppClick}
@@ -712,7 +863,7 @@ export const CommerceDetailPage: React.FC = () => {
       </div>
 
       {promociones.length > 0 && (
-        <div id="promociones" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+        <div id="promociones" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4 print-card">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
             <Tag className="w-5 h-5 text-amber-500" /> Ofertas y Novedades Vigentes
           </h3>
@@ -753,7 +904,7 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       )}
 
-      <section id="resenas" aria-labelledby="titulo-resenas" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+      <section id="resenas" aria-labelledby="titulo-resenas" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-6 print-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="titulo-resenas" className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-brand-600" aria-hidden="true" /> Reseñas
@@ -767,11 +918,11 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
 
         {yaOpino ? (
-          <p className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300" role="status">
+          <p className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300 no-imprimir" role="status">
             {MENSAJE_YA_RESENO}
           </p>
         ) : (
-          <form onSubmit={handleCrearResena} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-3 border dark:border-gray-700">
+          <form onSubmit={handleCrearResena} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-3 border dark:border-gray-700 no-imprimir">
             <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Dejá tu opinión sobre {comercio.nombre}</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input
@@ -834,7 +985,7 @@ export const CommerceDetailPage: React.FC = () => {
             <p className="text-xs text-gray-500 text-center py-4">Aún no hay reseñas para este comercio. ¡Sé el primero en calificar!</p>
           ) : (
             resenas.map((r) => (
-              <div key={r.id} className="p-3.5 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-1.5 border dark:border-gray-800">
+              <div key={r.id} className="p-3.5 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-1.5 border dark:border-gray-800 print-card">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-bold text-xs text-gray-900 dark:text-white break-words min-w-0">{r.nombre_usuario}</span>
                   <span className="flex items-center gap-2 text-[11px] text-gray-500 shrink-0">
@@ -862,7 +1013,7 @@ export const CommerceDetailPage: React.FC = () => {
 
       {/* MODAL RESERVAR MESA VIA WHATSAPP */}
       {modalReservaOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 no-imprimir">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
@@ -930,7 +1081,7 @@ export const CommerceDetailPage: React.FC = () => {
 
       {/* MODAL QR DINAMICO EN PANTALLA */}
       {modalQrOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 no-imprimir">
           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-extrabold text-base text-gray-900 dark:text-white flex items-center gap-2">
@@ -969,7 +1120,7 @@ export const CommerceDetailPage: React.FC = () => {
 
       {/* MODAL DE REPORTE */}
       {modalReporteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-imprimir">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">

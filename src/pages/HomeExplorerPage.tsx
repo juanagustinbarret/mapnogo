@@ -13,7 +13,33 @@ import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
 const InteractiveMap = lazy(() => import('@/components/InteractiveMap').then((m) => ({ default: m.InteractiveMap })));
 import { formatearPuntaje } from '@/lib/puntaje';
 import type { PuntajePropio } from '@/lib/puntajePropio';
-import { MapPin, Store, LocateFixed, Navigation, Clock, Sparkles, CheckCircle2, SlidersHorizontal, Bike, HeartPulse, MessageCircle, ArrowRight, Banknote, Building2, Tag, Star, Moon, Info } from 'lucide-react';
+import { 
+  MapPin, 
+  Store, 
+  LocateFixed, 
+  Navigation, 
+  Clock, 
+  Sparkles, 
+  CheckCircle2, 
+  SlidersHorizontal, 
+  Bike, 
+  HeartPulse, 
+  MessageCircle, 
+  ArrowRight, 
+  Banknote, 
+  Building2, 
+  Tag, 
+  Star, 
+  Moon, 
+  Info,
+  CreditCard,
+  Wrench,
+  Fuel,
+  Coffee,
+  UtensilsCrossed,
+  Wheat,
+  Salad
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
@@ -67,6 +93,14 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
   const [soloNuevos, setSoloNuevos] = useState(false);
   const [soloNocturno, setSoloNocturno] = useState(false);
+
+  // FILTROS RÁPIDOS (Servicios Rápidos)
+  const [soloCobroServicios, setSoloCobroServicios] = useState(false);
+  const [soloAuxilioMecanico, setSoloAuxilioMecanico] = useState(false);
+  const [soloEstacionesServicio, setSoloEstacionesServicio] = useState(false);
+  const [momentoComida, setMomentoComida] = useState<'desayuno_merienda' | 'almuerzo_cena' | null>(null);
+  const [filtroDietario, setFiltroDietario] = useState<'sin_tacc' | 'vegano' | 'vegetariano' | null>(null);
+
   const [conOfertas, setConOfertas] = useState<Set<string> | null>(null);
   const [puntajes, setPuntajes] = useState<Record<string, PuntajePropio> | null>(null);
   const [cargandoExtra, setCargandoExtra] = useState<'ofertas' | 'puntaje' | null>(null);
@@ -125,7 +159,6 @@ export const HomeExplorerPage: React.FC = () => {
 
     if (navigator.onLine) {
       try {
-        // Precachear silenciosamente la Guía Útil para tenerla disponible sin señal
         supabase
           .from('guia_util')
           .select('*')
@@ -197,7 +230,6 @@ export const HomeExplorerPage: React.FC = () => {
           setComercios(comerciosData);
           void setCachedData('comercios_listado_global', comerciosData);
 
-          // Guardar cada comercio y sus horarios individuales en IndexedDB
           comerciosData.forEach((c) => {
             if (c.slug) {
               void setCachedData(`comercio_slug_${c.slug.toLowerCase()}`, c);
@@ -215,7 +247,6 @@ export const HomeExplorerPage: React.FC = () => {
       }
     }
 
-    // SI ESTAMOS OFFLINE O FALLÓ LA RED: Cargar desde IndexedDB
     const [cLocal, rLocal, hLocal, dLocal, fLocal] = await Promise.all([
       getCachedData<Comercio[]>('comercios_listado_global'),
       getCachedData<Rubro[]>('rubros_global'),
@@ -384,6 +415,59 @@ export const HomeExplorerPage: React.FC = () => {
           return false;
         }
       }
+
+      const servicios = (c.servicios || []).map((s: string) => s.toLowerCase());
+      const desc = (c.descripcion_corta || '').toLowerCase();
+      const nombreLower = (c.nombre || '').toLowerCase();
+      const rubroNombre = (c.rubro?.nombre || '').toLowerCase();
+
+      // 1. Filtro Cobro de Servicios (Pago Fácil, Rapipago, etc.)
+      if (soloCobroServicios) {
+        const tieneCobro = servicios.some((s: string) => s.includes('rapipago') || s.includes('pago facil') || s.includes('cobro') || s.includes('bapro')) 
+          || desc.includes('rapipago') || desc.includes('pago fácil') || desc.includes('cobro de servicios');
+        if (!tieneCobro) return false;
+      }
+
+      // 2. Filtro Auxilio Mecánico, Grúas y Gomerías
+      if (soloAuxilioMecanico) {
+        const esAuxilio = servicios.some((s: string) => s.includes('grúa') || s.includes('auxilio') || s.includes('gomería') || s.includes('taller'))
+          || rubroNombre.includes('gomería') || rubroNombre.includes('taller') || desc.includes('auxilio') || desc.includes('grúa');
+        if (!esAuxilio) return false;
+      }
+
+      // 3. Filtro Estaciones de Servicio (Combustible, Nafta, YPF, Shell, Axion, Puma, etc.)
+      if (soloEstacionesServicio) {
+        const esEstacion = rubroNombre.includes('estación') || rubroNombre.includes('estacion') || rubroNombre.includes('combustible')
+          || servicios.some((s: string) => s.includes('nafta') || s.includes('combustible') || s.includes('estacion') || s.includes('estación') || s.includes('gasoil'))
+          || desc.includes('estación de servicio') || desc.includes('combustible') || desc.includes('nafta') || desc.includes('ypf') || desc.includes('shell') || desc.includes('axion') || desc.includes('puma')
+          || nombreLower.includes('ypf') || nombreLower.includes('shell') || nombreLower.includes('axion') || nombreLower.includes('puma');
+        if (!esEstacion) return false;
+      }
+
+      // 4. Momento Gastronómico
+      if (momentoComida === 'desayuno_merienda') {
+        const esDesayuno = rubroNombre.includes('panader') || rubroNombre.includes('cafeter') || rubroNombre.includes('confiter') || servicios.some((s: string) => s.includes('desayuno') || s.includes('merienda'));
+        if (!esDesayuno) return false;
+      }
+      if (momentoComida === 'almuerzo_cena') {
+        const esComida = rubroNombre.includes('pizzer') || rubroNombre.includes('restauran') || rubroNombre.includes('rotiser') || rubroNombre.includes('bar') || rubroNombre.includes('comida');
+        if (!esComida) return false;
+      }
+
+      // 5. Filtro Dietario
+      if (filtroDietario === 'sin_tacc') {
+        const tieneSinTacc = servicios.some((s: string) => s.includes('tacc') || s.includes('celiaco')) || desc.includes('tacc') || desc.includes('celíaco');
+        if (!tieneSinTacc) return false;
+      }
+      if (filtroDietario === 'vegano') {
+        const tieneVegano = servicios.some((s: string) => s.includes('vegan')) || desc.includes('vegano') || desc.includes('vegana');
+        if (!tieneVegano) return false;
+      }
+      if (filtroDietario === 'vegetariano') {
+        const tieneVeg = servicios.some((s: string) => s.includes('vegetari')) || desc.includes('vegetariano') || desc.includes('vegetariana');
+        if (!tieneVeg) return false;
+      }
+
       return true;
     })
     .sort((a, b) => {
@@ -448,8 +532,8 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       )}
 
-      {/* BANNER PRINCIPAL */}
-      <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* BANNER PRINCIPAL CON BOTONES UNIFORMES EN ALTIMETRÍA Y ANCHO */}
+      <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
         <div className="space-y-2">
           <div>
             <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
@@ -467,30 +551,32 @@ export const HomeExplorerPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
+        <div className="grid grid-cols-3 gap-2 w-full md:w-auto shrink-0 items-stretch">
           <a
             href="https://wa.me/5493435451818?text=Hola!%20Quiero%20sumar%20mi%20comercio%20a%20NOGOYORK"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-md transition active:scale-95 border border-amber-400/40"
+            className="px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 border border-amber-400/40 text-center leading-tight min-h-[44px]"
           >
-            <MessageCircle className="w-4 h-4" /> Sumar mi Comercio
+            <MessageCircle className="w-4 h-4 shrink-0" />
+            <span>Sumar mi Comercio</span>
           </a>
 
           <button
             onClick={() => setModalGuiaUtilOpen(true)}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-95 border border-sky-400/30"
+            className="px-3 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 border border-sky-400/30 text-center leading-tight min-h-[44px]"
           >
-            <Info className="w-4 h-4" /> Guía Útil
+            <Info className="w-4 h-4 shrink-0" />
+            <span>Guía Útil</span>
           </button>
 
           <button
             onClick={solicitarUbicacion}
             disabled={loadingLoc}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition shrink-0"
+            className="px-3 py-2.5 bg-white text-brand-700 hover:bg-brand-50 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition text-center leading-tight min-h-[44px]"
           >
-            <Navigation className="w-4 h-4" />{' '}
-            {loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar Mi Ubicación' : 'Usar Mi Ubicación'}
+            <Navigation className="w-4 h-4 shrink-0" />
+            <span>{loadingLoc ? 'Obteniendo...' : userLocation ? 'Centrar Ubicación' : 'Usar Mi Ubicación'}</span>
           </button>
         </div>
       </div>
@@ -608,6 +694,102 @@ export const HomeExplorerPage: React.FC = () => {
                 onElegir={setMomentoDelivery}
                 minutosAhora={momentoAhora.minutos}
               />
+            </div>
+
+            {/* SERVICIOS RÁPIDOS: COBRO DE SERVICIOS, AUXILIO Y ESTACIONES DE SERVICIO */}
+            <div className="space-y-1 pt-1">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Servicios Rápidos:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSoloCobroServicios(!soloCobroServicios)}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    soloCobroServicios
+                      ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> Rapipago / Pago Fácil
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSoloAuxilioMecanico(!soloAuxilioMecanico)}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    soloAuxilioMecanico
+                      ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Wrench className="w-3.5 h-3.5" /> Grúas & Gomerías
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSoloEstacionesServicio(!soloEstacionesServicio)}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    soloEstacionesServicio
+                      ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Fuel className="w-3.5 h-3.5" /> Estaciones de Servicio
+                </button>
+              </div>
+            </div>
+
+            {/* MOMENTO DEL DÍA & OPCIONES DIETARIAS */}
+            <div className="space-y-1 pt-1">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Gastronomía & Dietas:</span>
+              <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMomentoComida(momentoComida === 'desayuno_merienda' ? null : 'desayuno_merienda')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    momentoComida === 'desayuno_merienda'
+                      ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-300'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Coffee className="w-3.5 h-3.5" /> Desayunos & Meriendas
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMomentoComida(momentoComida === 'almuerzo_cena' ? null : 'almuerzo_cena')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    momentoComida === 'almuerzo_cena'
+                      ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <UtensilsCrossed className="w-3.5 h-3.5" /> Almuerzo & Cena
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFiltroDietario(filtroDietario === 'sin_tacc' ? null : 'sin_tacc')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    filtroDietario === 'sin_tacc'
+                      ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-300'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Wheat className="w-3.5 h-3.5" /> Sin TACC
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFiltroDietario(filtroDietario === 'vegano' ? null : 'vegano')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    filtroDietario === 'vegano'
+                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Salad className="w-3.5 h-3.5" /> Vegano / Vegetariano
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1 pt-1">

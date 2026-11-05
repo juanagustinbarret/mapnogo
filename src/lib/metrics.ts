@@ -4,15 +4,16 @@ import { rangoAnterior, type RangoFechas } from '@/lib/rangosFechas';
 import type { ValoresMetricas } from '@/lib/mensajeMetricas';
 
 // ─── Qué se mide ──────────────────────────────────────────────────────────
-// visita       Alguien abre la ficha del comercio (/comercio/:slug).
-// whatsapp     Toca "WhatsApp" en la ficha o en una promoción.
-// como_llegar  Toca "Cómo llegar" en la ficha o en el mapa.
+// visita           Alguien abre la ficha del comercio (/comercio/:slug).
+// whatsapp         Toca "WhatsApp" en la ficha o en una promoción.
+// whatsapp_reserva Toca "Reservar Mesa" por WhatsApp.
+// como_llegar      Toca "Cómo llegar" en la ficha o en el mapa.
 // Un mismo visitante cuenta UNA vez por comercio y tipo cada 30 minutos
 // (recargar la ficha no suma). No cuentan: bots, el dueño del comercio
 // mirando su propia ficha, ni los administradores.
 // Los días se cortan en hora de Argentina (00:00 a 23:59, UTC-3).
 
-export type TipoInteraccion = 'visita' | 'whatsapp' | 'como_llegar';
+export type TipoInteraccion = 'visita' | 'whatsapp' | 'whatsapp_reserva' | 'como_llegar';
 
 export const VENTANA_SIN_REPETIR_MS = 30 * 60 * 1000;
 const CLAVE_VISITANTE = 'nogoyork:visitante';

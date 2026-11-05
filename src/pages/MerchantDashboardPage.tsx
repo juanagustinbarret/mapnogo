@@ -56,7 +56,10 @@ import {
   MessageSquare,
   Cross,
   FileText,
-  CornerDownRight
+  CornerDownRight,
+  Instagram,
+  Facebook,
+  Globe
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -112,7 +115,13 @@ export const MerchantDashboardPage: React.FC = () => {
   const [savingHorarioId, setSavingHorarioId] = useState<string | null>(null);
   const [savingHorarios, setSavingHorarios] = useState(false);
 
-  // Selector de tipus de pla per a la suscripció
+  // Estados para Redes Sociales
+  const [instagram, setInstagram] = useState(() => (datosPrevios?.comercio as any)?.instagram ?? '');
+  const [facebook, setFacebook] = useState(() => (datosPrevios?.comercio as any)?.facebook ?? '');
+  const [sitioWeb, setSitioWeb] = useState(() => (datosPrevios?.comercio as any)?.sitio_web ?? '');
+  const [guardandoRedes, setGuardandoRedes] = useState(false);
+
+  // Selector de tipos de plan para la suscripción
   const [tipoPlanSeleccionado, setTipoPlanSeleccionado] = useState<'mensual' | 'anual'>('mensual');
 
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
@@ -228,7 +237,7 @@ export const MerchantDashboardPage: React.FC = () => {
     try {
       let { data: c } = await supabase
         .from('comercios')
-        .select(COLUMNAS_FICHA_COMERCIO as '*')
+        .select('*')
         .eq('propietario_id', user?.id)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -238,7 +247,7 @@ export const MerchantDashboardPage: React.FC = () => {
         const emailBuscado = user.email.trim().toLowerCase();
         const { data: cByEmail } = await supabase
           .from('comercios')
-          .select(COLUMNAS_FICHA_COMERCIO as '*')
+          .select('*')
           .ilike('email_comercial', emailBuscado)
           .maybeSingle();
 
@@ -254,6 +263,10 @@ export const MerchantDashboardPage: React.FC = () => {
 
       if (c) {
         setComercio(c);
+        setInstagram((c as any).instagram ?? '');
+        setFacebook((c as any).facebook ?? '');
+        setSitioWeb((c as any).sitio_web ?? '');
+
         setDeliveryPausadoHasta(c.delivery_pausado_hasta || null);
         if (galeriaPedidaPara.current !== c.id) {
           galeriaPedidaPara.current = c.id;
@@ -300,6 +313,32 @@ export const MerchantDashboardPage: React.FC = () => {
         cargaPendiente.current = false;
         void fetchMerchantData({ silencioso: true });
       }
+    }
+  };
+
+  const handleGuardarRedesSociales = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comercio) return;
+    setGuardandoRedes(true);
+
+    const { error } = await supabase
+      .from('comercios')
+      .update({
+        instagram: instagram.trim() || null,
+        facebook: facebook.trim() || null,
+        sitio_web: sitioWeb.trim() || null,
+      })
+      .eq('id', comercio.id);
+
+    setGuardandoRedes(false);
+
+    if (error) {
+      console.error(error);
+      alert('Error al actualizar redes sociales. Verificá si ejecutaste el script SQL en Supabase.');
+    } else {
+      setComercio({ ...comercio, instagram, facebook, sitio_web: sitioWeb } as any);
+      avisarCambioPanel('inicio');
+      alert('✅ Redes sociales y sitio web guardados correctamente.');
     }
   };
 
@@ -713,7 +752,7 @@ export const MerchantDashboardPage: React.FC = () => {
               Panel de <span className="text-brand-600">{comercio.nombre}</span>
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Gestioná tu local, promociones, horarios y generá folletería para tus redes.
+              Gestioná tu local, redes sociales, promociones, horarios y generá folletería para tus redes.
             </p>
           </div>
 
@@ -846,8 +885,10 @@ export const MerchantDashboardPage: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between space-y-4">
-          <div className="space-y-3">
+        
+        {/* DATOS COMERCIALES & REDES SOCIALES */}
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between space-y-6">
+          <div className="space-y-4">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b dark:border-gray-700 pb-3">
               <Store className="w-5 h-5 text-brand-600" /> Datos Comerciales
             </h3>
@@ -856,13 +897,66 @@ export const MerchantDashboardPage: React.FC = () => {
               <p><strong>Dirección:</strong> {comercio.direccion || 'Sin cargar'}</p>
               <p><strong>WhatsApp:</strong> {comercio.whatsapp || 'Sin cargar'}</p>
             </div>
+
+            <form onSubmit={handleGuardarRedesSociales} className="pt-4 border-t dark:border-gray-700 space-y-3">
+              <h4 className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                <Globe className="w-4 h-4 text-purple-600" /> Redes Sociales & Menú Digital
+              </h4>
+              
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
+                  <Instagram className="w-3.5 h-3.5 text-pink-500" /> Instagram
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: biencriollo_ngy"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  className="w-full p-2 text-xs border border-gray-300 dark:border-gray-700 rounded-xl dark:bg-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
+                  <Facebook className="w-3.5 h-3.5 text-blue-600" /> Facebook
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: facebook.com/biencriollo"
+                  value={facebook}
+                  onChange={(e) => setFacebook(e.target.value)}
+                  className="w-full p-2 text-xs border border-gray-300 dark:border-gray-700 rounded-xl dark:bg-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5 text-emerald-500" /> Menú / Sitio Web
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: https://menu.biencriollo.com"
+                  value={sitioWeb}
+                  onChange={(e) => setSitioWeb(e.target.value)}
+                  className="w-full p-2 text-xs border border-gray-300 dark:border-gray-700 rounded-xl dark:bg-gray-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={guardandoRedes}
+                className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition shadow-sm disabled:opacity-50"
+              >
+                {guardandoRedes ? 'Guardando...' : 'Guardar Redes'}
+              </button>
+            </form>
           </div>
 
           <Link
             to="/panel/perfil"
-            className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
+            className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition mt-2"
           >
-            <Edit className="w-4 h-4" /> Editar Datos
+            <Edit className="w-4 h-4" /> Editar Todos los Datos
           </Link>
         </div>
 
@@ -882,7 +976,6 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
 
           <div className="space-y-3 text-xs">
-            {/* Selector de Plan Mensual / Anual */}
             <div>
               <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
                 Elegir modalidad de plan:
