@@ -198,12 +198,15 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // La suma la hace el servidor desde los pagos (RPC recaudacion_mes_actual): en
-  // el navegador se cortaba en 1000 filas y usaba la hora del dispositivo.
+  // La suma la hace el servidor desde los pagos (RPC recaudacion_mes_actual)
   const cargarRecaudacion = async () => {
     const { data, error } = await supabase.rpc('recaudacion_mes_actual');
-    if (error) console.error('No se pudo leer la recaudación:', error.message);
-    setRecaudacion(error ? null : leerRecaudacion(data));
+    if (error) {
+      console.error('No se pudo leer la recaudación:', error.message);
+      setRecaudacion(null);
+    } else {
+      setRecaudacion(leerRecaudacion(data));
+    }
   };
 
   // Se vuelve a leer al volver a esta pestaña o ventana (sin consultas periódicas)
@@ -240,6 +243,14 @@ export const AdminDashboardPage: React.FC = () => {
         { event: '*', schema: 'public', table: 'comercios' },
         () => {
           void fetchComerciosYStats();
+          void cargarRecaudacion();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pagos' },
+        () => {
+          void cargarRecaudacion();
         }
       )
       .subscribe();
