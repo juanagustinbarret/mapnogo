@@ -56,7 +56,12 @@ export const Navbar: React.FC = () => {
     if (isAdminArea && !targetPath.startsWith('/admin')) {
       setConfirmExitTarget(targetPath);
     } else {
-      navigate(targetPath);
+      if (location.pathname === targetPath) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigate(targetPath);
+        window.scrollTo(0, 0);
+      }
     }
   };
 
@@ -64,7 +69,12 @@ export const Navbar: React.FC = () => {
     if (confirmExitTarget) {
       const target = confirmExitTarget;
       setConfirmExitTarget(null);
-      navigate(target);
+      if (location.pathname === target) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigate(target);
+        window.scrollTo(0, 0);
+      }
     }
   };
 
@@ -72,6 +82,7 @@ export const Navbar: React.FC = () => {
     await signOut();
     setMobileMenuOpen(false);
     navigate('/');
+    window.scrollTo(0, 0);
   };
 
   const abrirBuscadorBoton = () => {
@@ -83,7 +94,11 @@ export const Navbar: React.FC = () => {
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
           
-          <button onClick={() => handleNavigation('/')} className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight shrink-0" aria-label="NOGOYORK, ir al inicio">
+          <button 
+            onClick={() => handleNavigation('/')} 
+            className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight shrink-0 hover:opacity-90 transition cursor-pointer" 
+            aria-label="NOGOYORK, ir al inicio"
+          >
             <LogoNogoyork className="w-8 h-8 shrink-0" />
             <span>NOGO<span className="text-red-600 dark:text-red-500">YORK</span></span>
           </button>
@@ -101,20 +116,20 @@ export const Navbar: React.FC = () => {
 
           {/* NAVEGACIÓN ESCRITORIO */}
           <div className="hidden lg:flex items-center gap-3">
-            <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-emerald-600 flex items-center gap-1">
+            <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-emerald-600 flex items-center gap-1 cursor-pointer">
               <Home className="w-3.5 h-3.5" /> Mapa Público
             </button>
-            <button onClick={() => handleNavigation('/promociones')} className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg">
+            <button onClick={() => handleNavigation('/promociones')} className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
               <Tag className="w-3.5 h-3.5" /> Ofertas & Promos
             </button>
-            <button onClick={() => handleNavigation('/favoritos')} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg">
+            <button onClick={() => handleNavigation('/favoritos')} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
               <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> 
               Favoritos {cantFavoritos > 0 && <span className="ml-0.5 bg-rose-500 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">{cantFavoritos}</span>}
             </button>
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer"
               aria-label="Cambiar tema"
             >
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-400" />}
@@ -126,13 +141,13 @@ export const Navbar: React.FC = () => {
                   <>
                     <button
                       onClick={() => handleNavigation('/admin')}
-                      className="px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center gap-1"
+                      className="px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center gap-1 cursor-pointer"
                     >
                       <LayoutDashboard className="w-3.5 h-3.5 text-emerald-600" /> Admin
                     </button>
                     <button
                       onClick={() => handleNavigation('/panel')}
-                      className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 dark:bg-blue-950/40 rounded-xl flex items-center gap-1"
+                      className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 dark:bg-blue-950/40 rounded-xl flex items-center gap-1 cursor-pointer"
                     >
                       <Store className="w-3.5 h-3.5" /> Panel Negocio
                     </button>
@@ -140,13 +155,13 @@ export const Navbar: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => handleNavigation('/panel')}
-                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center gap-1 shadow-sm"
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center gap-1 shadow-sm cursor-pointer"
                   >
                     <Store className="w-3.5 h-3.5" /> Mi Negocio
                   </button>
                 )}
 
-                <button onClick={handleSignOut} className="text-gray-500 hover:text-red-600 p-2 rounded-xl" title="Cerrar Sesión" aria-label="Cerrar sesión">
+                <button onClick={handleSignOut} className="text-gray-500 hover:text-red-600 p-2 rounded-xl cursor-pointer" title="Cerrar Sesión" aria-label="Cerrar sesión">
                   <LogOut className="w-5 h-5" />
                 </button>
               </div>
@@ -269,13 +284,13 @@ export const Navbar: React.FC = () => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setConfirmExitTarget(null)}
-                className="px-4 py-2 border rounded-lg text-sm font-semibold"
+                className="px-4 py-2 border rounded-lg text-sm font-semibold cursor-pointer"
               >
                 Permanecer
               </button>
               <button
                 onClick={confirmAndNavigate}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold"
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold cursor-pointer"
               >
                 Ir al Sitio
               </button>

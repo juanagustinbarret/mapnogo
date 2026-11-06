@@ -52,7 +52,6 @@ import {
   type RangoDelivery,
 } from '@/lib/delivery';
 import { FiltroDeliveryBotonPrincipal, FiltroDeliveryBotonConsulta } from '@/components/FiltroDelivery';
-import { calleEnCoordenadas } from '@/lib/geocodificacion';
 import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionComercios';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
@@ -80,6 +79,22 @@ function formatearDistanciaTexto(distanciaKm: number | null): string {
   return `a ${distanciaKm.toFixed(1)} km`;
 }
 
+// Reverse Geocoding dinámico a Nominatim (OpenStreetMap)
+async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
+    if (!res.ok) throw new Error('Error en geocodificación');
+    const data = await res.json();
+    
+    const ciudad = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || 'Nogoyá';
+    const provincia = data.address?.state || 'Entre Ríos';
+    
+    return `${provincia}, ${ciudad}`;
+  } catch {
+    return 'Ubicación GPS detectada';
+  }
+}
+
 export const HomeExplorerPage: React.FC = () => {
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [loadingComercios, setLoadingComercios] = useState(true);
@@ -94,7 +109,7 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloNuevos, setSoloNuevos] = useState(false);
   const [soloNocturno, setSoloNocturno] = useState(false);
 
-  // FILTROS RÁPIDOS (Servicios Rápidos)
+  // FILTROS RÁPIDOS
   const [soloCobroServicios, setSoloCobroServicios] = useState(false);
   const [soloAuxilioMecanico, setSoloAuxilioMecanico] = useState(false);
   const [soloEstacionesServicio, setSoloEstacionesServicio] = useState(false);
@@ -290,8 +305,8 @@ export const HomeExplorerPage: React.FC = () => {
 
         if (!tuvoUbicacion) {
           tuvoUbicacion = true;
-          calleEnCoordenadas(lat, lng)
-            .then((calle) => setUserAddress(`${calle || 'Tu ubicación'}, Nogoyá`))
+          obtenerUbicacionGeocodificada(lat, lng)
+            .then((ubicacionTexto) => setUserAddress(ubicacionTexto))
             .catch(() => setUserAddress('Ubicación GPS detectada'));
         }
       },
@@ -450,7 +465,7 @@ export const HomeExplorerPage: React.FC = () => {
         if (!esDesayuno) return false;
       }
       if (momentoComida === 'almuerzo_cena') {
-        const esComida = rubroNombre.includes('pizzer') || rubroNombre.includes('restauran') || rubroNombre.includes('rotiser') || /bar(es)?/.test(rubroNombre) || rubroNombre.includes('comida');
+        const esComida = rubroNombre.includes('pizzer') || rubroNombre.includes('restauran') || rubroNombre.includes('rotiser') || / bar(es)? /.test(rubroNombre) || rubroNombre.includes('comida');
         if (!esComida) return false;
       }
 
@@ -532,7 +547,7 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       )}
 
-      {/* BANNER PRINCIPAL CON BOTONES UNIFORMES EN ALTIMETRÍA Y ANCHO */}
+      {/* BANNER PRINCIPAL CON UBICACIÓN DINÁMICA */}
       <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
         <div className="space-y-2">
           <div>
@@ -696,7 +711,7 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* SERVICIOS RÁPIDOS: COBRO DE SERVICIOS, AUXILIO Y ESTACIONES DE SERVICIO */}
+            {/* SERVICIOS RÁPIDOS */}
             <div className="space-y-1 pt-1">
               <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Servicios Rápidos:</span>
               <div className="flex flex-wrap items-center gap-2">
@@ -738,7 +753,7 @@ export const HomeExplorerPage: React.FC = () => {
               </div>
             </div>
 
-            {/* MOMENTO DEL DÍA & OPCIONES DIETARIAS */}
+            {/* GASTRONOMÍA & DIETAS */}
             <div className="space-y-1 pt-1">
               <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Gastronomía & Dietas:</span>
               <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
