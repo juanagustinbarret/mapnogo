@@ -28,6 +28,8 @@ import {
   Sparkles,
   QrCode,
   Users,
+  Scissors,
+  Car,
   Printer,
   Globe,
   Instagram,
@@ -98,10 +100,13 @@ export const CommerceDetailPage: React.FC = () => {
   const [descReporte, setDescReporte] = useState('');
   const [enviandoReporte, setEnviandoReporte] = useState(false);
 
-  // Estados para Modal de Reserva
+  // Estados para Modal de Reserva / Turno
   const [modalReservaOpen, setModalReservaOpen] = useState(false);
   const [personasReserva, setPersonasReserva] = useState(2);
+  const [diaTurno, setDiaTurno] = useState<'Hoy' | 'Mañana'>('Hoy');
   const [horaReserva, setHoraReserva] = useState('21:00');
+  const [servicioTurno, setServicioTurno] = useState('');
+  const [vehiculoTurno, setVehiculoTurno] = useState('Auto');
 
   // Estado para Modal de QR Dinámico
   const [modalQrOpen, setModalQrOpen] = useState(false);
@@ -180,7 +185,6 @@ export const CommerceDetailPage: React.FC = () => {
           let { data, error } = await pedir(`${COLUMNAS_FICHA_COMERCIO}, fotos_comercio(${COLUMNAS_FOTO}, orden)`);
           if (error) ({ data, error } = await pedir(COLUMNAS_FICHA_COMERCIO));
           if (error) ({ data } = await pedir('*'));
-          // El email del comercio no se publica (ver /privacidad): ni se muestra ni se guarda sin conexión
           return ((data ?? []) as any[]).map(({ email_comercial: _email, ...resto }) => resto);
         };
 
@@ -388,18 +392,6 @@ export const CommerceDetailPage: React.FC = () => {
     window.open(url, '_blank');
   };
 
-  const handleEnviarReservaWhatsApp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!comercio) return;
-
-    void registrarInteraccion(comercio.id, 'whatsapp_reserva' as any, { excluir: esPropioOAdmin(comercio) });
-    const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-    const mensaje = `Hola *${comercio.nombre}*! 👋 Quisiera consultar si tienen disponibilidad de mesa para *${personasReserva} ${personasReserva === 1 ? 'persona' : 'personas'}* hoy a las *${horaReserva} hs*. ¡Muchas gracias! (Visto en NOGOYORK)`;
-    const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
-    setModalReservaOpen(false);
-    window.open(url, '_blank');
-  };
-
   const handleComoLlegarClick = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'como_llegar', { excluir: esPropioOAdmin(comercio) });
@@ -423,7 +415,7 @@ export const CommerceDetailPage: React.FC = () => {
         title: comercio?.nombre,
         text: `Mirá la ficha de ${comercio?.nombre} en NOGOYORK`,
         url: window.location.href,
-      }).catch(() => {}); // cancelar el menú de compartir no es un error
+      }).catch(() => {});
     } else {
       navigator.clipboard.writeText(window.location.href);
       alert('Enlace copiado al portapapeles');
@@ -472,14 +464,72 @@ export const CommerceDetailPage: React.FC = () => {
 
   const fotosFicha = fotosParaMostrar(fotosAprobadas, galeriaVieja ?? comercio.galeria_urls);
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
-  const esGastronomicoOReservable = Boolean(
-    / bar(es)? /.test(comercio.rubro?.nombre?.toLowerCase() ?? '') ||
-    comercio.rubro?.nombre?.toLowerCase().includes('restaurante') ||
-    comercio.rubro?.nombre?.toLowerCase().includes('pizzería') ||
-    comercio.rubro?.nombre?.toLowerCase().includes('comida') ||
-    comercio.rubro?.nombre?.toLowerCase().includes('gastronomía') ||
-    comercio.servicios?.some(s => s.toLowerCase().includes('reserva') || s.toLowerCase().includes('mesas'))
-  );
+
+  const rubroLower = (comercio.rubro?.nombre ?? '').toLowerCase();
+  const serviciosLower = (comercio.servicios ?? []).map((s) => s.toLowerCase());
+
+  const tipoReserva: 'mesa' | 'peluqueria' | 'lavadero' | null = (() => {
+    if (
+      rubroLower.includes('lavadero') ||
+      serviciosLower.some((s) => s.includes('lavado de auto') || s.includes('lavado completo') || s.includes('detailing'))
+    ) {
+      return 'lavadero';
+    }
+    if (
+      rubroLower.includes('peluquer') ||
+      rubroLower.includes('barber') ||
+      rubroLower.includes('estética') ||
+      rubroLower.includes('estetica') ||
+      rubroLower.includes('manicur') ||
+      serviciosLower.some((s) => s.includes('turno') || s.includes('corte') || s.includes('barba'))
+    ) {
+      return 'peluqueria';
+    }
+    if (
+      / bar(es)? /.test(` ${rubroLower} `) ||
+      rubroLower.includes('restaurante') ||
+      rubroLower.includes('pizzería') ||
+      rubroLower.includes('pizzeria') ||
+      rubroLower.includes('comida') ||
+      rubroLower.includes('gastronomía') ||
+      rubroLower.includes('gastronomia') ||
+      serviciosLower.some((s) => s.includes('reserva') || s.includes('mesas'))
+    ) {
+      return 'mesa';
+    }
+    return null;
+  })();
+
+  const abrirModalReserva = () => {
+    if (comercio.servicios && comercio.servicios.length > 0 && !servicioTurno) {
+      setServicioTurno(comercio.servicios[0]);
+    }
+    setHoraReserva(tipoReserva === 'mesa' ? '21:00' : '10:00');
+    setModalReservaOpen(true);
+  };
+
+  const handleEnviarReservaWhatsApp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comercio || !tipoReserva) return;
+
+    void registrarInteraccion(comercio.id, 'whatsapp_reserva' as any, { excluir: esPropioOAdmin(comercio) });
+    const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
+
+    let mensaje = '';
+    if (tipoReserva === 'mesa') {
+      mensaje = `Hola *${comercio.nombre}*! 👋 Quisiera consultar si tienen disponibilidad de mesa para *${personasReserva} ${personasReserva === 1 ? 'persona' : 'personas'}* hoy a las *${horaReserva} hs*. ¡Muchas gracias! (Visto en NOGOYORK)`;
+    } else if (tipoReserva === 'peluqueria') {
+      const detalleServicio = servicioTurno.trim() ? ` para *${servicioTurno.trim()}*` : '';
+      mensaje = `Hola *${comercio.nombre}*! 👋 Quisiera pedir un turno${detalleServicio} para *${diaTurno.toLowerCase()}* alrededor de las *${horaReserva} hs*. ¿Tienen disponibilidad? ¡Muchas gracias! (Visto en NOGOYORK)`;
+    } else if (tipoReserva === 'lavadero') {
+      const detalleServicio = servicioTurno.trim() ? ` (*${servicioTurno.trim()}*)` : '';
+      mensaje = `Hola *${comercio.nombre}*! 👋 Quisiera pedir turno para lavar un *${vehiculoTurno}*${detalleServicio} *${diaTurno.toLowerCase()}* a las *${horaReserva} hs*. ¿Tienen lugar? ¡Muchas gracias! (Visto en NOGOYORK)`;
+    }
+
+    const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
+    setModalReservaOpen(false);
+    window.open(url, '_blank');
+  };
 
   const urlInstagram = formatearUrlInstagram((comercio as any).instagram);
   const urlFacebook = formatearUrlFacebook((comercio as any).facebook);
@@ -503,12 +553,10 @@ export const CommerceDetailPage: React.FC = () => {
       {/* Estilos para impresión en PDF forzando renderizado de texto directo */}
       <style>{`
         @media print {
-          /* 1. Ocultar interfaz dinámica y navegaciones */
           nav, header, footer, .no-imprimir, button, svg {
             display: none !important;
           }
 
-          /* 2. Reset del body y anular variables CSS de Tailwind */
           html, body {
             background: #ffffff !important;
             color: #000000 !important;
@@ -518,7 +566,6 @@ export const CommerceDetailPage: React.FC = () => {
             font-size: 12pt !important;
           }
 
-          /* 3. Forzar visibilidad absoluta en todas las etiquetas de texto */
           h1, h2, h3, h4, p, span, div, time, strong, label, a {
             color: #000000 !important;
             -webkit-text-fill-color: #000000 !important;
@@ -529,7 +576,6 @@ export const CommerceDetailPage: React.FC = () => {
             background-color: transparent !important;
           }
 
-          /* 4. Estilos de tarjetas e información */
           .print-card, div[class*="rounded-2xl"], div[class*="rounded-xl"] {
             background-color: #ffffff !important;
             border: 1px solid #d1d5db !important;
@@ -539,7 +585,6 @@ export const CommerceDetailPage: React.FC = () => {
             padding: 1rem !important;
           }
 
-          /* 5. Destacar títulos */
           h1 {
             font-size: 20pt !important;
             font-weight: bold !important;
@@ -549,7 +594,6 @@ export const CommerceDetailPage: React.FC = () => {
             font-weight: bold !important;
           }
 
-          /* 6. Enlaces e Insignias */
           span[class*="rounded"] {
             border: 1px solid #9ca3af !important;
             padding: 2px 6px !important;
@@ -862,13 +906,15 @@ export const CommerceDetailPage: React.FC = () => {
               </button>
             )}
 
-            {tieneWhatsApp && esGastronomicoOReservable && (
+            {tieneWhatsApp && tipoReserva && (
               <button
-                onClick={() => setModalReservaOpen(true)}
+                onClick={abrirModalReserva}
                 className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center justify-center gap-1.5"
-                title="Consultar o reservar mesa por WhatsApp"
+                title={tipoReserva === 'mesa' ? 'Consultar o reservar mesa por WhatsApp' : 'Pedir turno por WhatsApp'}
               >
-                <Users className="w-4 h-4" /> Reservar Mesa
+                {tipoReserva === 'mesa' && <><Users className="w-4 h-4" /> Reservar Mesa</>}
+                {tipoReserva === 'peluqueria' && <><Scissors className="w-4 h-4" /> Pedir Turno</>}
+                {tipoReserva === 'lavadero' && <><Car className="w-4 h-4" /> Pedir Turno</>}
               </button>
             )}
 
@@ -1060,13 +1106,15 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       </section>
 
-      {/* MODAL RESERVAR MESA VIA WHATSAPP */}
-      {modalReservaOpen && (
+      {/* MODAL RESERVAR MESA / PEDIR TURNO VIA WHATSAPP */}
+      {modalReservaOpen && tipoReserva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 no-imprimir">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
               <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" /> Reservar Mesa en {comercio.nombre}
+                {tipoReserva === 'mesa' && <><Users className="w-5 h-5 text-purple-600" /> Reservar Mesa en {comercio.nombre}</>}
+                {tipoReserva === 'peluqueria' && <><Scissors className="w-5 h-5 text-purple-600" /> Pedir Turno en {comercio.nombre}</>}
+                {tipoReserva === 'lavadero' && <><Car className="w-5 h-5 text-purple-600" /> Pedir Turno en {comercio.nombre}</>}
               </h3>
               <button onClick={() => setModalReservaOpen(false)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
@@ -1074,26 +1122,96 @@ export const CommerceDetailPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleEnviarReservaWhatsApp} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
-                  Cantidad de personas
-                </label>
-                <select
-                  value={personasReserva}
-                  onChange={(e) => setPersonasReserva(Number(e.target.value))}
-                  className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? 'persona' : 'personas'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {tipoReserva === 'mesa' ? (
+                <div>
+                  <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
+                    Cantidad de personas
+                  </label>
+                  <select
+                    value={personasReserva}
+                    onChange={(e) => setPersonasReserva(Number(e.target.value))}
+                    className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
+                      <option key={n} value={n}>
+                        {n} {n === 1 ? 'persona' : 'personas'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <>
+                  {tipoReserva === 'lavadero' && (
+                    <div>
+                      <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
+                        Tipo de vehículo
+                      </label>
+                      <select
+                        value={vehiculoTurno}
+                        onChange={(e) => setVehiculoTurno(e.target.value)}
+                        className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold"
+                      >
+                        <option value="Auto">Auto</option>
+                        <option value="Camioneta / SUV">Camioneta / SUV</option>
+                        <option value="Utilitario">Utilitario</option>
+                        <option value="Moto">Moto</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
+                      {tipoReserva === 'peluqueria' ? 'Servicio deseado' : 'Tipo de lavado'}
+                    </label>
+                    {comercio.servicios && comercio.servicios.length > 0 ? (
+                      <select
+                        value={servicioTurno}
+                        onChange={(e) => setServicioTurno(e.target.value)}
+                        className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold"
+                      >
+                        {comercio.servicios.map((s, idx) => (
+                          <option key={idx} value={s}>{s}</option>
+                        ))}
+                        <option value="">Otro / Consultar</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={tipoReserva === 'peluqueria' ? 'Ej: Corte, Corte + Barba, Color...' : 'Ej: Lavado completo, Solo exterior...'}
+                        value={servicioTurno}
+                        onChange={(e) => setServicioTurno(e.target.value)}
+                        className="w-full p-2.5 border rounded-xl dark:bg-gray-900 dark:border-gray-700 font-bold"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
+                      Día
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['Hoy', 'Mañana'] as const).map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setDiaTurno(d)}
+                          className={`py-2 rounded-xl font-bold border transition ${
+                            diaTurno === d
+                              ? 'bg-purple-600 text-white border-purple-600'
+                              : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block font-bold mb-1 text-gray-700 dark:text-gray-300">
-                  Horario de llegada estimado
+                  {tipoReserva === 'mesa' ? 'Horario de llegada estimado' : 'Horario aproximado'}
                 </label>
                 <input
                   type="time"

@@ -38,7 +38,10 @@ import {
   Coffee,
   UtensilsCrossed,
   Wheat,
-  Salad
+  Salad,
+  Scissors,
+  Car,
+  Hammer
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -112,6 +115,8 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloCobroServicios, setSoloCobroServicios] = useState(false);
   const [soloAuxilioMecanico, setSoloAuxilioMecanico] = useState(false);
   const [soloEstacionesServicio, setSoloEstacionesServicio] = useState(false);
+  const [soloPeluquerias, setSoloPeluquerias] = useState(false);
+  const [soloLavaderos, setSoloLavaderos] = useState(false);
   const [momentoComida, setMomentoComida] = useState<'desayuno_merienda' | 'almuerzo_cena' | null>(null);
   const [filtroDietario, setFiltroDietario] = useState<'sin_tacc' | 'vegano' | 'vegetariano' | null>(null);
 
@@ -458,7 +463,23 @@ export const HomeExplorerPage: React.FC = () => {
         if (!esEstacion) return false;
       }
 
-      // 4. Momento Gastronómico
+      // 4. Filtro Peluquerías & Barberías
+      if (soloPeluquerias) {
+        const esPelu = rubroNombre.includes('peluquer') || rubroNombre.includes('barber') || rubroNombre.includes('estética') || rubroNombre.includes('estetica')
+          || servicios.some((s: string) => s.includes('corte') || s.includes('barba') || s.includes('peluquer') || s.includes('barber'))
+          || desc.includes('peluquer') || desc.includes('barber');
+        if (!esPelu) return false;
+      }
+
+      // 5. Filtro Lavaderos de Autos
+      if (soloLavaderos) {
+        const esLavadero = rubroNombre.includes('lavadero')
+          || servicios.some((s: string) => s.includes('lavado de auto') || s.includes('lavado completo') || s.includes('detailing'))
+          || desc.includes('lavadero');
+        if (!esLavadero) return false;
+      }
+
+      // 6. Momento Gastronómico
       if (momentoComida === 'desayuno_merienda') {
         const esDesayuno = rubroNombre.includes('panader') || rubroNombre.includes('cafeter') || rubroNombre.includes('confiter') || servicios.some((s: string) => s.includes('desayuno') || s.includes('merienda'));
         if (!esDesayuno) return false;
@@ -468,7 +489,7 @@ export const HomeExplorerPage: React.FC = () => {
         if (!esComida) return false;
       }
 
-      // 5. Filtro Dietario
+      // 7. Filtro Dietario
       if (filtroDietario === 'sin_tacc') {
         const tieneSinTacc = servicios.some((s: string) => s.includes('tacc') || s.includes('celiaco')) || desc.includes('tacc') || desc.includes('celíaco');
         if (!tieneSinTacc) return false;
@@ -716,6 +737,30 @@ export const HomeExplorerPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setSoloPeluquerias(!soloPeluquerias)}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    soloPeluquerias
+                      ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Scissors className="w-3.5 h-3.5" /> Peluquerías & Barberías
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSoloLavaderos(!soloLavaderos)}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                    soloLavaderos
+                      ? 'bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-400'
+                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Car className="w-3.5 h-3.5" /> Lavaderos
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setSoloCobroServicios(!soloCobroServicios)}
                   className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
                     soloCobroServicios
@@ -872,6 +917,13 @@ export const HomeExplorerPage: React.FC = () => {
               >
                 <HeartPulse className="w-3.5 h-3.5" /> Farmacia de Turno
               </button>
+
+              <Link
+                to="/oficios"
+                className="px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+              >
+                <Hammer className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Oficios →
+              </Link>
 
               <button
                 onClick={() => setSelectedRubro('')}
