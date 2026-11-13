@@ -23,6 +23,7 @@ const TerminosPage = diferida(() => import('@/pages/TerminosPage'), 'TerminosPag
 const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'PrivacidadPage');
 const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
 const PromotionsPage = diferida(() => import('@/pages/PromotionsPage'), 'PromotionsPage');
+const EmpleosPage = diferida(() => import('@/pages/EmpleosPage'), 'EmpleosPage');
 const FavoritesPage = diferida(() => import('@/pages/FavoritesPage'), 'FavoritesPage');
 const MerchantLoginPage = diferida(() => import('@/pages/MerchantLoginPage'), 'MerchantLoginPage');
 const AdminLoginPage = diferida(() => import('@/pages/AdminLoginPage'), 'AdminLoginPage');
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
                 <Route path="/n/:slug/resenas" element={<QrResenasRedireccion />} />
                 <Route path="/n/:slug" element={<QrFichaRedireccion />} />
                 <Route path="/promociones" element={<PromotionsPage />} />
+                <Route path="/empleos" element={<EmpleosPage />} />
                 <Route path="/favoritos" element={<FavoritesPage />} />
                 <Route path="/terminos" element={<TerminosPage />} />
                 <Route path="/privacidad" element={<PrivacidadPage />} />

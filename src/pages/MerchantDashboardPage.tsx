@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
 import { GaleriaModerada } from '@/components/GaleriaModerada';
+import { GestorEmpleosComercio } from '@/components/GestorEmpleosComercio';
 import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
@@ -1397,6 +1398,9 @@ export const MerchantDashboardPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* OFERTAS LABORALES & CVs RECIBIDOS */}
+      <GestorEmpleosComercio comercioId={comercio.id} comercioNombre={comercio.nombre} />
 
       {/* MODAL CREAR PUBLICACIÓN/OFERTA CON PRECIO ANTERIOR Y PROMOCIONAL */}
       {isModalOpen && (

@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { setCachedData, getCachedData } from '@/lib/offlineStore';
-import { Comercio, HorarioAtencion, Promocion } from '@/types/database.types';
+import { Comercio, HorarioAtencion, Promocion, OfertaLaboral } from '@/types/database.types';
 import { 
   MapPin, 
   MessageCircle, 
@@ -11,6 +11,7 @@ import {
   ArrowLeft, 
   Navigation, 
   Tag, 
+  Briefcase,
   CheckCircle2, 
   CreditCard, 
   Share2, 
@@ -87,6 +88,7 @@ export const CommerceDetailPage: React.FC = () => {
   const [horarios, setHorarios] = useState<HorarioAtencion[]>([]);
   const [horariosDelivery, setHorariosDelivery] = useState<HorarioDelivery[]>([]);
   const [promociones, setPromociones] = useState<Promocion[]>([]);
+  const [ofertasLaborales, setOfertasLaborales] = useState<OfertaLaboral[]>([]);
   
   const [esFavorito, setEsFavorito] = useState(false);
 
@@ -153,11 +155,11 @@ export const CommerceDetailPage: React.FC = () => {
   }, [slug]);
 
   useEffect(() => {
-    const destino = hash === '#resenas' || hash === '#promociones' ? hash.slice(1) : null;
+    const destino = hash === '#resenas' || hash === '#promociones' || hash === '#empleos' ? hash.slice(1) : null;
     if (!comercio || !destino) return;
     const t = setTimeout(() => document.getElementById(destino)?.scrollIntoView({ block: 'start' }), 80);
     return () => clearTimeout(t);
-  }, [comercio, hash, promociones.length]);
+  }, [comercio, hash, promociones.length, ofertasLaborales.length]);
 
   const fetchComercio = async () => {
     setLoadingComercio(true);
@@ -235,6 +237,11 @@ export const CommerceDetailPage: React.FC = () => {
                 setPromociones(p);
                 void setCachedData(`promociones_${c.id}`, p);
               }
+            }, avisar);
+
+          supabase.from('ofertas_laborales').select('*').eq('comercio_id', c.id).eq('activa', true).order('created_at', { ascending: false })
+            .then(({ data: ol }) => {
+              if (ol) setOfertasLaborales(ol as OfertaLaboral[]);
             }, avisar);
 
           supabase
@@ -466,7 +473,7 @@ export const CommerceDetailPage: React.FC = () => {
   const fotosFicha = fotosParaMostrar(fotosAprobadas, galeriaVieja ?? comercio.galeria_urls);
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
   const esGastronomicoOReservable = Boolean(
-    /bar(es)?/.test(comercio.rubro?.nombre?.toLowerCase() ?? '') ||
+    / bar(es)? /.test(comercio.rubro?.nombre?.toLowerCase() ?? '') ||
     comercio.rubro?.nombre?.toLowerCase().includes('restaurante') ||
     comercio.rubro?.nombre?.toLowerCase().includes('pizzería') ||
     comercio.rubro?.nombre?.toLowerCase().includes('comida') ||
@@ -638,6 +645,16 @@ export const CommerceDetailPage: React.FC = () => {
                   title="Ver ofertas vigentes"
                 >
                   <Sparkles className="w-3.5 h-3.5" /> ¡{promociones.length} {promociones.length === 1 ? 'oferta activa' : 'ofertas activas'}!
+                </a>
+              )}
+
+              {ofertasLaborales.length > 0 && (
+                <a
+                  href="#empleos"
+                  className="text-xs bg-blue-600 text-white px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shadow-sm hover:bg-blue-700 transition no-imprimir"
+                  title="Ver búsquedas laborales"
+                >
+                  <Briefcase className="w-3.5 h-3.5" /> ¡Busca personal!
                 </a>
               )}
 
@@ -903,6 +920,35 @@ export const CommerceDetailPage: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {ofertasLaborales.length > 0 && (
+        <div id="empleos" className="scroll-mt-20 bg-white dark:bg-gray-800 rounded-2xl p-6 border border-blue-200 dark:border-blue-900/50 shadow-sm space-y-4 print-card">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-blue-600" /> Búsquedas Laborales Activas
+            </h3>
+            <Link to="/empleos" className="text-xs font-extrabold text-blue-600 hover:underline no-imprimir">
+              Ver todas →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {ofertasLaborales.map((ol) => (
+              <div key={ol.id} className="p-4 bg-blue-50/50 dark:bg-gray-900 rounded-xl border border-blue-100 dark:border-gray-700 space-y-2">
+                <h4 className="font-extrabold text-sm text-gray-900 dark:text-white">{ol.titulo}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-line">{ol.descripcion}</p>
+                <div className="pt-1 no-imprimir">
+                  <Link
+                    to="/empleos"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition"
+                  >
+                    Postularme / Subir CV
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

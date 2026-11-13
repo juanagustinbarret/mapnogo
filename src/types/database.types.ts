@@ -102,3 +102,26 @@ export interface HorarioDelivery {
   hora_inicio: string;
   hora_fin: string;
 }
+
+//OFERTAS LABORALES
+export interface OfertaLaboral {
+  id: string;
+  comercio_id: string;
+  titulo: string;
+  descripcion: string;
+  activa: boolean;
+  created_at: string;
+  comercio?: Comercio;
+}
+
+//CARGA DE CVS
+export interface PostulacionCV {
+  id: string;
+  oferta_id: string;
+  comercio_id: string;
+  nombre_postulante: string;
+  celular: string;
+  archivo_path: string;
+  archivo_nombre: string;
+  created_at: string;
+}

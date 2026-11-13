@@ -79,7 +79,7 @@ function formatearDistanciaTexto(distanciaKm: number | null): string {
   return `a ${distanciaKm.toFixed(1)} km`;
 }
 
-// Reverse Geocoding dinámico a Nominatim (OpenStreetMap)
+// Reverse Geocoding dinámico a Nominatim (OpenStreetMap) - Devuelve solo la ciudad
 async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
@@ -87,9 +87,8 @@ async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<
     const data = await res.json();
     
     const ciudad = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || 'Nogoyá';
-    const provincia = data.address?.state || 'Entre Ríos';
     
-    return `${provincia}, ${ciudad}`;
+    return ciudad;
   } catch {
     return 'Ubicación GPS detectada';
   }
@@ -150,7 +149,7 @@ export const HomeExplorerPage: React.FC = () => {
   const [radioKm, setRadioKm] = useState<number | null>(null);
   const [ordenamiento, setOrdenamiento] = useState<'cercania' | 'nombre'>('cercania');
   
-  const [userAddress, setUserAddress] = useState<string>('Nogoyá, Entre Ríos');
+  const [userAddress, setUserAddress] = useState<string>('Nogoyá');
   const [userLocation, setUserLocation] = useState<UbicacionUsuario | null>(null);
   const [loadingLoc, setLoadingLoc] = useState(false);
   const [pedidoCentrado, setPedidoCentrado] = useState(0);
@@ -552,7 +551,7 @@ export const HomeExplorerPage: React.FC = () => {
         <div className="space-y-2">
           <div>
             <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Directorio Comercial Inteligente
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Tu ciudad conectada: comercios, ofertas y servicios al instante
             </div>
           </div>
 
