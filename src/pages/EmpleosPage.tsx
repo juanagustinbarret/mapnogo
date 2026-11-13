@@ -20,6 +20,7 @@ import {
   FileText,
   ExternalLink,
   Clock,
+  ArrowUp,
 } from 'lucide-react';
 
 function tiempoRelativo(fechaIso: string): string {
@@ -321,6 +322,17 @@ export const EmpleosPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* BOTÓN IR ARRIBA */}
+      <div className="flex justify-center pt-2">
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="px-4 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+        >
+          <ArrowUp className="w-4 h-4 text-blue-600" /> Volver arriba
+        </button>
+      </div>
 
       {/* MODAL PARA ENVIAR CV (SIN REGISTRO) */}
       {ofertaSeleccionada && (
