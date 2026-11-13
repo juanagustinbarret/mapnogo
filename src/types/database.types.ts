@@ -125,3 +125,40 @@ export interface PostulacionCV {
   archivo_nombre: string;
   created_at: string;
 }
+
+// OFICIOS Y SERVICIOS INDEPENDIENTES
+export interface Oficio {
+  id: string;
+  nombre: string;
+  slug: string;
+  oficio_rubro: string;
+  matricula?: string | null;
+  descripcion_corta: string;
+  descripcion_completa?: string | null;
+  zona_cobertura?: string;
+  horario_texto?: string;
+  urgencias_24hs: boolean;
+  a_domicilio: boolean;
+  telefono?: string | null;
+  whatsapp: string;
+  instagram?: string | null;
+  facebook?: string | null;
+  foto_url?: string | null;
+  galeria_urls: string[];
+  servicios: string[];
+  medios_pago: string[];
+  aprobado: boolean;
+  habilitado_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResenaOficio {
+  id: string;
+  oficio_id: string;
+  autor_nombre: string;
+  puntaje: number;
+  comentario?: string | null;
+  aprobada: boolean;
+  created_at: string;
+}

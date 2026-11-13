@@ -13,6 +13,8 @@ import {
   Home,
   Tag,
   Briefcase,
+  Wrench,
+  Siren,
   Heart,
   Shield,
   AlertTriangle,
@@ -112,19 +114,25 @@ export const Navbar: React.FC = () => {
           >
             <Search className="w-3.5 h-3.5 text-gray-400" />
             <span>Buscar en NOGOYORK...</span>
-            <kbd className="hidden md:inline-block px-1.5 py-0.5 text-[10px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-gray-400 font-mono">Ctrl K</kbd>
+            <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-gray-400 font-mono">Ctrl K</kbd>
           </button>
 
           {/* NAVEGACIÓN ESCRITORIO */}
-          <div className="hidden lg:flex items-center gap-3">
-            <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-emerald-600 flex items-center gap-1 cursor-pointer">
-              <Home className="w-3.5 h-3.5" /> Mapa Público
+          <div className="hidden lg:flex items-center gap-2">
+            <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-emerald-600 flex items-center gap-1 px-2 py-1 cursor-pointer">
+              <Home className="w-3.5 h-3.5" /> Mapa
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
-              <Tag className="w-3.5 h-3.5" /> Ofertas & Promos
+              <Tag className="w-3.5 h-3.5" /> Ofertas
+            </button>
+            <button onClick={() => handleNavigation('/oficios')} className="text-xs font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 dark:bg-orange-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
+              <Wrench className="w-3.5 h-3.5" /> Oficios
             </button>
             <button onClick={() => handleNavigation('/empleos')} className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
               <Briefcase className="w-3.5 h-3.5" /> Empleos
+            </button>
+            <button onClick={() => handleNavigation('/urgencias')} className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-lg border border-red-200/70 dark:border-red-900/50 cursor-pointer">
+              <Siren className="w-3.5 h-3.5" /> 24hs
             </button>
             <button onClick={() => handleNavigation('/favoritos')} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
               <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> 
@@ -140,7 +148,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             {user ? (
-              <div className="flex items-center gap-2 ml-2 pl-3 border-l border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 ml-1 pl-2 border-l border-gray-200 dark:border-gray-700">
                 {profile?.rol === 'admin' ? (
                   <>
                     <button
@@ -153,7 +161,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => handleNavigation('/panel')}
                       className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 dark:bg-blue-950/40 rounded-xl flex items-center gap-1 cursor-pointer"
                     >
-                      <Store className="w-3.5 h-3.5" /> Panel Negocio
+                      <Store className="w-3.5 h-3.5" /> Panel
                     </button>
                   </>
                 ) : (
@@ -170,16 +178,16 @@ export const Navbar: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 ml-2 pl-3 border-l border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 ml-1 pl-2 border-l border-gray-200 dark:border-gray-700">
                 <Link
                   to="/login"
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
                 >
-                  <Store className="w-3.5 h-3.5" /> Panel Comercio
+                  <Store className="w-3.5 h-3.5" /> Comercios
                 </Link>
                 <Link
                   to="/admin/login"
-                  className="px-3 py-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl text-xs font-bold inline-flex items-center gap-1 transition"
+                  className="px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl text-xs font-bold inline-flex items-center gap-1 transition"
                 >
                   <Shield className="w-3.5 h-3.5 text-emerald-600" /> Admin
                 </Link>
@@ -210,8 +218,14 @@ export const Navbar: React.FC = () => {
             <button onClick={() => handleNavigation('/promociones')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-amber-600">
               <Tag className="w-4 h-4" /> Ofertas & Promociones
             </button>
+            <button onClick={() => handleNavigation('/oficios')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-orange-600">
+              <Wrench className="w-4 h-4" /> Oficios & Servicios
+            </button>
             <button onClick={() => handleNavigation('/empleos')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-blue-600">
               <Briefcase className="w-4 h-4" /> Ofertas Laborales
+            </button>
+            <button onClick={() => handleNavigation('/urgencias')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-bold text-red-600">
+              <Siren className="w-4 h-4" /> De Guardia / Urgencias 24hs
             </button>
             <button onClick={() => handleNavigation('/favoritos')} className="w-full text-left flex items-center justify-between py-2 px-2 text-sm font-medium text-rose-600">
               <span className="flex items-center gap-2">

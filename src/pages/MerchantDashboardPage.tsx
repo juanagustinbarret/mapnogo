@@ -5,6 +5,7 @@ import { PanelMetricas } from '@/components/PanelMetricas';
 import { EditorDelivery } from '@/components/EditorDelivery';
 import { GaleriaModerada } from '@/components/GaleriaModerada';
 import { GestorEmpleosComercio } from '@/components/GestorEmpleosComercio';
+import { PanelOficio } from '@/components/PanelOficio';
 import { finDePausa, horaArgentina } from '@/lib/delivery';
 import { rangoDesdeUrl } from '@/lib/rangosFechas';
 import { useAuth } from '@/context/AuthContext';
@@ -13,7 +14,7 @@ import { QrResenasDiferido, precargarQrResenas } from '@/components/QrResenasDif
 import { CONTACTO } from '@/lib/contacto';
 import { estadoSuscripcion } from '@/lib/renovacion';
 import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
-import { Comercio, Suscripcion } from '@/types/database.types';
+import { Comercio, Suscripcion, Oficio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
@@ -107,6 +108,7 @@ export const MerchantDashboardPage: React.FC = () => {
   const cargaPendiente = useRef(false);
 
   const [comercio, setComercio] = useState<Comercio | null>(() => datosPrevios?.comercio ?? null);
+  const [oficioPropio, setOficioPropio] = useState<Oficio | null>(null);
   const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(() => datosPrevios?.suscripcion ?? null);
   const [promociones, setPromociones] = useState<any[]>(() => datosPrevios?.promociones ?? []);
   const [horarios, setHorarios] = useState<any[]>(() => datosPrevios?.horarios ?? []);
@@ -303,6 +305,32 @@ export const MerchantDashboardPage: React.FC = () => {
           }
         }
         cargadoEn.current = Date.now();
+      } else if (user?.id) {
+        let { data: ofi } = await supabase
+          .from('oficios')
+          .select('*')
+          .eq('propietario_id', user.id)
+          .maybeSingle();
+
+        if (!ofi && user.email) {
+          const { data: ofiByEmail } = await supabase
+            .from('oficios')
+            .select('*')
+            .ilike('email_contacto', user.email.trim().toLowerCase())
+            .maybeSingle();
+
+          if (ofiByEmail) {
+            ofi = ofiByEmail;
+            await supabase
+              .from('oficios')
+              .update({ propietario_id: user.id })
+              .eq('id', ofiByEmail.id);
+          }
+        }
+
+        if (ofi) {
+          setOficioPropio(ofi as Oficio);
+        }
       }
     } catch (error) {
       console.error('Error al cargar datos del comercio:', error);
@@ -677,6 +705,10 @@ export const MerchantDashboardPage: React.FC = () => {
         Cargando panel de control de tu negocio...
       </div>
     );
+  }
+
+  if (!comercio && oficioPropio) {
+    return <PanelOficio oficioInicial={oficioPropio} onSignOut={handleSignOut} />;
   }
 
   if (!comercio) {

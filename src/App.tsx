@@ -24,6 +24,9 @@ const PrivacidadPage = diferida(() => import('@/pages/PrivacidadPage'), 'Privaci
 const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
 const PromotionsPage = diferida(() => import('@/pages/PromotionsPage'), 'PromotionsPage');
 const EmpleosPage = diferida(() => import('@/pages/EmpleosPage'), 'EmpleosPage');
+const OficiosPage = diferida(() => import('@/pages/OficiosPage'), 'OficiosPage');
+const OficioDetailPage = diferida(() => import('@/pages/OficioDetailPage'), 'OficioDetailPage');
+const UrgenciasPage = diferida(() => import('@/pages/UrgenciasPage'), 'UrgenciasPage');
 const FavoritesPage = diferida(() => import('@/pages/FavoritesPage'), 'FavoritesPage');
 const MerchantLoginPage = diferida(() => import('@/pages/MerchantLoginPage'), 'MerchantLoginPage');
 const AdminLoginPage = diferida(() => import('@/pages/AdminLoginPage'), 'AdminLoginPage');
@@ -47,6 +50,9 @@ export const App: React.FC = () => {
                 <Route path="/n/:slug" element={<QrFichaRedireccion />} />
                 <Route path="/promociones" element={<PromotionsPage />} />
                 <Route path="/empleos" element={<EmpleosPage />} />
+                <Route path="/oficios" element={<OficiosPage />} />
+                <Route path="/oficio/:slug" element={<OficioDetailPage />} />
+                <Route path="/urgencias" element={<UrgenciasPage />} />
                 <Route path="/favoritos" element={<FavoritesPage />} />
                 <Route path="/terminos" element={<TerminosPage />} />
                 <Route path="/privacidad" element={<PrivacidadPage />} />
