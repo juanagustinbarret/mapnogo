@@ -41,7 +41,11 @@ import {
   Salad,
   Scissors,
   Car,
-  Hammer
+  Hammer,
+  ChevronDown,
+  Zap,
+  LayoutGrid,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -119,6 +123,9 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloLavaderos, setSoloLavaderos] = useState(false);
   const [momentoComida, setMomentoComida] = useState<'desayuno_merienda' | 'almuerzo_cena' | null>(null);
   const [filtroDietario, setFiltroDietario] = useState<'sin_tacc' | 'vegano' | 'vegetariano' | null>(null);
+
+  // PANELES DESPLEGABLES DE FILTROS
+  const [panelAbierto, setPanelAbierto] = useState<'servicios' | 'rubros' | null>(null);
 
   const [conOfertas, setConOfertas] = useState<Set<string> | null>(null);
   const [puntajes, setPuntajes] = useState<Record<string, PuntajePropio> | null>(null);
@@ -354,6 +361,36 @@ export const HomeExplorerPage: React.FC = () => {
   const rubrosEnUso = rubros.filter(
     (r) => r.id === selectedRubro || comercios.some((c) => c.rubro_id === r.id),
   );
+
+  const rubroSeleccionadoObj = rubrosEnUso.find((r) => r.id === selectedRubro) ?? null;
+
+  const cantidadServiciosActivos = [
+    soloPeluquerias,
+    soloLavaderos,
+    soloCobroServicios,
+    soloAuxilioMecanico,
+    soloEstacionesServicio,
+    momentoComida !== null,
+    filtroDietario !== null,
+    medioPago !== '',
+    soloConOfertas,
+    soloMejorPuntaje,
+    soloNuevos,
+  ].filter(Boolean).length;
+
+  const limpiarServiciosRapidos = () => {
+    setSoloPeluquerias(false);
+    setSoloLavaderos(false);
+    setSoloCobroServicios(false);
+    setSoloAuxilioMecanico(false);
+    setSoloEstacionesServicio(false);
+    setMomentoComida(null);
+    setFiltroDietario(null);
+    setMedioPago('');
+    setSoloConOfertas(false);
+    setSoloMejorPuntaje(false);
+    setSoloNuevos(false);
+  };
 
   const momentoAhora = momentoArgentina(ahora);
 
@@ -628,6 +665,7 @@ export const HomeExplorerPage: React.FC = () => {
           />
         </div>
 
+        {/* BARRA DE DISTANCIA Y ORDENAMIENTO (SIN TOCAR) */}
         <div className="px-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <span className="text-gray-500 font-bold px-1.5 flex items-center gap-1 text-[11px] shrink-0">
@@ -686,8 +724,9 @@ export const HomeExplorerPage: React.FC = () => {
         )}
 
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full space-y-2.5">
-          <div className="px-4 space-y-2">
+          <div className="px-4 space-y-2.5">
             
+            {/* ABIERTO AHORA, NOCHE Y DELIVERY (SIN TOCAR) */}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setSoloAbiertos(!soloAbiertos)}
@@ -731,183 +770,45 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* SERVICIOS RÁPIDOS */}
-            <div className="space-y-1 pt-1">
-              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Servicios Rápidos:</span>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSoloPeluquerias(!soloPeluquerias)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    soloPeluquerias
-                      ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Scissors className="w-3.5 h-3.5" /> Peluquerías & Barberías
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSoloLavaderos(!soloLavaderos)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    soloLavaderos
-                      ? 'bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Car className="w-3.5 h-3.5" /> Lavaderos
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSoloCobroServicios(!soloCobroServicios)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    soloCobroServicios
-                      ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <CreditCard className="w-3.5 h-3.5" /> Rapipago / Pago Fácil
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSoloAuxilioMecanico(!soloAuxilioMecanico)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    soloAuxilioMecanico
-                      ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Wrench className="w-3.5 h-3.5" /> Grúas & Gomerías
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSoloEstacionesServicio(!soloEstacionesServicio)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    soloEstacionesServicio
-                      ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Fuel className="w-3.5 h-3.5" /> Estaciones de Servicio
-                </button>
-              </div>
-            </div>
-
-            {/* GASTRONOMÍA & DIETAS */}
-            <div className="space-y-1 pt-1">
-              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Gastronomía & Dietas:</span>
-              <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  type="button"
-                  onClick={() => setMomentoComida(momentoComida === 'desayuno_merienda' ? null : 'desayuno_merienda')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    momentoComida === 'desayuno_merienda'
-                      ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-300'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Coffee className="w-3.5 h-3.5" /> Desayunos & Meriendas
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setMomentoComida(momentoComida === 'almuerzo_cena' ? null : 'almuerzo_cena')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    momentoComida === 'almuerzo_cena'
-                      ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-400'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <UtensilsCrossed className="w-3.5 h-3.5" /> Almuerzo & Cena
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroDietario(filtroDietario === 'sin_tacc' ? null : 'sin_tacc')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    filtroDietario === 'sin_tacc'
-                      ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-300'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Wheat className="w-3.5 h-3.5" /> Sin TACC
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroDietario(filtroDietario === 'vegano' ? null : 'vegano')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                    filtroDietario === 'vegano'
-                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Salad className="w-3.5 h-3.5" /> Vegano / Vegetariano
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1 pt-1">
-              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">
-                Medio de Pago:
-              </span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 w-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {[
-                  { id: '', label: 'Todos', icon: null },
-                  { id: 'efectivo', label: 'Efectivo', icon: Banknote },
-                  { id: 'transferencia', label: 'Transferencia', icon: Building2 },
-                ].map((mp) => {
-                  const Icon = mp.icon;
-                  return (
-                    <button
-                      key={mp.id}
-                      type="button"
-                      onClick={() => setMedioPago(mp.id)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 border ${
-                        medioPago === mp.id
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-400/50'
-                          : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
-                      {mp.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-1 pt-1">
-              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Más filtros:</span>
-              <div className="flex flex-wrap items-center gap-2">
-                {[
-                  { activo: soloConOfertas, alTocar: activarOfertas, Icono: Tag, texto: cargandoExtra === 'ofertas' ? 'Buscando ofertas…' : 'Con ofertas', clase: 'bg-amber-500 ring-amber-300', titulo: 'Comercios con ofertas o novedades vigentes hoy' },
-                  { activo: soloMejorPuntaje, alTocar: activarPuntaje, Icono: Star, texto: cargandoExtra === 'puntaje' ? 'Calculando…' : `${PUNTAJE_MINIMO}★ o más`, clase: 'bg-yellow-500 ring-yellow-300', titulo: `Puntaje de ${PUNTAJE_MINIMO} estrellas o más, con al menos ${RESENAS_MINIMAS} reseñas` },
-                  { activo: soloNuevos, alTocar: () => setSoloNuevos(!soloNuevos), Icono: Sparkles, texto: 'Nuevos', clase: 'bg-violet-600 ring-violet-300', titulo: `Se sumaron a NOGOYORK en los últimos ${DIAS_NUEVO} días` },
-                ].map(({ activo, alTocar, Icono, texto, clase, titulo }) => (
-                  <button
-                    key={titulo}
-                    type="button"
-                    onClick={() => void alTocar()}
-                    aria-pressed={activo}
-                    title={titulo}
-                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                      activo ? `${clase} text-white shadow-sm ring-2` : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <Icono className="w-3.5 h-3.5" aria-hidden="true" /> {texto}
-                  </button>
-                ))}
-              </div>
-              {errorExtra && <p role="alert" className="text-[11px] font-semibold text-red-600 dark:text-red-400">{errorExtra}</p>}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            {/* BARRA COMPACTA: SERVICIOS RÁPIDOS + RUBROS + FARMACIA + OFICIOS */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-700/60">
               <button
+                type="button"
+                onClick={() => setPanelAbierto(panelAbierto === 'servicios' ? null : 'servicios')}
+                aria-expanded={panelAbierto === 'servicios'}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition inline-flex items-center gap-1.5 shrink-0 ${
+                  cantidadServiciosActivos > 0 || panelAbierto === 'servicios'
+                    ? 'bg-brand-600 text-white shadow-sm ring-2 ring-brand-400/50'
+                    : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Servicios Rápidos</span>
+                {cantidadServiciosActivos > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-white text-brand-700 text-[10px] font-extrabold">
+                    {cantidadServiciosActivos}
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${panelAbierto === 'servicios' ? 'rotate-180' : ''}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPanelAbierto(panelAbierto === 'rubros' ? null : 'rubros')}
+                aria-expanded={panelAbierto === 'rubros'}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition inline-flex items-center gap-1.5 shrink-0 ${
+                  selectedRubro !== '' || panelAbierto === 'rubros'
+                    ? 'bg-brand-600 text-white shadow-sm ring-2 ring-brand-400/50'
+                    : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>{rubroSeleccionadoObj ? `Rubro: ${rubroSeleccionadoObj.nombre}` : 'Rubros'}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${panelAbierto === 'rubros' ? 'rotate-180' : ''}`} />
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setSoloFarmaciasTurno(!soloFarmaciasTurno)}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
                   soloFarmaciasTurno
@@ -924,33 +825,247 @@ export const HomeExplorerPage: React.FC = () => {
               >
                 <Hammer className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Oficios →
               </Link>
-
-              <button
-                onClick={() => setSelectedRubro('')}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
-                  selectedRubro === ''
-                    ? 'bg-brand-600 text-white shadow-sm'
-                    : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                Todos los Rubros
-              </button>
-
-              {rubrosEnUso.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => setSelectedRubro(r.id)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 ${
-                    selectedRubro === r.id
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <InsigniaRubro rubro={r} className={selectedRubro === r.id ? 'ring-2 ring-white/70' : ''} />
-                  {r.nombre}
-                </button>
-              ))}
             </div>
+
+            {/* DESPLEGABLE 1: SERVICIOS RÁPIDOS */}
+            {panelAbierto === 'servicios' && (
+              <div className="p-3.5 bg-gray-50 dark:bg-gray-900/80 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Filtrar por servicio u opción
+                  </span>
+                  {cantidadServiciosActivos > 0 && (
+                    <button
+                      type="button"
+                      onClick={limpiarServiciosRapidos}
+                      className="text-[11px] font-bold text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Limpiar ({cantidadServiciosActivos})
+                    </button>
+                  )}
+                </div>
+
+                {/* Turnos y Servicios Rápidos */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSoloPeluquerias(!soloPeluquerias)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                      soloPeluquerias
+                        ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-400'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Scissors className="w-3.5 h-3.5" /> Peluquerías & Barberías
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSoloLavaderos(!soloLavaderos)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                      soloLavaderos
+                        ? 'bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-400'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Car className="w-3.5 h-3.5" /> Lavaderos
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSoloCobroServicios(!soloCobroServicios)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                      soloCobroServicios
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" /> Rapipago / Pago Fácil
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSoloAuxilioMecanico(!soloAuxilioMecanico)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                      soloAuxilioMecanico
+                        ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-400'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Wrench className="w-3.5 h-3.5" /> Grúas & Gomerías
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSoloEstacionesServicio(!soloEstacionesServicio)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                      soloEstacionesServicio
+                        ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Fuel className="w-3.5 h-3.5" /> Estaciones de Servicio
+                  </button>
+                </div>
+
+                {/* Gastronomía & Dietas */}
+                <div className="space-y-1 pt-2 border-t border-gray-200/70 dark:border-gray-700/70">
+                  <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">Gastronomía & Dietas:</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMomentoComida(momentoComida === 'desayuno_merienda' ? null : 'desayuno_merienda')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                        momentoComida === 'desayuno_merienda'
+                          ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-300'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Coffee className="w-3.5 h-3.5" /> Desayunos & Meriendas
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMomentoComida(momentoComida === 'almuerzo_cena' ? null : 'almuerzo_cena')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                        momentoComida === 'almuerzo_cena'
+                          ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-400'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <UtensilsCrossed className="w-3.5 h-3.5" /> Almuerzo & Cena
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFiltroDietario(filtroDietario === 'sin_tacc' ? null : 'sin_tacc')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                        filtroDietario === 'sin_tacc'
+                          ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-300'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Wheat className="w-3.5 h-3.5" /> Sin TACC
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFiltroDietario(filtroDietario === 'vegano' ? null : 'vegano')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                        filtroDietario === 'vegano'
+                          ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Salad className="w-3.5 h-3.5" /> Vegano / Vegetariano
+                    </button>
+                  </div>
+                </div>
+
+                {/* Medio de Pago y Destacados */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200/70 dark:border-gray-700/70">
+                  {[
+                    { id: 'efectivo', label: 'Efectivo', icon: Banknote },
+                    { id: 'transferencia', label: 'Transferencia', icon: Building2 },
+                  ].map((mp) => {
+                    const Icon = mp.icon;
+                    const activo = medioPago === mp.id;
+                    return (
+                      <button
+                        key={mp.id}
+                        type="button"
+                        onClick={() => setMedioPago(activo ? '' : mp.id)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 border ${
+                          activo
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-400/50'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        {mp.label}
+                      </button>
+                    );
+                  })}
+
+                  {[
+                    { activo: soloConOfertas, alTocar: activarOfertas, Icono: Tag, texto: cargandoExtra === 'ofertas' ? 'Buscando ofertas…' : 'Con ofertas', clase: 'bg-amber-500 ring-amber-300', titulo: 'Comercios con ofertas o novedades vigentes hoy' },
+                    { activo: soloMejorPuntaje, alTocar: activarPuntaje, Icono: Star, texto: cargandoExtra === 'puntaje' ? 'Calculando…' : `${PUNTAJE_MINIMO}★ o más`, clase: 'bg-yellow-500 ring-yellow-300', titulo: `Puntaje de ${PUNTAJE_MINIMO} estrellas o más, con al menos ${RESENAS_MINIMAS} reseñas` },
+                    { activo: soloNuevos, alTocar: () => setSoloNuevos(!soloNuevos), Icono: Sparkles, texto: 'Nuevos', clase: 'bg-violet-600 ring-violet-300', titulo: `Se sumaron a NOGOYORK en los últimos ${DIAS_NUEVO} días` },
+                  ].map(({ activo, alTocar, Icono, texto, clase, titulo }) => (
+                    <button
+                      key={titulo}
+                      type="button"
+                      onClick={() => void alTocar()}
+                      aria-pressed={activo}
+                      title={titulo}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                        activo ? `${clase} text-white shadow-sm ring-2` : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Icono className="w-3.5 h-3.5" aria-hidden="true" /> {texto}
+                    </button>
+                  ))}
+                </div>
+
+                {errorExtra && <p role="alert" className="text-[11px] font-semibold text-red-600 dark:text-red-400">{errorExtra}</p>}
+              </div>
+            )}
+
+            {/* DESPLEGABLE 2: RUBROS */}
+            {panelAbierto === 'rubros' && (
+              <div className="p-3.5 bg-gray-50 dark:bg-gray-900/80 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Elegí un rubro comercial
+                  </span>
+                  {selectedRubro !== '' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRubro('')}
+                      className="text-[11px] font-bold text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Ver todos
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRubro('');
+                      setPanelAbierto(null);
+                    }}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
+                      selectedRubro === ''
+                        ? 'bg-brand-600 text-white shadow-sm'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    Todos los Rubros
+                  </button>
+
+                  {rubrosEnUso.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRubro(selectedRubro === r.id ? '' : r.id);
+                        setPanelAbierto(null);
+                      }}
+                      className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition shrink-0 inline-flex items-center gap-1.5 ${
+                        selectedRubro === r.id
+                          ? 'bg-brand-600 text-white shadow-sm'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <InsigniaRubro rubro={r} className={selectedRubro === r.id ? 'ring-2 ring-white/70' : ''} />
+                      {r.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
