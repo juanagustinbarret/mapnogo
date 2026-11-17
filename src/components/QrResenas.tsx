@@ -63,9 +63,10 @@ export function qrCanvas(slug: string, lado = 1024) {
 }
 
 /**
- * Cartel A6 vertical (1240 × 1748 px — 300 DPI) basado en el diseño de Canva:
- * Fondo crema #F6F4EC, detalles orgánicos verde salvia, pin + nombre arriba,
- * QR centrado, CTA "ESCANEÁ EL QR Y VISITA NUESTRA FICHA COMPLETA / PODES DEJARNOS UNA RESEÑA"
+ * Cartel A6 vertical (1240 × 1748 px — 300 DPI):
+ * Fondo crema #F6F4EC, ondas orgánicas verdes en esquinas, grillas de puntos,
+ * pin + nombre arriba, QR centrado, línea única:
+ * "ESCANEÁ → CONOCÉ NUESTRA FICHA → DEJANOS TU OPINIÓN"
  * y branding NOGOYORK con isotipo abajo.
  */
 export function cartelCanvas(slug: string, nombre: string) {
@@ -107,36 +108,7 @@ export function cartelCanvas(slug: string, nombre: string) {
   dibujarGrillaPuntos(W - 155, 75);
   dibujarGrillaPuntos(75, H - 165);
 
-  // 4. Rayitas decorativas laterales (3 trazos redondeados)
-  ctx.strokeStyle = '#b9ccb0';
-  ctx.lineWidth = 13;
-  ctx.lineCap = 'round';
-
-  // Derecha (altura media-alta)
-  const rx = W - 125;
-  const ry = 460;
-  ctx.beginPath();
-  ctx.moveTo(rx, ry - 25);
-  ctx.lineTo(rx + 60, ry - 70);
-  ctx.moveTo(rx + 10, ry + 15);
-  ctx.lineTo(rx + 80, ry - 5);
-  ctx.moveTo(rx + 10, ry + 55);
-  ctx.lineTo(rx + 75, ry + 65);
-  ctx.stroke();
-
-  // Izquierda (altura baja, junto al texto)
-  const lx = 135;
-  const ly = 1235;
-  ctx.beginPath();
-  ctx.moveTo(lx, ly - 25);
-  ctx.lineTo(lx - 60, ly - 70);
-  ctx.moveTo(lx - 10, ly + 15);
-  ctx.lineTo(lx - 80, ly - 5);
-  ctx.moveTo(lx - 10, ly + 55);
-  ctx.lineTo(lx - 75, ly + 65);
-  ctx.stroke();
-
-  // 5. Pin de ubicación arriba centrado
+  // 4. Pin de ubicación arriba centrado
   const pinX = W / 2;
   const pinTopY = 65;
   const pinR = 46;
@@ -156,17 +128,17 @@ export function cartelCanvas(slug: string, nombre: string) {
   ctx.arc(pinX, pinCircleY, 17, 0, Math.PI * 2);
   ctx.fill();
 
-  // 6. Nombre del comercio (debajo del pin)
+  // 5. Nombre del comercio (debajo del pin)
   ctx.textAlign = 'center';
   ctx.fillStyle = '#0f172a';
   textoQueEntra(ctx, nombre.toUpperCase(), W / 2, 285, 1060, 62, 34);
 
-  // 7. Tarjeta blanca sutil para el QR (garantiza lectura perfecta y estética limpia)
-  const qrSize = 680;
-  const qrPadding = 34;
+  // 6. Tarjeta blanca sutil para el QR (garantiza lectura rápida y estética limpia)
+  const qrSize = 690;
+  const qrPadding = 35;
   const boxSize = qrSize + qrPadding * 2;
   const boxX = (W - boxSize) / 2;
-  const boxY = 365;
+  const boxY = 370;
 
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
@@ -181,21 +153,26 @@ export function cartelCanvas(slug: string, nombre: string) {
   // Código QR centrado dentro de la tarjeta
   dibujarQr(ctx, urlQrResenas(slug), (W - qrSize) / 2, boxY + qrPadding, qrSize);
 
-  // 8. Texto de llamado a la acción (CTA)
+  // 7. Llamada a la acción en una sola línea limpia con flechas
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#0f172a';
-  ctx.font = '800 37px system-ui, -apple-system, sans-serif';
-  ctx.fillText('ESCANEÁ EL QR Y VISITA NUESTRA FICHA COMPLETA', W / 2, 1225, 1080);
+  textoQueEntra(
+    ctx,
+    'ESCANEÁ → CONOCÉ NUESTRA FICHA → DEJANOS TU OPINIÓN',
+    W / 2,
+    1255,
+    1140,
+    33,
+    24
+  );
 
-  ctx.font = '800 37px system-ui, -apple-system, sans-serif';
-  ctx.fillText('PODES DEJARNOS UNA RESEÑA', W / 2, 1280, 1080);
-
-  // 9. Isotipo NOGOYORK + Texto bicolor abajo
-  const logoSize = 145;
+  // 8. Isotipo NOGOYORK + Texto bicolor abajo
+  const logoSize = 148;
   if (logo) {
-    ctx.drawImage(logo, W / 2 - logoSize / 2, 1365, logoSize, logoSize);
+    ctx.drawImage(logo, W / 2 - logoSize / 2, 1345, logoSize, logoSize);
   }
 
-  ctx.font = '900 68px system-ui, -apple-system, sans-serif';
+  ctx.font = '900 70px system-ui, -apple-system, sans-serif';
   const textoNogo = 'NOGO';
   const textoYork = 'YORK';
   const anchoNogo = ctx.measureText(textoNogo).width;
@@ -204,10 +181,10 @@ export function cartelCanvas(slug: string, nombre: string) {
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#15803d';
-  ctx.fillText(textoNogo, inicioX, 1595);
+  ctx.fillText(textoNogo, inicioX, 1580);
 
   ctx.fillStyle = '#ef4444';
-  ctx.fillText(textoYork, inicioX + anchoNogo, 1595);
+  ctx.fillText(textoYork, inicioX + anchoNogo, 1580);
 
   return c;
 }
