@@ -1,3 +1,4 @@
+// src/components/QrResenas.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Image as ImageIcon, Printer, Share2, Sun, Moon } from 'lucide-react';
 import { DOMINIO_QR, dibujarQr, svgQr, urlQrResenas } from '@/lib/qrResenas';
@@ -38,9 +39,20 @@ function lienzo(ancho: number, alto: number) {
   return { c, ctx };
 }
 
-function textoQueEntra(ctx: CanvasRenderingContext2D, texto: string, x: number, y: number, ancho: number, tamano: number, minimo: number) {
-  ctx.font = `bold ${tamano}px sans-serif`;
-  while (ctx.measureText(texto).width > ancho && tamano > minimo) ctx.font = `bold ${(tamano -= 4)}px sans-serif`;
+function textoQueEntra(
+  ctx: CanvasRenderingContext2D,
+  texto: string,
+  x: number,
+  y: number,
+  ancho: number,
+  tamano: number,
+  minimo: number
+) {
+  ctx.font = `800 ${tamano}px system-ui, -apple-system, sans-serif`;
+  while (ctx.measureText(texto).width > ancho && tamano > minimo) {
+    tamano -= 4;
+    ctx.font = `800 ${tamano}px system-ui, -apple-system, sans-serif`;
+  }
   ctx.fillText(texto, x, y, ancho);
 }
 
@@ -50,36 +62,153 @@ export function qrCanvas(slug: string, lado = 1024) {
   return c;
 }
 
+/**
+ * Cartel A6 vertical (1240 × 1748 px — 300 DPI) basado en el diseño de Canva:
+ * Fondo crema #F6F4EC, detalles orgánicos verde salvia, pin + nombre arriba,
+ * QR centrado, CTA "ESCANEÁ EL QR Y VISITA NUESTRA FICHA COMPLETA / PODES DEJARNOS UNA RESEÑA"
+ * y branding NOGOYORK con isotipo abajo.
+ */
 export function cartelCanvas(slug: string, nombre: string) {
-  const { c, ctx } = lienzo(1240, 1748);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, c.width, c.height);
-  ctx.fillStyle = '#15803d';
-  ctx.fillRect(0, 0, c.width, 36);
-  ctx.fillRect(0, c.height - 36, c.width, 36);
+  const W = 1240;
+  const H = 1748;
+  const { c, ctx } = lienzo(W, H);
 
+  // 1. Fondo crema suave
+  ctx.fillStyle = '#f6f4ec';
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. Ondas orgánicas verdes en las esquinas (arriba-izq y abajo-der)
+  ctx.fillStyle = '#dce6d5';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(340, 0);
+  ctx.bezierCurveTo(300, 140, 150, 170, 0, 290);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(W, H);
+  ctx.lineTo(W - 360, H);
+  ctx.bezierCurveTo(W - 310, H - 150, W - 150, H - 180, W, H - 310);
+  ctx.closePath();
+  ctx.fill();
+
+  // 3. Grillas de puntitos (3x3) arriba-derecha y abajo-izquierda
+  ctx.fillStyle = '#c5d4bc';
+  const dibujarGrillaPuntos = (startX: number, startY: number) => {
+    for (let fila = 0; fila < 3; fila++) {
+      for (let col = 0; col < 3; col++) {
+        ctx.beginPath();
+        ctx.arc(startX + col * 38, startY + fila * 38, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  };
+  dibujarGrillaPuntos(W - 155, 75);
+  dibujarGrillaPuntos(75, H - 165);
+
+  // 4. Rayitas decorativas laterales (3 trazos redondeados)
+  ctx.strokeStyle = '#b9ccb0';
+  ctx.lineWidth = 13;
+  ctx.lineCap = 'round';
+
+  // Derecha (altura media-alta)
+  const rx = W - 125;
+  const ry = 460;
+  ctx.beginPath();
+  ctx.moveTo(rx, ry - 25);
+  ctx.lineTo(rx + 60, ry - 70);
+  ctx.moveTo(rx + 10, ry + 15);
+  ctx.lineTo(rx + 80, ry - 5);
+  ctx.moveTo(rx + 10, ry + 55);
+  ctx.lineTo(rx + 75, ry + 65);
+  ctx.stroke();
+
+  // Izquierda (altura baja, junto al texto)
+  const lx = 135;
+  const ly = 1235;
+  ctx.beginPath();
+  ctx.moveTo(lx, ly - 25);
+  ctx.lineTo(lx - 60, ly - 70);
+  ctx.moveTo(lx - 10, ly + 15);
+  ctx.lineTo(lx - 80, ly - 5);
+  ctx.moveTo(lx - 10, ly + 55);
+  ctx.lineTo(lx - 75, ly + 65);
+  ctx.stroke();
+
+  // 5. Pin de ubicación arriba centrado
+  const pinX = W / 2;
+  const pinTopY = 65;
+  const pinR = 46;
+  const pinCircleY = pinTopY + pinR;
+  const pinTipY = pinCircleY + 86;
+
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(pinX, pinCircleY, pinR, Math.PI * 0.82, Math.PI * 0.18, false);
+  ctx.lineTo(pinX, pinTipY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Agujero interior del pin
+  ctx.fillStyle = '#f6f4ec';
+  ctx.beginPath();
+  ctx.arc(pinX, pinCircleY, 17, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 6. Nombre del comercio (debajo del pin)
   ctx.textAlign = 'center';
-  if (logo) ctx.drawImage(logo, 620 - 70, 110, 140, 140);
+  ctx.fillStyle = '#0f172a';
+  textoQueEntra(ctx, nombre.toUpperCase(), W / 2, 285, 1060, 62, 34);
+
+  // 7. Tarjeta blanca sutil para el QR (garantiza lectura perfecta y estética limpia)
+  const qrSize = 680;
+  const qrPadding = 34;
+  const boxSize = qrSize + qrPadding * 2;
+  const boxX = (W - boxSize) / 2;
+  const boxY = 365;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(boxX, boxY, boxSize, boxSize, 42);
+  else ctx.rect(boxX, boxY, boxSize, boxSize);
+  ctx.fill();
+
+  ctx.strokeStyle = '#e5e2d5';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // Código QR centrado dentro de la tarjeta
+  dibujarQr(ctx, urlQrResenas(slug), (W - qrSize) / 2, boxY + qrPadding, qrSize);
+
+  // 8. Texto de llamado a la acción (CTA)
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '800 37px system-ui, -apple-system, sans-serif';
+  ctx.fillText('ESCANEÁ EL QR Y VISITA NUESTRA FICHA COMPLETA', W / 2, 1225, 1080);
+
+  ctx.font = '800 37px system-ui, -apple-system, sans-serif';
+  ctx.fillText('PODES DEJARNOS UNA RESEÑA', W / 2, 1280, 1080);
+
+  // 9. Isotipo NOGOYORK + Texto bicolor abajo
+  const logoSize = 145;
+  if (logo) {
+    ctx.drawImage(logo, W / 2 - logoSize / 2, 1365, logoSize, logoSize);
+  }
+
+  ctx.font = '900 68px system-ui, -apple-system, sans-serif';
+  const textoNogo = 'NOGO';
+  const textoYork = 'YORK';
+  const anchoNogo = ctx.measureText(textoNogo).width;
+  const anchoYork = ctx.measureText(textoYork).width;
+  const inicioX = W / 2 - (anchoNogo + anchoYork) / 2;
+
+  ctx.textAlign = 'left';
   ctx.fillStyle = '#15803d';
-  ctx.font = 'bold 56px sans-serif';
-  ctx.fillText('NOGOYORK', 620, 320);
+  ctx.fillText(textoNogo, inicioX, 1595);
 
-  ctx.fillStyle = '#111827';
-  textoQueEntra(ctx, nombre, 620, 460, 1080, 84, 40);
-  ctx.font = 'bold 72px sans-serif';
-  ctx.fillText('¡Dejanos tu reseña!', 620, 580);
-  ctx.fillStyle = '#374151';
-  ctx.font = '40px sans-serif';
-  ctx.fillText('Escaneá el código con la cámara del celular', 620, 650);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillText(textoYork, inicioX + anchoNogo, 1595);
 
-  dibujarQr(ctx, urlQrResenas(slug), 270, 720, 700);
-
-  ctx.fillStyle = '#4b5563';
-  ctx.font = '34px sans-serif';
-  ctx.fillText(urlQrResenas(slug).replace(/^https:\/\//, ''), 620, 1530, 1120);
-  ctx.fillStyle = '#15803d';
-  ctx.font = 'bold 38px sans-serif';
-  ctx.fillText('Comercios de Nogoyá en un solo mapa', 620, 1620);
   return c;
 }
 
@@ -234,18 +363,18 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
   return (
     <div className="flex flex-col items-center gap-3 w-full">
       {vistaPrevia && (
-        <img src={vistaPrevia} alt={`Código QR a las reseñas de ${nombre} en NOGOYORK`} className="w-36 h-36 bg-white rounded-xl border p-1 shadow-sm" />
+        <img src={vistaPrevia} alt={`Código QR de ${nombre} en NOGOYORK`} className="w-36 h-36 bg-white rounded-xl border p-1 shadow-sm" />
       )}
       <p className="text-[11px] text-gray-500 text-center break-all">{url.replace(/^https:\/\//, '')}</p>
       {tactil && <p className="text-[11px] text-gray-500 text-center -mt-2">También podés mantener apretado el QR para guardarlo.</p>}
       
       <div className="grid grid-cols-2 gap-2 w-full">
-        <button type="button" onClick={() => enviar(() => archivoDesdeCanvas(qrCanvas(slug), `QR_Resenas_${base}.png`), `QR de reseñas de ${nombre}`)} className={boton}>
+        <button type="button" onClick={() => enviar(() => archivoDesdeCanvas(qrCanvas(slug), `QR_${base}.png`), `QR de ${nombre}`)} className={boton}>
           <Icono className="w-3.5 h-3.5" aria-hidden="true" /> {compartir ? 'Compartir QR' : 'PNG'}
         </button>
         <button
           type="button"
-          onClick={() => descargarArchivo(archivoDesdeDataUrl(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgQr(url))}`, `QR_Resenas_${base}.svg`))}
+          onClick={() => descargarArchivo(archivoDesdeDataUrl(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgQr(url))}`, `QR_${base}.svg`))}
           className={boton}
           title="Para imprentas: se puede agrandar sin perder calidad"
         >
@@ -254,7 +383,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
         
         <button
           type="button"
-          onClick={() => enviar(() => archivoDesdeCanvas(cartelCanvas(slug, nombre), `Cartel_Resenas_${base}.png`), `Cartel de reseñas de ${nombre}`)}
+          onClick={() => enviar(() => archivoDesdeCanvas(cartelCanvas(slug, nombre), `Cartel_NOGOYORK_${base}.png`), `Cartel QR de ${nombre}`)}
           className={`${forma} col-span-2 bg-brand-600 hover:bg-brand-700 text-white`}
         >
           <Printer className="w-3.5 h-3.5" aria-hidden="true" /> Cartel para imprimir (A6)
@@ -262,7 +391,6 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
 
         {conStory && (
           <>
-            {/* Botón de Selección de Tema para la Story */}
             <div className="col-span-2 flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 mt-1">
               <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Estilo de Story:</span>
               <button
@@ -277,7 +405,7 @@ export const QrResenas: React.FC<Props> = ({ slug, nombre, direccion, conStory =
 
             <button
               type="button"
-              onClick={() => enviar(() => archivoDesdeCanvas(storyCanvas(slug, nombre, direccion, modoOscuro), `Story_Resenas_${base}_${modoOscuro ? 'oscuro' : 'claro'}.png`), `Story de reseñas de ${nombre}`)}
+              onClick={() => enviar(() => archivoDesdeCanvas(storyCanvas(slug, nombre, direccion, modoOscuro), `Story_${base}_${modoOscuro ? 'oscuro' : 'claro'}.png`), `Story de ${nombre}`)}
               className={`${forma} col-span-2 ${modoOscuro ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-500 hover:bg-emerald-600'} text-white shadow-sm`}
             >
               <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" /> {compartir ? `Compartir Story (${modoOscuro ? 'Oscura' : 'Clara'})` : `Generar Story (${modoOscuro ? 'Oscura' : 'Clara'})`}
