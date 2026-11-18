@@ -141,14 +141,18 @@ input[type='month'] {
 }
 
 /* ─── Modales y overlays globales ────────────────────────────────────────
-   Evita que space-y-* o animate-in rompan position: fixed y asegura que
-   cualquier modal quede por encima del Navbar y centrado en la ventana. */
+   Cubre el 100% del viewport en escritorio y celular (incluyendo barras
+   dinámicas y safe-area), evitando franjas sin difuminar arriba. */
 .fixed.inset-0 {
-  margin-top: 0 !important;
-  top: 0 !important;
+  position: fixed !important;
+  margin: 0 !important;
+  top: -2px !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: -2px !important;
   left: 0 !important;
+  width: 100vw !important;
+  min-height: 100vh !important;
+  min-height: 100lvh !important;
   z-index: 9999 !important;
   animation: none !important;
   transform: none !important;
