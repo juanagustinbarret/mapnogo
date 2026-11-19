@@ -33,7 +33,13 @@ import {
   Calendar,
   FileText,
   Mail,
-  KeyRound
+  KeyRound,
+  Wrench,
+  Plus,
+  Siren,
+  Home,
+  Award,
+  Phone,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -50,16 +56,51 @@ import { slugLimpio } from '@/lib/rutasQr';
 import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
 import { horaDeVencimiento } from '@/lib/linksRecuperacion';
 
+interface OficioAdmin {
+  id: string;
+  nombre: string;
+  slug: string;
+  oficio_rubro: string;
+  matricula: string | null;
+  descripcion_corta: string;
+  descripcion_completa: string | null;
+  zona_cobertura: string | null;
+  horario_texto: string | null;
+  urgencias_24hs: boolean;
+  a_domicilio: boolean;
+  telefono: string | null;
+  whatsapp: string;
+  instagram: string | null;
+  facebook: string | null;
+  foto_url: string | null;
+  galeria_urls: string[] | null;
+  servicios: string[] | null;
+  medios_pago: string[] | null;
+  aprobado: boolean;
+  habilitado_admin: boolean;
+  created_at: string;
+  updated_at: string;
+  propietario_id: string | null;
+  email_contacto: string | null;
+  latitud: number | null;
+  longitud: number | null;
+}
+
+const NOGOYA_LAT = -32.3939;
+const NOGOYA_LNG = -59.7881;
+
 interface SelectorMapaProps {
   latitud: number;
   longitud: number;
   onSeleccionar: (latitud: number, longitud: number) => void;
+  colorPin?: string;
 }
 
 const SelectorMapa: React.FC<SelectorMapaProps> = ({
   latitud,
   longitud,
   onSeleccionar,
+  colorPin = '#2563eb',
 }) => {
   const EventosMapa: React.FC = () => {
     useMapEvents({
@@ -100,7 +141,7 @@ const SelectorMapa: React.FC<SelectorMapaProps> = ({
         pathOptions={{
           color: '#ffffff',
           weight: 3,
-          fillColor: '#2563eb',
+          fillColor: colorPin,
           fillOpacity: 1,
         }}
       />
@@ -130,6 +171,9 @@ export const AdminDashboardPage: React.FC = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
+  const [seccionAdmin, setSeccionAdmin] = useState<'comercios' | 'oficios'>('comercios');
+
+  // ESTADOS COMERCIOS
   const [comercios, setComercios] = useState<Comercio[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -138,7 +182,6 @@ export const AdminDashboardPage: React.FC = () => {
   });
 
   const [recaudacion, setRecaudacion] = useState<Recaudacion | null | undefined>(undefined);
-
   const [selectedMetricaOption, setSelectedMetricaOption] = useState<string>('global');
 
   const [fechaTurno, setFechaTurno] = useState(hoyArgentina());
@@ -159,6 +202,40 @@ export const AdminDashboardPage: React.FC = () => {
   const [linkRecuperacion, setLinkRecuperacion] = useState<{ link: string; vence: string } | null>(null);
   const [errorLink, setErrorLink] = useState('');
   const [verClave, setVerClave] = useState(false);
+
+  // ESTADOS OFICIOS (GESTIÓN DIRECTA SIN USUARIO NI CONTRASEÑA)
+  const [oficios, setOficios] = useState<OficioAdmin[]>([]);
+  const [loadingOficios, setLoadingOficios] = useState(true);
+  const [busquedaOficios, setBusquedaOficios] = useState('');
+  const [modalOficioAbierto, setModalOficioAbierto] = useState(false);
+  const [editandoOficioId, setEditandoOficioId] = useState<string | null>(null);
+  const [guardandoOficio, setGuardandoOficio] = useState(false);
+  const [errorOficio, setErrorOficio] = useState('');
+
+  const [ofiNombre, setOfiNombre] = useState('');
+  const [ofiSlug, setOfiSlug] = useState('');
+  const [ofiRubro, setOfiRubro] = useState('');
+  const [ofiMatricula, setOfiMatricula] = useState('');
+  const [ofiDescripcionCorta, setOfiDescripcionCorta] = useState('');
+  const [ofiDescripcionCompleta, setOfiDescripcionCompleta] = useState('');
+  const [ofiWhatsapp, setOfiWhatsapp] = useState('');
+  const [ofiTelefono, setOfiTelefono] = useState('');
+  const [ofiEmailContacto, setOfiEmailContacto] = useState('');
+  const [ofiInstagram, setOfiInstagram] = useState('');
+  const [ofiFacebook, setOfiFacebook] = useState('');
+  const [ofiZonaCobertura, setOfiZonaCobertura] = useState('Nogoyá y zona');
+  const [ofiHorarioTexto, setOfiHorarioTexto] = useState('Lunes a Sábado');
+  const [ofiFotoUrl, setOfiFotoUrl] = useState('');
+  const [ofiGaleriaTexto, setOfiGaleriaTexto] = useState('');
+  const [ofiServiciosTexto, setOfiServiciosTexto] = useState('');
+  const [ofiMediosPagoTexto, setOfiMediosPagoTexto] = useState('Efectivo\nTransferencia');
+  const [ofiADomicilio, setOfiADomicilio] = useState(true);
+  const [ofiUrgencias24hs, setOfiUrgencias24hs] = useState(false);
+  const [ofiAprobado, setOfiAprobado] = useState(true);
+  const [ofiHabilitadoAdmin, setOfiHabilitadoAdmin] = useState(true);
+  const [ofiUsarMapa, setOfiUsarMapa] = useState(false);
+  const [ofiLatitud, setOfiLatitud] = useState<number>(NOGOYA_LAT);
+  const [ofiLongitud, setOfiLongitud] = useState<number>(NOGOYA_LNG);
 
   const fetchComerciosYStats = async () => {
     try {
@@ -182,6 +259,23 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const fetchOficios = async () => {
+    setLoadingOficios(true);
+    try {
+      const { data, error } = await supabase
+        .from('oficios')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setOficios((data ?? []) as OficioAdmin[]);
+    } catch (err) {
+      console.error('Error al cargar los oficios:', err);
+    } finally {
+      setLoadingOficios(false);
+    }
+  };
+
   const fetchFarmaciaDeTurno = async (fecha: string) => {
     const { data } = await supabase
       .from('farmacias_turno')
@@ -198,7 +292,6 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // La suma la hace el servidor desde los pagos (RPC recaudacion_mes_actual)
   const cargarRecaudacion = async () => {
     const { data, error } = await supabase.rpc('recaudacion_mes_actual');
     if (error) {
@@ -209,7 +302,6 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // Se vuelve a leer al volver a esta pestaña o ventana (sin consultas periódicas)
   useEffect(() => {
     const alVolver = () => {
       if (document.visibilityState === 'visible') void cargarRecaudacion();
@@ -229,7 +321,8 @@ export const AdminDashboardPage: React.FC = () => {
       setLoading(true);
       await Promise.all([
         fetchComerciosYStats(),
-        cargarRecaudacion()
+        fetchOficios(),
+        cargarRecaudacion(),
       ]);
       if (montado) setLoading(false);
     };
@@ -237,13 +330,20 @@ export const AdminDashboardPage: React.FC = () => {
     void inicializar();
 
     const channel = supabase
-      .channel('realtime_comercios')
+      .channel('realtime_admin_central')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'comercios' },
         () => {
           void fetchComerciosYStats();
           void cargarRecaudacion();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'oficios' },
+        () => {
+          void fetchOficios();
         }
       )
       .on(
@@ -294,10 +394,11 @@ export const AdminDashboardPage: React.FC = () => {
     };
   }, [modalEditar?.id]);
 
+  // HANDLERS COMERCIOS
   const handleExportarPDFComercio = async (comercio: Comercio) => {
     try {
       const metricas = await obtenerMetricasComercio(comercio.id);
-      
+
       const { data: suscripcion } = await supabase
         .from('suscripciones')
         .select('*')
@@ -337,8 +438,6 @@ export const AdminDashboardPage: React.FC = () => {
     setGuardandoClave(true);
 
     try {
-      // La Edge Function verifica en el servidor que quien pide sea admin y que la
-      // cuenta a cambiar sea la del dueño del comercio (nunca la de un admin)
       const { error } = await supabase.functions.invoke('admin-cambiar-clave', {
         body: { email: modalEditar.email_comercial.trim(), nuevaPassword: nuevaPasswordDirecta },
       });
@@ -574,6 +673,208 @@ export const AdminDashboardPage: React.FC = () => {
     );
   };
 
+  // HANDLERS OFICIOS (CREAR Y EDITAR SIN USUARIO/CONTRASEÑA)
+  const abrirNuevoOficio = () => {
+    setErrorOficio('');
+    setEditandoOficioId(null);
+    setOfiNombre('');
+    setOfiSlug('');
+    setOfiRubro('');
+    setOfiMatricula('');
+    setOfiDescripcionCorta('');
+    setOfiDescripcionCompleta('');
+    setOfiWhatsapp('');
+    setOfiTelefono('');
+    setOfiEmailContacto('');
+    setOfiInstagram('');
+    setOfiFacebook('');
+    setOfiZonaCobertura('Nogoyá y zona');
+    setOfiHorarioTexto('Lunes a Sábado');
+    setOfiFotoUrl('');
+    setOfiGaleriaTexto('');
+    setOfiServiciosTexto('');
+    setOfiMediosPagoTexto('Efectivo\nTransferencia');
+    setOfiADomicilio(true);
+    setOfiUrgencias24hs(false);
+    setOfiAprobado(true);
+    setOfiHabilitadoAdmin(true);
+    setOfiUsarMapa(false);
+    setOfiLatitud(NOGOYA_LAT);
+    setOfiLongitud(NOGOYA_LNG);
+    setModalOficioAbierto(true);
+  };
+
+  const abrirEditarOficio = (ofi: OficioAdmin) => {
+    setErrorOficio('');
+    setEditandoOficioId(ofi.id);
+    setOfiNombre(ofi.nombre || '');
+    setOfiSlug(ofi.slug || '');
+    setOfiRubro(ofi.oficio_rubro || '');
+    setOfiMatricula(ofi.matricula || '');
+    setOfiDescripcionCorta(ofi.descripcion_corta || '');
+    setOfiDescripcionCompleta(ofi.descripcion_completa || '');
+    setOfiWhatsapp(ofi.whatsapp || '');
+    setOfiTelefono(ofi.telefono || '');
+    setOfiEmailContacto(ofi.email_contacto || '');
+    setOfiInstagram(ofi.instagram || '');
+    setOfiFacebook(ofi.facebook || '');
+    setOfiZonaCobertura(ofi.zona_cobertura || 'Nogoyá y zona');
+    setOfiHorarioTexto(ofi.horario_texto || 'Lunes a Sábado');
+    setOfiFotoUrl(ofi.foto_url || '');
+    setOfiGaleriaTexto((ofi.galeria_urls ?? []).join('\n'));
+    setOfiServiciosTexto((ofi.servicios ?? []).join('\n'));
+    setOfiMediosPagoTexto((ofi.medios_pago ?? ['Efectivo', 'Transferencia']).join('\n'));
+    setOfiADomicilio(Boolean(ofi.a_domicilio));
+    setOfiUrgencias24hs(Boolean(ofi.urgencias_24hs));
+    setOfiAprobado(Boolean(ofi.aprobado));
+    setOfiHabilitadoAdmin(Boolean(ofi.habilitado_admin));
+
+    const tieneCoords =
+      typeof ofi.latitud === 'number' &&
+      typeof ofi.longitud === 'number' &&
+      Number.isFinite(ofi.latitud) &&
+      Number.isFinite(ofi.longitud);
+
+    setOfiUsarMapa(tieneCoords);
+    setOfiLatitud(tieneCoords ? (ofi.latitud as number) : NOGOYA_LAT);
+    setOfiLongitud(tieneCoords ? (ofi.longitud as number) : NOGOYA_LNG);
+    setModalOficioAbierto(true);
+  };
+
+  const handleGuardarOficio = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (guardandoOficio) return;
+
+    if (!ofiNombre.trim() || !ofiRubro.trim() || !ofiWhatsapp.trim()) {
+      setErrorOficio('Nombre, Rubro/Oficio y WhatsApp son obligatorios.');
+      return;
+    }
+
+    if (ofiUsarMapa) {
+      const lat = Number(ofiLatitud);
+      const lng = Number(ofiLongitud);
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180
+      ) {
+        setErrorOficio('Ingresá coordenadas de latitud y longitud válidas.');
+        return;
+      }
+    }
+
+    setGuardandoOficio(true);
+    setErrorOficio('');
+
+    const limpiarLineas = (texto: string) =>
+      texto
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+    const slugFinal = editandoOficioId
+      ? slugLimpio(ofiSlug) || `${slugLimpio(ofiNombre)}-${Date.now().toString().slice(-4)}`
+      : `${slugLimpio(ofiNombre) || 'oficio'}-${Date.now().toString().slice(-4)}`;
+
+    const payload = {
+      nombre: ofiNombre.trim(),
+      slug: slugFinal,
+      oficio_rubro: ofiRubro.trim(),
+      matricula: ofiMatricula.trim() || null,
+      descripcion_corta:
+        ofiDescripcionCorta.trim() ||
+        `Servicio de ${ofiRubro.trim()} en ${ofiZonaCobertura.trim() || 'Nogoyá'}.`,
+      descripcion_completa: ofiDescripcionCompleta.trim() || null,
+      zona_cobertura: ofiZonaCobertura.trim() || 'Nogoyá y zona',
+      horario_texto: ofiHorarioTexto.trim() || 'Lunes a Sábado',
+      urgencias_24hs: ofiUrgencias24hs,
+      a_domicilio: ofiADomicilio,
+      telefono: ofiTelefono.trim() || null,
+      whatsapp: ofiWhatsapp.trim(),
+      email_contacto: ofiEmailContacto.trim().toLowerCase() || null,
+      instagram: ofiInstagram.trim() || null,
+      facebook: ofiFacebook.trim() || null,
+      foto_url: ofiFotoUrl.trim() || null,
+      galeria_urls: limpiarLineas(ofiGaleriaTexto),
+      servicios: limpiarLineas(ofiServiciosTexto),
+      medios_pago: limpiarLineas(ofiMediosPagoTexto),
+      aprobado: ofiAprobado,
+      habilitado_admin: ofiHabilitadoAdmin,
+      latitud: ofiUsarMapa ? Number(ofiLatitud) : null,
+      longitud: ofiUsarMapa ? Number(ofiLongitud) : null,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const { error } = editandoOficioId
+        ? await supabase.from('oficios').update(payload).eq('id', editandoOficioId)
+        : await supabase.from('oficios').insert(payload);
+
+      if (error?.code === '23505') {
+        throw new Error(`El slug "${slugFinal}" ya existe. Probá con otro.`);
+      }
+      if (error) throw error;
+
+      setModalOficioAbierto(false);
+      await fetchOficios();
+      alert(editandoOficioId ? 'Oficio actualizado correctamente.' : 'Oficio creado y publicado.');
+    } catch (err) {
+      setErrorOficio(
+        `No se pudo guardar el oficio: ${
+          err instanceof Error ? err.message : 'Error desconocido'
+        }`
+      );
+    } finally {
+      setGuardandoOficio(false);
+    }
+  };
+
+  const handleToggleOficioVisibilidad = async (ofi: OficioAdmin) => {
+    const nuevoEstado = !(ofi.aprobado && ofi.habilitado_admin);
+    const { error } = await supabase
+      .from('oficios')
+      .update({ aprobado: nuevoEstado, habilitado_admin: nuevoEstado })
+      .eq('id', ofi.id);
+
+    if (error) {
+      alert(`No se pudo cambiar la visibilidad: ${error.message}`);
+      return;
+    }
+
+    await fetchOficios();
+  };
+
+  const handleToggleOficio24hs = async (ofi: OficioAdmin) => {
+    const { error } = await supabase
+      .from('oficios')
+      .update({ urgencias_24hs: !ofi.urgencias_24hs })
+      .eq('id', ofi.id);
+
+    if (error) {
+      alert(`No se pudo cambiar el estado 24hs: ${error.message}`);
+      return;
+    }
+
+    await fetchOficios();
+  };
+
+  const handleEliminarOficio = async (id: string, nombre: string) => {
+    if (!confirm(`¿Estás seguro de eliminar el oficio "${nombre}"?`)) return;
+
+    const { error } = await supabase.from('oficios').delete().eq('id', id);
+
+    if (error) {
+      alert(`Error al eliminar el oficio: ${error.message}`);
+      return;
+    }
+
+    alert(`Oficio "${nombre}" eliminado con éxito.`);
+    await fetchOficios();
+  };
+
   const comerciosFiltrados = comercios.filter(
     (c) =>
       c.nombre.toLowerCase().includes(search.toLowerCase()) ||
@@ -582,9 +883,18 @@ export const AdminDashboardPage: React.FC = () => {
       c.email_comercial?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const farmaciasDisponibles = comercios.filter((c) =>
-    c.nombre.toLowerCase().includes('farmacia') ||
-    c.rubro?.nombre?.toLowerCase().includes('farmacia')
+  const oficiosFiltrados = oficios.filter(
+    (o) =>
+      o.nombre.toLowerCase().includes(busquedaOficios.toLowerCase()) ||
+      o.oficio_rubro.toLowerCase().includes(busquedaOficios.toLowerCase()) ||
+      o.whatsapp?.includes(busquedaOficios) ||
+      o.zona_cobertura?.toLowerCase().includes(busquedaOficios.toLowerCase())
+  );
+
+  const farmaciasDisponibles = comercios.filter(
+    (c) =>
+      c.nombre.toLowerCase().includes('farmacia') ||
+      c.rubro?.nombre?.toLowerCase().includes('farmacia')
   );
 
   return (
@@ -598,7 +908,7 @@ export const AdminDashboardPage: React.FC = () => {
               Panel Administrador Central
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Gestión de comercios, métricas, cobranzas y publicaciones.
+              Gestión de comercios, oficios, métricas, cobranzas y publicaciones.
             </p>
           </div>
 
@@ -630,7 +940,7 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recaudación activa</p>
-            
+
             {recaudacion === undefined ? (
               <div className="h-8 w-32 mt-1 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" role="status" aria-label="Cargando recaudación" />
             ) : recaudacion === null ? (
@@ -647,10 +957,10 @@ export const AdminDashboardPage: React.FC = () => {
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase">Sincronización</p>
-            <p className="text-xl font-bold text-blue-600 mt-1">Tiempo real</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase">Oficios cargados</p>
+            <p className="text-3xl font-bold text-amber-600 mt-1">{oficios.length}</p>
           </div>
-          <Tag className="w-7 h-7 text-blue-600" />
+          <Wrench className="w-7 h-7 text-amber-600" />
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border dark:border-gray-700 flex items-center justify-between">
@@ -776,128 +1086,653 @@ export const AdminDashboardPage: React.FC = () => {
         <PanelMetricas comercioId={selectedMetricaOption === 'global' ? undefined : selectedMetricaOption} />
       </div>
 
-      {/* LISTA DE COMERCIOS */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 p-4 sm:p-6 space-y-5">
-        <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
-          <div>
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Building className="w-5 h-5 text-brand-600" />
-              Todos los comercios
-            </h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Editá los datos, cuentas asignadas, descargá métricas en PDF o cambiá la visibilidad del local.
-            </p>
-          </div>
+      {/* PESTAÑAS: COMERCIOS vs OFICIOS */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setSeccionAdmin('comercios')}
+          className={`px-5 py-3 rounded-2xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+            seccionAdmin === 'comercios'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Building className="w-4 h-4" /> Comercios ({comercios.length})
+        </button>
 
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, email o WhatsApp..."
-              className={`${campoClase} pl-9`}
-            />
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setSeccionAdmin('oficios')}
+          className={`px-5 py-3 rounded-2xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+            seccionAdmin === 'oficios'
+              ? 'bg-amber-600 text-white shadow-sm'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Wrench className="w-4 h-4" /> Oficios y Servicios ({oficios.length})
+        </button>
+      </div>
 
-        {loading ? (
-          <div className="p-12 text-center text-gray-500">
-            Cargando comercios...
-          </div>
-        ) : comerciosFiltrados.length === 0 ? (
-          <div className="p-10 text-center text-gray-500">
-            No se encontraron comercios.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {comerciosFiltrados.map((comercio) => (
-              <div
-                key={comercio.id}
-                className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      {/* VISTA PESTAÑA: OFICIOS */}
+      {seccionAdmin === 'oficios' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 p-4 sm:p-6 space-y-5">
+          <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-amber-600" />
+                Todos los Oficios y Servicios
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Creá y editá prestadores directamente sin necesidad de crearles usuario ni contraseña.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                <input
+                  value={busquedaOficios}
+                  onChange={(e) => setBusquedaOficios(e.target.value)}
+                  placeholder="Buscar por nombre, rubro o WhatsApp..."
+                  className={`${campoClase} pl-9`}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={abrirNuevoOficio}
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
               >
-                <div className="min-w-0">
-                  <h3 className="font-bold text-gray-900 dark:text-white">
-                    {comercio.nombre}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {comercio.direccion || 'Sin dirección'}
-                  </p>
-                  <p className="text-xs text-brand-600 font-semibold mt-1 flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5" /> Email asignado: {comercio.email_comercial || 'Sin mail cargado'}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <span className={`px-2 py-1 rounded-lg text-xs font-bold ${comercio.aprobado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
-                      {comercio.aprobado ? 'Aprobado' : 'Pendiente de aprobación'}
-                    </span>
-                    <span className={`px-2 py-1 rounded-lg text-xs font-bold ${comercio.habilitado_admin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {comercio.habilitado_admin ? 'Visible' : 'Oculto'}
-                    </span>
+                <Plus className="w-4 h-4" /> Nuevo Oficio
+              </button>
+            </div>
+          </div>
+
+          {loadingOficios ? (
+            <div className="p-12 text-center text-gray-500">
+              Cargando oficios...
+            </div>
+          ) : oficiosFiltrados.length === 0 ? (
+            <div className="p-10 text-center text-gray-500">
+              No se encontraron oficios. Tocá <strong>"Nuevo Oficio"</strong> para cargar el primero.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {oficiosFiltrados.map((ofi) => {
+                const visible = Boolean(ofi.aprobado && ofi.habilitado_admin);
+                return (
+                  <div
+                    key={ofi.id}
+                    className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[11px] font-extrabold uppercase">
+                          {ofi.oficio_rubro}
+                        </span>
+                        {ofi.urgencias_24hs && (
+                          <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[11px] font-extrabold inline-flex items-center gap-1">
+                            <Siren className="w-3 h-3" /> 24hs
+                          </span>
+                        )}
+                        {ofi.matricula && (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-bold inline-flex items-center gap-1">
+                            <Award className="w-3 h-3" /> Mat. {ofi.matricula}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="font-bold text-gray-900 dark:text-white">
+                        {ofi.nombre}
+                      </h3>
+
+                      <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-3">
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="w-3.5 h-3.5 text-emerald-600" /> {ofi.whatsapp}
+                        </span>
+                        <span>· {ofi.zona_cobertura || 'Nogoyá'}</span>
+                        {ofi.latitud && ofi.longitud && (
+                          <span className="text-amber-600 font-semibold inline-flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5" /> Con pin en mapa
+                          </span>
+                        )}
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${ofi.aprobado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {ofi.aprobado ? 'Aprobado' : 'Pendiente'}
+                        </span>
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${visible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {visible ? 'Visible' : 'Oculto'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleOficioVisibilidad(ofi)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 cursor-pointer ${visible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+                      >
+                        {visible ? (
+                          <><CheckCircle className="w-4 h-4" /> Visible</>
+                        ) : (
+                          <><XCircle className="w-4 h-4" /> Oculto</>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleOficio24hs(ofi)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 cursor-pointer ${
+                          ofi.urgencias_24hs
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                        }`}
+                      >
+                        <Siren className="w-4 h-4" /> 24hs
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => abrirEditarOficio(ofi)}
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit className="w-4 h-4" /> Editar
+                      </button>
+
+                      <Link
+                        to={`/oficio/${ofi.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-2 rounded-xl text-xs font-bold border dark:border-gray-700 inline-flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-4 h-4" /> Ver
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleEliminarOficio(ofi.id, ofi.nombre)}
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-red-600 border border-red-200 inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" /> Eliminar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* VISTA PESTAÑA: COMERCIOS */
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 p-4 sm:p-6 space-y-5">
+          <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Building className="w-5 h-5 text-brand-600" />
+                Todos los comercios
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Editá los datos, cuentas asignadas, descargá métricas en PDF o cambiá la visibilidad del local.
+              </p>
+            </div>
+
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nombre, email o WhatsApp..."
+                className={`${campoClase} pl-9`}
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-12 text-center text-gray-500">
+              Cargando comercios...
+            </div>
+          ) : comerciosFiltrados.length === 0 ? (
+            <div className="p-10 text-center text-gray-500">
+              No se encontraron comercios.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {comerciosFiltrados.map((comercio) => (
+                <div
+                  key={comercio.id}
+                  className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-white">
+                      {comercio.nombre}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {comercio.direccion || 'Sin dirección'}
+                    </p>
+                    <p className="text-xs text-brand-600 font-semibold mt-1 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" /> Email asignado: {comercio.email_comercial || 'Sin mail cargado'}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className={`px-2 py-1 rounded-lg text-xs font-bold ${comercio.aprobado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {comercio.aprobado ? 'Aprobado' : 'Pendiente de aprobación'}
+                      </span>
+                      <span className={`px-2 py-1 rounded-lg text-xs font-bold ${comercio.habilitado_admin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {comercio.habilitado_admin ? 'Visible' : 'Oculto'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void handleToggleEstadoPago(comercio.id, comercio.habilitado_admin)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 ${comercio.habilitado_admin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+                    >
+                      {comercio.habilitado_admin ? (
+                        <><CheckCircle className="w-4 h-4" /> Visible</>
+                      ) : (
+                        <><XCircle className="w-4 h-4" /> Oculto</>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportarPDFComercio(comercio)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-1 transition shadow-sm"
+                      title="Exportar métricas e información a PDF"
+                    >
+                      <FileText className="w-4 h-4" /> PDF
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setQrDe(comercio)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 inline-flex items-center gap-1"
+                      aria-label={`QR de reseñas de ${comercio.nombre}`}
+                    >
+                      QR
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => abrirEdicion(comercio)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-brand-600 text-white inline-flex items-center gap-1"
+                    >
+                      <Edit className="w-4 h-4" /> Editar
+                    </button>
+
+                    <Link
+                      to={`/comercio/${comercio.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-2 rounded-xl text-xs font-bold border dark:border-gray-700 inline-flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-4 h-4" /> Ver
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleEliminarComercio(comercio.id, comercio.nombre)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-red-600 border border-red-200 inline-flex items-center gap-1"
+                    >
+                      <Trash2 className="w-4 h-4" /> Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAL DE CREACIÓN / EDICIÓN DE OFICIO */}
+      {modalOficioAbierto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[94dvh] overflow-y-auto p-5 sm:p-6 space-y-6 shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-amber-600" />
+                  {editandoOficioId ? 'Editar oficio' : 'Nuevo oficio (sin usuario ni contraseña)'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {editandoOficioId ? ofiNombre : 'Carga directa administrada por NOGOYORK'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={guardandoOficio}
+                onClick={() => setModalOficioAbierto(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {errorOficio && (
+              <div role="alert" className="p-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
+                {errorOficio}
+              </div>
+            )}
+
+            <form onSubmit={handleGuardarOficio} className="space-y-7">
+              <Seccion titulo="Datos generales del prestador">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={etiquetaClase}>Nombre o Marca *</label>
+                    <input
+                      required
+                      value={ofiNombre}
+                      onChange={(e) => setOfiNombre(e.target.value)}
+                      placeholder="Ej: Electricidad Gómez"
+                      className={campoClase}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={etiquetaClase}>Rubro / Oficio *</label>
+                    <input
+                      required
+                      value={ofiRubro}
+                      onChange={(e) => setOfiRubro(e.target.value)}
+                      placeholder="Ej: Electricista, Gasista, Plomero, Flete"
+                      className={campoClase}
+                    />
+                  </div>
+
+                  {editandoOficioId && (
+                    <div>
+                      <label className={etiquetaClase}>Slug de la ficha pública</label>
+                      <input
+                        value={ofiSlug}
+                        onChange={(e) => setOfiSlug(e.target.value)}
+                        className={campoClase}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className={etiquetaClase}>Matrícula (Opcional)</label>
+                    <input
+                      value={ofiMatricula}
+                      onChange={(e) => setOfiMatricula(e.target.value)}
+                      placeholder="Ej: Mat. N° 1234"
+                      className={campoClase}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className={etiquetaClase}>Descripción corta (se muestra en el listado)</label>
+                    <textarea
+                      rows={2}
+                      value={ofiDescripcionCorta}
+                      onChange={(e) => setOfiDescripcionCorta(e.target.value)}
+                      placeholder="Ej: Instalaciones eléctricas domiciliarias, tableros y urgencias en Nogoyá."
+                      className={campoClase}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className={etiquetaClase}>Descripción completa (Opcional)</label>
+                    <textarea
+                      rows={3}
+                      value={ofiDescripcionCompleta}
+                      onChange={(e) => setOfiDescripcionCompleta(e.target.value)}
+                      className={campoClase}
+                    />
+                  </div>
+                </div>
+              </Seccion>
+
+              <Seccion titulo="Zona de cobertura, horarios y ubicación en mapa">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={etiquetaClase}>Zona de cobertura</label>
+                    <input
+                      value={ofiZonaCobertura}
+                      onChange={(e) => setOfiZonaCobertura(e.target.value)}
+                      placeholder="Nogoyá y zona"
+                      className={campoClase}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={etiquetaClase}>Horarios habituales</label>
+                    <input
+                      value={ofiHorarioTexto}
+                      onChange={(e) => setOfiHorarioTexto(e.target.value)}
+                      placeholder="Lunes a Sábado"
+                      className={campoClase}
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => void handleToggleEstadoPago(comercio.id, comercio.habilitado_admin)}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 ${comercio.habilitado_admin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
-                  >
-                    {comercio.habilitado_admin ? (
-                      <><CheckCircle className="w-4 h-4" /> Visible</>
-                    ) : (
-                      <><XCircle className="w-4 h-4" /> Oculto</>
-                    )}
-                  </button>
+                <label className="flex items-center gap-3 text-sm font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ofiUsarMapa}
+                    onChange={(e) => setOfiUsarMapa(e.target.checked)}
+                    className="w-4 h-4 accent-amber-600"
+                  />
+                  Marcar ubicación exacta en el mapa (taller, local o base)
+                </label>
 
-                  <button
-                    type="button"
-                    onClick={() => handleExportarPDFComercio(comercio)}
-                    className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-1 transition shadow-sm"
-                    title="Exportar métricas e información a PDF"
-                  >
-                    <FileText className="w-4 h-4" /> PDF
-                  </button>
+                {ofiUsarMapa && (
+                  <div className="space-y-3">
+                    {Number.isFinite(Number(ofiLatitud)) &&
+                      Number.isFinite(Number(ofiLongitud)) &&
+                      Math.abs(Number(ofiLatitud)) <= 90 &&
+                      Math.abs(Number(ofiLongitud)) <= 180 && (
+                        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                          <SelectorMapa
+                            latitud={Number(ofiLatitud)}
+                            longitud={Number(ofiLongitud)}
+                            colorPin="#d97706"
+                            onSeleccionar={(lat, lng) => {
+                              setOfiLatitud(lat);
+                              setOfiLongitud(lng);
+                            }}
+                          />
+                        </div>
+                      )}
 
-                  <button
-                    type="button"
-                    onClick={() => setQrDe(comercio)}
-                    className="px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 inline-flex items-center gap-1"
-                    aria-label={`QR de reseñas de ${comercio.nombre}`}
-                  >
-                    QR
-                  </button>
+                    <p className="text-xs text-gray-500">
+                      Hacé clic en el mapa para elegir la ubicación o ingresá las coordenadas manualmente.
+                    </p>
 
-                  <button
-                    type="button"
-                    onClick={() => abrirEdicion(comercio)}
-                    className="px-3 py-2 rounded-xl text-xs font-bold bg-brand-600 text-white inline-flex items-center gap-1"
-                  >
-                    <Edit className="w-4 h-4" /> Editar
-                  </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={etiquetaClase}>Latitud</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={ofiLatitud}
+                          onChange={(e) => setOfiLatitud(e.target.value === '' ? 0 : Number(e.target.value))}
+                          className={campoClase}
+                        />
+                      </div>
+                      <div>
+                        <label className={etiquetaClase}>Longitud</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={ofiLongitud}
+                          onChange={(e) => setOfiLongitud(e.target.value === '' ? 0 : Number(e.target.value))}
+                          className={campoClase}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Seccion>
 
-                  <Link
-                    to={`/comercio/${comercio.slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-2 rounded-xl text-xs font-bold border dark:border-gray-700 inline-flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-4 h-4" /> Ver
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleEliminarComercio(comercio.id, comercio.nombre)}
-                    className="px-3 py-2 rounded-xl text-xs font-bold text-red-600 border border-red-200 inline-flex items-center gap-1"
-                  >
-                    <Trash2 className="w-4 h-4" /> Eliminar
-                  </button>
+              <Seccion titulo="Contacto y redes sociales">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={etiquetaClase}>WhatsApp *</label>
+                    <input
+                      required
+                      type="tel"
+                      value={ofiWhatsapp}
+                      onChange={(e) => setOfiWhatsapp(e.target.value)}
+                      placeholder="3435123456"
+                      className={campoClase}
+                    />
+                  </div>
+                  <div>
+                    <label className={etiquetaClase}>Teléfono llamadas (Opcional)</label>
+                    <input
+                      type="tel"
+                      value={ofiTelefono}
+                      onChange={(e) => setOfiTelefono(e.target.value)}
+                      className={campoClase}
+                    />
+                  </div>
+                  <div>
+                    <label className={etiquetaClase}>Email de contacto (Opcional)</label>
+                    <input
+                      type="email"
+                      value={ofiEmailContacto}
+                      onChange={(e) => setOfiEmailContacto(e.target.value)}
+                      className={campoClase}
+                    />
+                  </div>
+                  <div>
+                    <label className={etiquetaClase}>Instagram</label>
+                    <input
+                      value={ofiInstagram}
+                      onChange={(e) => setOfiInstagram(e.target.value)}
+                      className={campoClase}
+                    />
+                  </div>
+                  <div>
+                    <label className={etiquetaClase}>Facebook</label>
+                    <input
+                      value={ofiFacebook}
+                      onChange={(e) => setOfiFacebook(e.target.value)}
+                      className={campoClase}
+                    />
+                  </div>
+                  <div>
+                    <label className={etiquetaClase}>URL Foto de perfil / logo</label>
+                    <input
+                      value={ofiFotoUrl}
+                      onChange={(e) => setOfiFotoUrl(e.target.value)}
+                      placeholder="https://..."
+                      className={campoClase}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              </Seccion>
 
-      {/* MODAL DE EDICIÓN COMPLETA */}
+              <Seccion titulo="Galería, servicios y medios de pago">
+                <p className="text-xs text-gray-500">
+                  Ingresá un elemento por línea.
+                </p>
+
+                <div>
+                  <label className={etiquetaClase}>Galería de trabajos (URLs)</label>
+                  <textarea
+                    rows={3}
+                    value={ofiGaleriaTexto}
+                    onChange={(e) => setOfiGaleriaTexto(e.target.value)}
+                    placeholder="https://..."
+                    className={campoClase}
+                  />
+                </div>
+
+                <div>
+                  <label className={etiquetaClase}>Servicios que realiza</label>
+                  <textarea
+                    rows={3}
+                    value={ofiServiciosTexto}
+                    onChange={(e) => setOfiServiciosTexto(e.target.value)}
+                    placeholder={'Instalación de aires\nReparaciones en general'}
+                    className={campoClase}
+                  />
+                </div>
+
+                <div>
+                  <label className={etiquetaClase}>Medios de pago</label>
+                  <textarea
+                    rows={2}
+                    value={ofiMediosPagoTexto}
+                    onChange={(e) => setOfiMediosPagoTexto(e.target.value)}
+                    placeholder={'Efectivo\nTransferencia'}
+                    className={campoClase}
+                  />
+                </div>
+              </Seccion>
+
+              <Seccion titulo="Modalidad y estado administrativo">
+                <label className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={ofiADomicilio}
+                    onChange={(e) => setOfiADomicilio(e.target.checked)}
+                    className="w-4 h-4 accent-amber-600"
+                  />
+                  <Home className="w-4 h-4 text-amber-600" /> Trabaja a domicilio
+                </label>
+
+                <label className="flex items-center gap-3 text-sm text-rose-600 font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={ofiUrgencias24hs}
+                    onChange={(e) => setOfiUrgencias24hs(e.target.checked)}
+                    className="w-4 h-4 accent-rose-600"
+                  />
+                  <Siren className="w-4 h-4" /> Atiende Guardia / Urgencias 24hs
+                </label>
+
+                <label className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={ofiAprobado}
+                    onChange={(e) => setOfiAprobado(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  Oficio aprobado
+                </label>
+
+                <label className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={ofiHabilitadoAdmin}
+                    onChange={(e) => setOfiHabilitadoAdmin(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  Habilitado por el administrador (visible en el listado público)
+                </label>
+              </Seccion>
+
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 border-t dark:border-gray-700 pt-4">
+                <button
+                  type="button"
+                  disabled={guardandoOficio}
+                  onClick={() => setModalOficioAbierto(false)}
+                  className="px-4 py-2.5 border rounded-xl text-sm font-semibold disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={guardandoOficio}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {guardandoOficio ? 'Guardando...' : 'Guardar oficio'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDICIÓN COMPLETA DE COMERCIO */}
       {modalEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[94dvh] overflow-y-auto p-5 sm:p-6 space-y-6 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -962,7 +1797,6 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </Seccion>
 
-              {/* BLOQUE DE CREDENCIALES Y CUENTA */}
               <Seccion titulo="Credenciales y Cuenta del Comercio">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
@@ -1012,7 +1846,6 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* ENVIAR LINK DE RECUPERACIÓN (TOKEN POR 15 MINUTOS) */}
                   <div className="border-t dark:border-gray-800 pt-3">
                     <label className={etiquetaClase}>
                       <KeyRound className="w-3.5 h-3.5 inline mr-1 text-amber-500" />
@@ -1173,6 +2006,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
       {qrDe && (
         <div
           className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
