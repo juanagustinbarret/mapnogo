@@ -1,4 +1,4 @@
-// src/pages/merchant/MerchantDashboardPage.tsx
+// src/pages/MerchantDashboardPage.tsx
 
 import React, { useEffect, useRef, useState } from 'react';
 import { PanelMetricas } from '@/components/PanelMetricas';
@@ -14,12 +14,12 @@ import { QrResenasDiferido, precargarQrResenas } from '@/components/QrResenasDif
 import { CONTACTO } from '@/lib/contacto';
 import { estadoSuscripcion } from '@/lib/renovacion';
 import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
+import { TARIFAS_PLANES, obtenerPrecioPlan, type ModalidadPlan } from '@/lib/planes';
 import { Comercio, Suscripcion, Oficio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { obtenerMetricasComercio } from '@/lib/metrics';
 import { diasEntre, estaVigente, fechaCalendario, hoyArgentina, sumarDias, textoVencimiento } from '@/lib/fechasArgentina';
 import { COLUMNAS_RESENA, estrellasValidas } from '@/lib/resenas';
-import { COLUMNAS_FICHA_COMERCIO } from '@/lib/columnasPublicas';
 import { ListaSolicitudesEliminacion, SolicitarEliminacionResena, useSolicitudesEliminacion } from '@/components/EliminacionResenas';
 import {
   REVALIDAR_AL_ENTRAR_MS,
@@ -124,8 +124,8 @@ export const MerchantDashboardPage: React.FC = () => {
   const [sitioWeb, setSitioWeb] = useState(() => (datosPrevios?.comercio as any)?.sitio_web ?? '');
   const [guardandoRedes, setGuardandoRedes] = useState(false);
 
-  // Selector de tipos de plan para la suscripción
-  const [tipoPlanSeleccionado, setTipoPlanSeleccionado] = useState<'mensual' | 'anual'>('mensual');
+  // Selector de tipos de plan para la suscripción (Negocio: $10.000 / $120.000)
+  const [tipoPlanSeleccionado, setTipoPlanSeleccionado] = useState<ModalidadPlan>('mensual');
 
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [guardandoRespuesta, setGuardandoRespuesta] = useState<string | null>(null);
@@ -300,7 +300,7 @@ export const MerchantDashboardPage: React.FC = () => {
         if (s) {
           setSuscripcion(s);
           setDiasParaVencer(diasHastaVencer(s));
-          if (s.precio_acordado && s.precio_acordado >= 100000) {
+          if (s.precio_acordado && s.precio_acordado >= TARIFAS_PLANES.negocio.anual) {
             setTipoPlanSeleccionado('anual');
           }
         }
@@ -692,10 +692,15 @@ export const MerchantDashboardPage: React.FC = () => {
     navigate('/login');
   };
 
-  const montoActualPlan = tipoPlanSeleccionado === 'anual' ? 100000 : 10000;
+  const tarifasNegocio = TARIFAS_PLANES.negocio;
+  const montoActualPlan = obtenerPrecioPlan('negocio', tipoPlanSeleccionado);
 
   const mensajeWhatsAppAdmin = encodeURIComponent(
-    `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre} (Plan ${tipoPlanSeleccionado === 'anual' ? 'Anual $100.000' : 'Mensual $10.000'})`
+    `Hola! Adjunto el comprobante de pago para la cuota del comercio: ${comercio?.nombre} (Plan ${
+      tipoPlanSeleccionado === 'anual'
+        ? `Anual ${formatCurrency(tarifasNegocio.anual)}`
+        : `Mensual ${formatCurrency(tarifasNegocio.mensual)}`
+    })`
   );
   const linkWhatsAppAdmin = `https://wa.me/${CONTACTO.whatsappSoporte}?text=${mensajeWhatsAppAdmin}`;
 
@@ -993,11 +998,11 @@ export const MerchantDashboardPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* TARJETA DE SUSCRIPCIÓN CON SELECTOR DE PLAN (MENSUAL / ANUAL) */}
+        {/* TARJETA DE SUSCRIPCIÓN NEGOCIO ($10.000 MENSUAL / $120.000 ANUAL) */}
         <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b dark:border-gray-700 pb-3">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-brand-600" /> Suscripción
+              <CreditCard className="w-5 h-5 text-brand-600" /> Suscripción Negocio
             </h3>
             {cargandoDetalle ? (
               <Esqueleto className="h-5 w-16" />
@@ -1017,25 +1022,25 @@ export const MerchantDashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setTipoPlanSeleccionado('mensual')}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-extrabold border transition ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
                     tipoPlanSeleccionado === 'mensual'
                       ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300'
                       : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                   }`}
                 >
-                  Mensual ($10.000)
+                  Mensual ({formatCurrency(tarifasNegocio.mensual)})
                 </button>
                 <button
                   type="button"
                   onClick={() => setTipoPlanSeleccionado('anual')}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-extrabold border transition relative ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-extrabold border transition relative cursor-pointer ${
                     tipoPlanSeleccionado === 'anual'
                       ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300'
                       : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                   }`}
                 >
-                  Anual ($100.000)
-                  <span className="block text-[9px] font-normal text-emerald-600 dark:text-emerald-400">Ahorrás $20.000</span>
+                  Anual ({formatCurrency(tarifasNegocio.anual)})
+                  <span className="block text-[9px] font-normal text-emerald-600 dark:text-emerald-400">12 meses fijos</span>
                 </button>
               </div>
             </div>
@@ -1062,6 +1067,8 @@ export const MerchantDashboardPage: React.FC = () => {
               precio: montoActualPlan,
               vencimiento: suscripcion?.proximo_vencimiento ?? null,
               estado: suscripcion?.estado ?? null,
+              tipo: 'negocio',
+              modalidad: tipoPlanSeleccionado,
             }}
           />
         </div>
@@ -1514,7 +1521,7 @@ export const MerchantDashboardPage: React.FC = () => {
                 />
                 <span className="text-[10px] text-gray-400">Si se deja vacío, durará 30 días automáticamente.</span>
               </div>
-
+ 
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs font-bold">Cancelar</button>
                 <button type="submit" disabled={savingPromo} className="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm">Publicar</button>

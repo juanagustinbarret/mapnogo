@@ -1,6 +1,12 @@
+// src/components/PanelOficio.tsx
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { Oficio } from '@/types/database.types';
+import { TARIFAS_PLANES, obtenerPrecioPlan, type ModalidadPlan } from '@/lib/planes';
+import { formatCurrency } from '@/lib/formatters';
+import { RenovarSuscripcion } from '@/components/RenovarSuscripcion';
 import {
   Wrench,
   Siren,
@@ -21,7 +27,6 @@ import {
   Home,
   Camera,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 interface PanelOficioProps {
   oficioInicial: Oficio;
@@ -37,6 +42,7 @@ const MEDIOS_PAGO_OPCIONES = [
 ];
 
 export const PanelOficio: React.FC<PanelOficioProps> = ({ oficioInicial, onSignOut }) => {
+  const { user } = useAuth();
   const [oficio, setOficio] = useState<Oficio>(oficioInicial);
   const [nombre, setNombre] = useState(oficioInicial.nombre || '');
   const [oficioRubro, setOficioRubro] = useState(oficioInicial.oficio_rubro || '');
@@ -53,6 +59,11 @@ export const PanelOficio: React.FC<PanelOficioProps> = ({ oficioInicial, onSignO
   const [mediosPago, setMediosPago] = useState<string[]>(oficioInicial.medios_pago || ['Efectivo', 'Transferencia']);
   const [fotoUrl, setFotoUrl] = useState(oficioInicial.foto_url || '');
   const [galeria, setGaleria] = useState<string[]>(oficioInicial.galeria_urls || []);
+
+  // Selector de plan preferencial para Oficios ($5.000 / mes o $60.000 / año)
+  const [tipoPlanOficio, setTipoPlanOficio] = useState<ModalidadPlan>('mensual');
+  const tarifasOficio = TARIFAS_PLANES.oficio;
+  const montoPlanOficio = obtenerPrecioPlan('oficio', tipoPlanOficio);
 
   const [guardando, setGuardando] = useState(false);
   const [subiendoAvatar, setSubiendoAvatar] = useState(false);
@@ -391,6 +402,73 @@ export const PanelOficio: React.FC<PanelOficioProps> = ({ oficioInicial, onSignO
             ? 'Desactivar Guardia 24hs'
             : 'Activar Guardia 24hs'}
         </button>
+      </div>
+
+      {/* SUSCRIPCIÓN PLAN OFICIOS ($5.000 / MES - $60.000 / AÑO) */}
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b dark:border-gray-700 pb-3">
+          <h2 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-amber-600" /> Suscripción Plan Oficios
+          </h2>
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+            Tarifa Preferencial Oficios
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center text-xs">
+          <div className="md:col-span-2 space-y-2">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+              Elegir modalidad de plan:
+            </label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setTipoPlanOficio('mensual')}
+                className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
+                  tipoPlanOficio === 'mensual'
+                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-800 dark:text-amber-300'
+                    : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                }`}
+              >
+                Mensual ({formatCurrency(tarifasOficio.mensual)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoPlanOficio('anual')}
+                className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
+                  tipoPlanOficio === 'anual'
+                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-800 dark:text-amber-300'
+                    : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                }`}
+              >
+                Anual ({formatCurrency(tarifasOficio.anual)})
+                <span className="block text-[10px] font-normal text-amber-700 dark:text-amber-400">12 meses fijos</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
+              <span className="text-gray-500">Total ({tipoPlanOficio === 'anual' ? 'Anual' : 'Mensual'}):</span>
+              <span className="font-black text-sm text-gray-900 dark:text-white">
+                {formatCurrency(montoPlanOficio)}
+              </span>
+            </div>
+
+            <RenovarSuscripcion
+              propietarioId={user?.id}
+              actual={{
+                id: oficio.id,
+                nombre: oficio.nombre,
+                direccion: oficio.zona_cobertura,
+                precio: montoPlanOficio,
+                estado: oficio.habilitado_admin && oficio.aprobado ? 'activa' : 'pendiente',
+                tipo: 'oficio',
+                modalidad: tipoPlanOficio,
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* FORMULARIO DE DATOS DEL PRESTADOR */}

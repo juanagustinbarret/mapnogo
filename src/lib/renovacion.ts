@@ -1,13 +1,9 @@
 // src/lib/renovacion.ts
-//
-// "Renovar suscripción" del panel del comercio: arma el mensaje de WhatsApp
-// para el administrador con el negocio elegido. Y los textos y colores del
-// estado de la suscripción (antes siempre se veía verde, aunque estuviera
-// vencida).
 
 import { CONTACTO } from './contacto';
 import { formatCurrency } from './formatters';
 import { formatearFecha } from './fechasArgentina';
+import { type ModalidadPlan, type TipoEntidad } from './planes';
 
 export type EstadoSuscripcion = 'activa' | 'pendiente' | 'vencida' | 'suspendida';
 
@@ -18,6 +14,8 @@ export interface NegocioParaRenovar {
   precio?: number | null;
   vencimiento?: string | null;
   estado?: EstadoSuscripcion | string | null;
+  tipo?: TipoEntidad;
+  modalidad?: ModalidadPlan;
 }
 
 export const ESTADOS_SUSCRIPCION: Record<EstadoSuscripcion, { texto: string; clase: string }> = {
@@ -28,20 +26,29 @@ export const ESTADOS_SUSCRIPCION: Record<EstadoSuscripcion, { texto: string; cla
 };
 
 export function estadoSuscripcion(estado?: string | null): { texto: string; clase: string } {
-  return ESTADOS_SUSCRIPCION[(estado ?? '') as EstadoSuscripcion] ?? { texto: 'Sin datos', clase: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' };
+  return (
+    ESTADOS_SUSCRIPCION[(estado ?? '') as EstadoSuscripcion] ?? {
+      texto: 'Sin datos',
+      clase: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+    }
+  );
 }
 
-/** Código corto del comercio para que el admin lo identifique sin dudas. */
+/** Código corto para que el admin lo identifique sin dudas. */
 export const codigoComercio = (id: string) => id.replace(/[^0-9a-f]/gi, '').slice(0, 6).toUpperCase();
 
 export function mensajeRenovacion(n: NegocioParaRenovar): string {
+  const esOficio = n.tipo === 'oficio';
+  const etiquetaEntidad = esOficio ? 'Oficio / Servicio' : 'Comercio';
+  const periodoTexto = n.modalidad === 'anual' ? 'por año (Plan Anual)' : 'por mes (Plan Mensual)';
+
   return [
-    'Hola! Quiero renovar la suscripción de mi comercio en NOGOYORK.',
+    `Hola! Quiero renovar la suscripción de mi ${esOficio ? 'oficio' : 'comercio'} en NOGOYORK.`,
     '',
-    `Comercio: ${n.nombre}${n.direccion ? ` (${n.direccion})` : ''}`,
+    `${etiquetaEntidad}: ${n.nombre}${n.direccion ? ` (${n.direccion})` : ''}`,
     `Código: ${codigoComercio(n.id)}`,
-    n.precio != null ? `Plan actual: ${formatCurrency(n.precio)} por mes` : '',
-    n.vencimiento ? `Vencimiento: ${formatearFecha(n.vencimiento)}` : '',
+    n.precio != null ? `Plan elegido: ${formatCurrency(n.precio)} ${periodoTexto}` : '',
+    n.vencimiento ? `Vencimiento actual: ${formatearFecha(n.vencimiento)}` : '',
     '',
     '¿Me pasás los datos para el pago? Gracias.',
   ]
