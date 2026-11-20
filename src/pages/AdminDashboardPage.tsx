@@ -21,7 +21,6 @@ import {
   MapPin,
   Building,
   Shield,
-  Tag,
   CheckCircle,
   XCircle,
   Edit,
@@ -40,6 +39,7 @@ import {
   Home,
   Award,
   Phone,
+  Rocket,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -55,6 +55,10 @@ import { QrResenasDiferido } from '@/components/QrResenasDiferido';
 import { slugLimpio } from '@/lib/rutasQr';
 import { crearLinkRecuperacion } from '@/services/linksRecuperacion';
 import { horaDeVencimiento } from '@/lib/linksRecuperacion';
+
+type ComercioConEmprendimiento = Comercio & {
+  es_emprendimiento?: boolean | null;
+};
 
 interface OficioAdmin {
   id: string;
@@ -171,10 +175,10 @@ export const AdminDashboardPage: React.FC = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  const [seccionAdmin, setSeccionAdmin] = useState<'comercios' | 'oficios'>('comercios');
+  const [seccionAdmin, setSeccionAdmin] = useState<'comercios' | 'emprendimientos' | 'oficios'>('comercios');
 
   // ESTADOS COMERCIOS
-  const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [comercios, setComercios] = useState<ComercioConEmprendimiento[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState({
@@ -190,8 +194,8 @@ export const AdminDashboardPage: React.FC = () => {
   const [eliminandoTurno, setEliminandoTurno] = useState(false);
   const [farmaciaTurnoActual, setFarmaciaTurnoActual] = useState<any | null>(null);
 
-  const [modalEditar, setModalEditar] = useState<Comercio | null>(null);
-  const [qrDe, setQrDe] = useState<Comercio | null>(null);
+  const [modalEditar, setModalEditar] = useState<ComercioConEmprendimiento | null>(null);
+  const [qrDe, setQrDe] = useState<ComercioConEmprendimiento | null>(null);
   const [rubrosEdicion, setRubrosEdicion] = useState<Rubro[]>([]);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState('');
@@ -246,7 +250,7 @@ export const AdminDashboardPage: React.FC = () => {
 
       if (error) throw error;
 
-      const lista = (data ?? []) as unknown as Comercio[];
+      const lista = (data ?? []) as unknown as ComercioConEmprendimiento[];
       setComercios(lista);
 
       setStats({
@@ -395,7 +399,7 @@ export const AdminDashboardPage: React.FC = () => {
   }, [modalEditar?.id]);
 
   // HANDLERS COMERCIOS
-  const handleExportarPDFComercio = async (comercio: Comercio) => {
+  const handleExportarPDFComercio = async (comercio: ComercioConEmprendimiento) => {
     try {
       const metricas = await obtenerMetricasComercio(comercio.id);
 
@@ -552,7 +556,7 @@ export const AdminDashboardPage: React.FC = () => {
     await fetchComerciosYStats();
   };
 
-  const abrirEdicion = (comercio: Comercio) => {
+  const abrirEdicion = (comercio: ComercioConEmprendimiento) => {
     setErrorEdicion('');
     setNuevaPasswordDirecta('');
     setLinkRecuperacion(null);
@@ -573,6 +577,7 @@ export const AdminDashboardPage: React.FC = () => {
       galeria_urls: [...(comercio.galeria_urls ?? [])],
       servicios: [...(comercio.servicios ?? [])],
       medios_pago: [...(comercio.medios_pago ?? [])],
+      es_emprendimiento: Boolean(comercio.es_emprendimiento),
     });
   };
 
@@ -644,6 +649,7 @@ export const AdminDashboardPage: React.FC = () => {
           medios_pago: listaLimpia(modalEditar.medios_pago),
           aprobado: modalEditar.aprobado,
           habilitado_admin: modalEditar.habilitado_admin,
+          es_emprendimiento: Boolean(modalEditar.es_emprendimiento),
         })
         .eq('id', modalEditar.id);
 
@@ -664,9 +670,9 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  const actualizarCampo = <K extends keyof Comercio>(
+  const actualizarCampo = <K extends keyof ComercioConEmprendimiento>(
     campo: K,
-    valor: Comercio[K]
+    valor: ComercioConEmprendimiento[K]
   ) => {
     setModalEditar((actual) =>
       actual ? { ...actual, [campo]: valor } : actual
@@ -875,7 +881,12 @@ export const AdminDashboardPage: React.FC = () => {
     await fetchOficios();
   };
 
-  const comerciosFiltrados = comercios.filter(
+  const emprendimientosLista = comercios.filter((c) => Boolean(c.es_emprendimiento));
+
+  const listaBaseActiva =
+    seccionAdmin === 'emprendimientos' ? emprendimientosLista : comercios;
+
+  const comerciosFiltrados = listaBaseActiva.filter(
     (c) =>
       c.nombre.toLowerCase().includes(search.toLowerCase()) ||
       c.direccion?.toLowerCase().includes(search.toLowerCase()) ||
@@ -908,7 +919,7 @@ export const AdminDashboardPage: React.FC = () => {
               Panel Administrador Central
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Gestión de comercios, oficios, métricas, cobranzas y publicaciones.
+              Gestión de comercios, emprendimientos, oficios, métricas, cobranzas y publicaciones.
             </p>
           </div>
 
@@ -933,6 +944,11 @@ export const AdminDashboardPage: React.FC = () => {
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase">Total comercios</p>
             <p className="text-3xl font-bold mt-1">{stats.totalComercios}</p>
+            {emprendimientosLista.length > 0 && (
+              <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
+                Incluye {emprendimientosLista.length} emprendimiento{emprendimientosLista.length === 1 ? '' : 's'}
+              </p>
+            )}
           </div>
           <Store className="w-7 h-7 text-brand-600" />
         </div>
@@ -1086,7 +1102,7 @@ export const AdminDashboardPage: React.FC = () => {
         <PanelMetricas comercioId={selectedMetricaOption === 'global' ? undefined : selectedMetricaOption} />
       </div>
 
-      {/* PESTAÑAS: COMERCIOS vs OFICIOS */}
+      {/* PESTAÑAS: COMERCIOS vs EMPRENDIMIENTOS vs OFICIOS */}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -1097,7 +1113,19 @@ export const AdminDashboardPage: React.FC = () => {
               : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
           }`}
         >
-          <Building className="w-4 h-4" /> Comercios ({comercios.length})
+          <Building className="w-4 h-4" /> Todos ({comercios.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSeccionAdmin('emprendimientos')}
+          className={`px-5 py-3 rounded-2xl text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+            seccionAdmin === 'emprendimientos'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Rocket className="w-4 h-4" /> Emprendimientos ({emprendimientosLista.length})
         </button>
 
         <button
@@ -1265,13 +1293,22 @@ export const AdminDashboardPage: React.FC = () => {
           )}
         </div>
       ) : (
-        /* VISTA PESTAÑA: COMERCIOS */
+        /* VISTA PESTAÑA: COMERCIOS O EMPRENDIMIENTOS */
         <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 p-4 sm:p-6 space-y-5">
           <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
             <div>
               <h2 className="text-lg font-bold flex items-center gap-2">
-                <Building className="w-5 h-5 text-brand-600" />
-                Todos los comercios
+                {seccionAdmin === 'emprendimientos' ? (
+                  <>
+                    <Rocket className="w-5 h-5 text-purple-600" />
+                    Emprendimientos registrados
+                  </>
+                ) : (
+                  <>
+                    <Building className="w-5 h-5 text-brand-600" />
+                    Todos los comercios y emprendimientos
+                  </>
+                )}
               </h2>
               <p className="text-xs text-gray-500 mt-1">
                 Editá los datos, cuentas asignadas, descargá métricas en PDF o cambiá la visibilidad del local.
@@ -1291,11 +1328,13 @@ export const AdminDashboardPage: React.FC = () => {
 
           {loading ? (
             <div className="p-12 text-center text-gray-500">
-              Cargando comercios...
+              Cargando...
             </div>
           ) : comerciosFiltrados.length === 0 ? (
             <div className="p-10 text-center text-gray-500">
-              No se encontraron comercios.
+              {seccionAdmin === 'emprendimientos'
+                ? 'Todavía no hay emprendimientos marcados. Podés marcar uno desde "Editar" o desde "Nuevo Comercio".'
+                : 'No se encontraron comercios.'}
             </div>
           ) : (
             <div className="space-y-3">
@@ -1305,9 +1344,16 @@ export const AdminDashboardPage: React.FC = () => {
                   className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="min-w-0">
-                    <h3 className="font-bold text-gray-900 dark:text-white">
-                      {comercio.nombre}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-gray-900 dark:text-white">
+                        {comercio.nombre}
+                      </h3>
+                      {comercio.es_emprendimiento && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 inline-flex items-center gap-1">
+                          <Rocket className="w-3 h-3" /> Emprendimiento
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">
                       {comercio.direccion || 'Sin dirección'}
                     </p>
@@ -1740,7 +1786,7 @@ export const AdminDashboardPage: React.FC = () => {
               <div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Edit className="w-5 h-5 text-brand-600" />
-                  Editar comercio
+                  Editar comercio / emprendimiento
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
                   {modalEditar.nombre}
@@ -1765,6 +1811,31 @@ export const AdminDashboardPage: React.FC = () => {
 
             <form onSubmit={handleGuardarEdicion} className="space-y-7">
               <Seccion titulo="Datos generales">
+                {/* OPCIÓN EMPRENDIMIENTO */}
+                <label
+                  className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                    modalEditar.es_emprendimiento
+                      ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-400 dark:border-purple-700'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(modalEditar.es_emprendimiento)}
+                    onChange={(e) => actualizarCampo('es_emprendimiento', e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-purple-600 shrink-0"
+                  />
+                  <div>
+                    <span className="text-xs font-extrabold text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                      <Rocket className="w-3.5 h-3.5 text-purple-600" />
+                      Es un Emprendimiento
+                    </span>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Se muestra tanto en Comercios como en la pestaña exclusiva de Emprendedores.
+                    </p>
+                  </div>
+                </label>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className={etiquetaClase}>Nombre comercial *</label>
