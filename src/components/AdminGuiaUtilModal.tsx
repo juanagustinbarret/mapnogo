@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { supabase } from '@/lib/supabase';
-import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, ExternalLink } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, Search, RotateCcw } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -19,26 +21,102 @@ interface AdminGuiaUtilModalProps {
   onClose: () => void;
 }
 
+// Centro de Nogoyá, Entre Ríos
+const NOGOYA_CENTER: [number, number] = [-32.3935, -59.7892];
+
 export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, onClose }) => {
   const [items, setItems] = useState<GuiaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
-  // Estado del formulario para nuevo o edición
+  // Estado del formulario
   const [editId, setEditId] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
   const [categoria, setCategoria] = useState('Emergencias');
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   const [urgencia, setUrgencia] = useState(false);
-  const [latitud, setLatitud] = useState<string>('');
-  const [longitud, setLongitud] = useState<string>('');
+  const [latitud, setLatitud] = useState<number | null>(null);
+  const [longitud, setLongitud] = useState<number | null>(null);
+
+  // Refs de Leaflet para el mini-mapa arrastrable
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       fetchItems();
     }
   }, [isOpen]);
+
+  // Inicializar mapa Leaflet cuando abre el modal
+  useEffect(() => {
+    if (!isOpen || !mapContainerRef.current) return;
+
+    const timer = setTimeout(() => {
+      if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+      const initialLat = latitud ?? NOGOYA_CENTER[0];
+      const initialLng = longitud ?? NOGOYA_CENTER[1];
+
+      const map = L.map(mapContainerRef.current, {
+        center: [initialLat, initialLng],
+        zoom: 15,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map);
+
+      const pinIcon = L.divIcon({
+        className: 'custom-guia-picker-pin',
+        html: `<div style="width:30px;height:30px;border-radius:9999px;background:#0284c7;border:3px solid #ffffff;box-shadow:0 4px 10px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:14px;">📍</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      });
+
+      const marker = L.marker([initialLat, initialLng], {
+        draggable: true,
+        icon: pinIcon,
+      }).addTo(map);
+
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        setLatitud(Number(pos.lat.toFixed(6)));
+        setLongitud(Number(pos.lng.toFixed(6)));
+      });
+
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        marker.setLatLng(e.latlng);
+        setLatitud(Number(e.latlng.lat.toFixed(6)));
+        setLongitud(Number(e.latlng.lng.toFixed(6)));
+      });
+
+      mapInstanceRef.current = map;
+      markerRef.current = marker;
+      map.invalidateSize();
+    }, 120);
+
+    return () => {
+      clearTimeout(timer);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markerRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  // Sincronizar posición del marcador cuando se edita un item o se limpia
+  useEffect(() => {
+    if (!mapInstanceRef.current || !markerRef.current) return;
+    const target: [number, number] =
+      latitud !== null && longitud !== null ? [latitud, longitud] : NOGOYA_CENTER;
+    markerRef.current.setLatLng(target);
+    mapInstanceRef.current.setView(target, latitud !== null ? 16 : 15);
+  }, [latitud, longitud]);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -62,8 +140,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setTelefono('');
     setDireccion('');
     setUrgencia(false);
-    setLatitud('');
-    setLongitud('');
+    setLatitud(null);
+    setLongitud(null);
   };
 
   const handleEdit = (item: GuiaItem) => {
@@ -73,16 +151,37 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setTelefono(item.telefono);
     setDireccion(item.direccion);
     setUrgencia(item.urgencia);
-    setLatitud(item.latitud != null ? String(item.latitud) : '');
-    setLongitud(item.longitud != null ? String(item.longitud) : '');
+    setLatitud(item.latitud ?? null);
+    setLongitud(item.longitud ?? null);
+  };
+
+  const handleUbicarDireccion = async () => {
+    const queryTexto = (direccion.trim() || nombre.trim());
+    if (!queryTexto) return;
+
+    setGeocoding(true);
+    try {
+      const q = encodeURIComponent(`${queryTexto}, Nogoyá, Entre Ríos, Argentina`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`);
+      const results = await res.json();
+      if (Array.isArray(results) && results.length > 0) {
+        const lat = Number(parseFloat(results[0].lat).toFixed(6));
+        const lon = Number(parseFloat(results[0].lon).toFixed(6));
+        setLatitud(lat);
+        setLongitud(lon);
+      } else {
+        alert('No se encontró esa calle exacta. Hacé clic o arrastrá el pin en el mapa.');
+      }
+    } catch {
+      alert('No se pudo buscar la dirección. Mové el pin manualmente en el mapa.');
+    } finally {
+      setGeocoding(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
-
-    const latParsed = latitud.trim() !== '' && !isNaN(Number(latitud)) ? Number(latitud) : null;
-    const lngParsed = longitud.trim() !== '' && !isNaN(Number(longitud)) ? Number(longitud) : null;
 
     setSaving(true);
     try {
@@ -92,8 +191,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
         telefono: telefono.trim(),
         direccion: direccion.trim() || 'Nogoyá, Entre Ríos',
         urgencia,
-        latitud: latParsed,
-        longitud: lngParsed,
+        latitud,
+        longitud,
       };
 
       if (editId) {
@@ -174,7 +273,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   required
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej: Hospital San Blas / Parroquia..."
+                  placeholder="Ej: Basílica Nuestra Señora del Carmen"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
@@ -209,13 +308,25 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
               <div className="md:col-span-2">
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Dirección / Referencia</label>
-                <input
-                  type="text"
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
-                  placeholder="Ej: Calle San Martín 800, Nogoyá"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={direccion}
+                    onChange={(e) => setDireccion(e.target.value)}
+                    placeholder="Ej: 25 de Mayo 1070"
+                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUbicarDireccion}
+                    disabled={geocoding}
+                    className="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 transition"
+                    title="Centrar pin en esta dirección"
+                  >
+                    {geocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5 text-sky-600" />}
+                    Ubicar
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-2">
@@ -240,46 +351,39 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
               </div>
             </div>
 
-            {/* Coordenadas opcionales para mostrar el pin en el mapa */}
+            {/* MAPA INTERACTIVO ARRASTRABLE */}
             <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">
-                  Coordenadas en el mapa (opcional — para mostrar el pin en NOGOYORK)
+                  Ubicación exacta (hacé clic en el mapa o arrastrá el pin 📍)
                 </span>
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    `${direccion || nombre || 'Nogoyá'}, Nogoyá, Entre Ríos`
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] font-bold text-sky-600 hover:underline inline-flex items-center gap-1"
-                >
-                  Buscar en Google Maps <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex items-center gap-3 text-[11px]">
+                  {latitud !== null && longitud !== null ? (
+                    <>
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {latitud}, {longitud}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLatitud(null);
+                          setLongitud(null);
+                        }}
+                        className="text-red-500 hover:underline font-bold inline-flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Quitar pin
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-gray-400 italic">Sin pin fijado aún</span>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Latitud</label>
-                  <input
-                    type="text"
-                    value={latitud}
-                    onChange={(e) => setLatitud(e.target.value)}
-                    placeholder="Ej: -32.3935"
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Longitud</label>
-                  <input
-                    type="text"
-                    value={longitud}
-                    onChange={(e) => setLongitud(e.target.value)}
-                    placeholder="Ej: -59.7892"
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  />
-                </div>
-              </div>
+              <div
+                ref={mapContainerRef}
+                className="w-full h-56 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 z-0"
+              />
             </div>
           </form>
 
