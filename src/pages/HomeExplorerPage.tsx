@@ -138,6 +138,7 @@ export const HomeExplorerPage: React.FC = () => {
 
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
   const [modalGuiaUtilOpen, setModalGuiaUtilOpen] = useState(false);
+  const [guiaUtilSeleccionada, setGuiaUtilSeleccionada] = useState<GuiaUtilItem | null>(null);
 
   const [soloAbiertos, setSoloAbiertos] = useState(false);
   const [soloDelivery, setSoloDelivery] = useState(false);
@@ -658,7 +659,14 @@ export const HomeExplorerPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
-      <GuiaUtilModal isOpen={modalGuiaUtilOpen} onClose={() => setModalGuiaUtilOpen(false)} />
+      <GuiaUtilModal
+        isOpen={modalGuiaUtilOpen}
+        initialItem={guiaUtilSeleccionada}
+        onClose={() => {
+          setModalGuiaUtilOpen(false);
+          setGuiaUtilSeleccionada(null);
+        }}
+      />
 
       <MarquesinaAvisos />
 
@@ -732,7 +740,10 @@ export const HomeExplorerPage: React.FC = () => {
           </a>
 
           <button
-            onClick={() => setModalGuiaUtilOpen(true)}
+            onClick={() => {
+              setGuiaUtilSeleccionada(null);
+              setModalGuiaUtilOpen(true);
+            }}
             className="px-3 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 border border-sky-400/30 text-center leading-tight min-h-[44px]"
           >
             <Info className="w-4 h-4 shrink-0" />
@@ -1224,6 +1235,10 @@ export const HomeExplorerPage: React.FC = () => {
               comercios={comerciosParaMapa}
               oficios={oficiosFiltradosMapa}
               guiaUtil={guiaUtilFiltradaMapa}
+              onVerFichaGuiaUtil={(item) => {
+                setGuiaUtilSeleccionada(item);
+                setModalGuiaUtilOpen(true);
+              }}
               userLocation={userLocation}
               onSolicitarUbicacion={solicitarUbicacion}
               buscandoUbicacion={loadingLoc}
