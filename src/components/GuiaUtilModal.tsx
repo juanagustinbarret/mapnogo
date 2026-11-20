@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
-import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter, Hospital, Stethoscope } from 'lucide-react';
+import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter, Stethoscope, Clock } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -10,6 +10,8 @@ interface GuiaItem {
   telefono: string;
   direccion: string;
   urgencia: boolean;
+  es_24hs?: boolean;
+  horarios?: string | null;
   orden: number;
   latitud?: number | null;
   longitud?: number | null;
@@ -24,6 +26,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
   const [items, setItems] = useState<GuiaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoriaActiva, setCategoriaActiva] = useState('Todas');
+  const [solo24hs, setSolo24hs] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -73,20 +76,23 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
     'Iglesias y Culto',
   ];
 
-  const itemsFiltrados =
-    categoriaActiva === 'Todas'
-      ? items
-      : items.filter((i) => i.categoria === categoriaActiva);
+  const itemsFiltrados = items.filter((i) => {
+    const matchCat = categoriaActiva === 'Todas' || i.categoria === categoriaActiva;
+    const match24 = !solo24hs || Boolean(i.es_24hs);
+    return matchCat && match24;
+  });
 
   const contarPorCategoria = (cat: string) =>
     cat === 'Todas' ? items.length : items.filter((i) => i.categoria === cat).length;
+
+  const total24hs = items.filter((i) => Boolean(i.es_24hs)).length;
 
   const getCategoriaIcon = (cat: string) => {
     switch (cat) {
       case 'Emergencias':
         return <Flame className="w-4 h-4 text-rose-500" />;
       case 'Hospitales y Sanatorios':
-        return <Hospital className="w-4 h-4 text-emerald-600" />;
+        return <HeartPulse className="w-4 h-4 text-emerald-600" />;
       case 'Clínicas y Consultorios':
         return <Stethoscope className="w-4 h-4 text-teal-500" />;
       case 'Salud':
@@ -121,29 +127,44 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
           </button>
         </div>
 
-        {/* SELECTOR DESPLEGABLE DE RUBROS */}
-        <div className="px-5 py-3 bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3 shrink-0">
-          <label
-            htmlFor="guia-rubro-select"
-            className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1.5 shrink-0"
+        {/* SELECTOR DE RUBRO + FILTRO 24 HS */}
+        <div className="px-5 py-3 bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <label
+              htmlFor="guia-rubro-select"
+              className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1 shrink-0"
+            >
+              <Filter className="w-3.5 h-3.5 text-sky-600" />
+              Rubro:
+            </label>
+            <select
+              id="guia-rubro-select"
+              value={categoriaActiva}
+              onChange={(e) => setCategoriaActiva(e.target.value)}
+              className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-gray-800 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+            >
+              {categorias.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat === 'Todas'
+                    ? `Todos los rubros (${contarPorCategoria(cat)})`
+                    : `${cat} (${contarPorCategoria(cat)})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSolo24hs((prev) => !prev)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition shrink-0 ${
+              solo24hs
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-emerald-500'
+            }`}
           >
-            <Filter className="w-3.5 h-3.5 text-sky-600" />
-            Rubro:
-          </label>
-          <select
-            id="guia-rubro-select"
-            value={categoriaActiva}
-            onChange={(e) => setCategoriaActiva(e.target.value)}
-            className="flex-1 max-w-xs px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-gray-800 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
-          >
-            {categorias.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat === 'Todas'
-                  ? `Todos los rubros (${contarPorCategoria(cat)})`
-                  : `${cat} (${contarPorCategoria(cat)})`}
-              </option>
-            ))}
-          </select>
+            <Clock className="w-3.5 h-3.5" />
+            24 hs ({total24hs})
+          </button>
         </div>
 
         {/* LISTADO */}
@@ -154,8 +175,8 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
             </div>
           ) : itemsFiltrados.length === 0 ? (
             <div className="text-center py-12 text-gray-500 space-y-1">
-              <p className="font-bold text-sm">No hay teléfonos cargados en este rubro</p>
-              <p className="text-xs">Pronto estaremos sumando más contactos útiles.</p>
+              <p className="font-bold text-sm">No hay teléfonos cargados con este filtro</p>
+              <p className="text-xs">Probá cambiar de rubro o desactivar el filtro de 24 hs.</p>
             </div>
           ) : (
             itemsFiltrados.map((item) => (
@@ -168,11 +189,16 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
                 }`}
               >
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {getCategoriaIcon(item.categoria)}
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                       {item.categoria}
                     </span>
+                    {item.es_24hs && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
+                        24 HS
+                      </span>
+                    )}
                     {item.urgencia && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse">
                         URGENCIA
@@ -187,6 +213,12 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
                   <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
                   </p>
+
+                  {item.horarios && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 shrink-0" /> {item.horarios}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200/60 dark:border-gray-700/60">
