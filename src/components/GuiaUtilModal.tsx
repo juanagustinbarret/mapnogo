@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
+import { GuiaUtilItem } from '@/types/database.types';
 import {
   X,
   Phone,
@@ -23,26 +24,18 @@ import {
   Eye,
 } from 'lucide-react';
 
-interface GuiaItem {
-  id: string;
-  nombre: string;
-  categoria: string;
-  telefono: string;
+export interface GuiaItem extends GuiaUtilItem {
   whatsapp?: string | null;
-  direccion: string;
   descripcion?: string | null;
   fotos?: string[] | null;
-  urgencia: boolean;
   es_24hs?: boolean;
   horarios?: string | null;
-  orden: number;
-  latitud?: number | null;
-  longitud?: number | null;
 }
 
 interface GuiaUtilModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialItem?: GuiaItem | null;
 }
 
 const formatWhatsAppUrl = (rawPhone: string, nombreLugar: string) => {
@@ -54,7 +47,11 @@ const formatWhatsAppUrl = (rawPhone: string, nombreLugar: string) => {
   return `https://wa.me/${digits}?text=${text}`;
 };
 
-export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose }) => {
+export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({
+  isOpen,
+  onClose,
+  initialItem = null,
+}) => {
   const [items, setItems] = useState<GuiaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoriaActiva, setCategoriaActiva] = useState('Todas');
@@ -66,11 +63,11 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
 
   useEffect(() => {
     if (isOpen) {
-      setFichaSeleccionada(null);
+      setFichaSeleccionada(initialItem ?? null);
       setFotoActivaIdx(0);
-      fetchItems();
+      void fetchItems();
     }
-  }, [isOpen]);
+  }, [isOpen, initialItem]);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -84,7 +81,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
           .order('nombre', { ascending: true });
 
         if (!error && data) {
-          setItems(data);
+          setItems(data as GuiaItem[]);
           void setCachedData('guia_util_global', data);
           setLoading(false);
           return;
@@ -158,7 +155,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
       fichaSeleccionada.latitud && fichaSeleccionada.longitud
         ? `https://www.google.com/maps/search/?api=1&query=${fichaSeleccionada.latitud},${fichaSeleccionada.longitud}`
         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-            `${fichaSeleccionada.nombre}, ${fichaSeleccionada.direccion}, Nogoyá, Entre Ríos`
+            `${fichaSeleccionada.nombre},${fichaSeleccionada.direccion}, Nogoyá, Entre Ríos`
           )}`;
 
     return (
@@ -514,7 +511,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
                         item.latitud && item.longitud
                           ? `https://www.google.com/maps/search/?api=1&query=${item.latitud},${item.longitud}`
                           : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                              `${item.nombre}, ${item.direccion}, Nogoyá, Entre Ríos`
+                              `${item.nombre},${item.direccion}, Nogoyá, Entre Ríos`
                             )}`
                       }
                       target="_blank"
