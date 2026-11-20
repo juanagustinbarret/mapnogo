@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '@/lib/supabase';
-import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, Search, RotateCcw } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, Search, RotateCcw, Clock } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -11,6 +11,8 @@ interface GuiaItem {
   telefono: string;
   direccion: string;
   urgencia: boolean;
+  es_24hs?: boolean;
+  horarios?: string | null;
   orden: number;
   latitud?: number | null;
   longitud?: number | null;
@@ -45,6 +47,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   const [categoria, setCategoria] = useState<string>('Emergencias');
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [horarios, setHorarios] = useState('');
+  const [es24hs, setEs24hs] = useState(false);
   const [urgencia, setUrgencia] = useState(false);
   const [latitud, setLatitud] = useState<number | null>(null);
   const [longitud, setLongitud] = useState<number | null>(null);
@@ -118,7 +122,6 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     };
   }, [isOpen]);
 
-  // Sincronizar posición del marcador cuando se edita un item o se limpia
   useEffect(() => {
     if (!mapInstanceRef.current || !markerRef.current) return;
     const target: [number, number] =
@@ -148,6 +151,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setCategoria('Emergencias');
     setTelefono('');
     setDireccion('');
+    setHorarios('');
+    setEs24hs(false);
     setUrgencia(false);
     setLatitud(null);
     setLongitud(null);
@@ -159,9 +164,20 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setCategoria(item.categoria);
     setTelefono(item.telefono);
     setDireccion(item.direccion);
+    setHorarios(item.horarios || '');
+    setEs24hs(Boolean(item.es_24hs));
     setUrgencia(item.urgencia);
     setLatitud(item.latitud ?? null);
     setLongitud(item.longitud ?? null);
+  };
+
+  const handleToggle24hs = (checked: boolean) => {
+    setEs24hs(checked);
+    if (checked && !horarios.trim()) {
+      setHorarios('Atención las 24 hs');
+    } else if (!checked && horarios === 'Atención las 24 hs') {
+      setHorarios('');
+    }
   };
 
   const handleUbicarDireccion = async () => {
@@ -199,6 +215,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
         categoria,
         telefono: telefono.trim(),
         direccion: direccion.trim() || 'Nogoyá, Entre Ríos',
+        horarios: horarios.trim() || (es24hs ? 'Atención las 24 hs' : null),
+        es_24hs: es24hs,
         urgencia,
         latitud,
         longitud,
@@ -331,8 +349,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Dirección / Referencia</label>
                 <div className="flex gap-2">
                   <input
@@ -355,7 +373,30 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Horarios de Atención</label>
+                <input
+                  type="text"
+                  value={horarios}
+                  onChange={(e) => setHorarios(e.target.value)}
+                  placeholder="Ej: Lun a Vie 8:00 a 13:00 / Guardia 24 hs"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <input
+                    type="checkbox"
+                    checked={es24hs}
+                    onChange={(e) => handleToggle24hs(e.target.checked)}
+                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  🕒 Atiende 24 hs
+                </label>
+
                 <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-rose-600 dark:text-rose-400">
                   <input
                     type="checkbox"
@@ -365,16 +406,16 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   />
                   🚨 Es Urgencia
                 </label>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {editId ? 'Actualizar' : 'Agregar'}
-                </button>
               </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {editId ? 'Actualizar' : 'Agregar'}
+              </button>
             </div>
 
             {/* MAPA INTERACTIVO ARRASTRABLE */}
@@ -439,6 +480,11 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getBadgeColor(item)}`}>
                           {item.categoria}
                         </span>
+                        {item.es_24hs && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-extrabold">
+                            24 HS
+                          </span>
+                        )}
                         {item.urgencia && (
                           <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-extrabold">
                             URGENCIA
@@ -461,6 +507,11 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                           <MapPin className="w-3 h-3 text-gray-400 shrink-0" /> {item.direccion}
                         </span>
                       </div>
+                      {item.horarios && (
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-emerald-600 shrink-0" /> {item.horarios}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
