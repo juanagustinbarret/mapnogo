@@ -75,7 +75,7 @@ export const App: React.FC = () => {
                     }
                   />
                 ))}
-                
+
                 {/* Rutas Administrador */}
                 <Route
                   path="/admin"
