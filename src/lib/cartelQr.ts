@@ -165,7 +165,7 @@ export async function generarCartelQrNogoyork(
   ctx.fill();
 
   let logoDibujado = false;
-  for (const rutaLogo of ['/logo-nogoyork.png', '/icon-192.png', '/logo.png', '/favicon.png']) {
+  for (const rutaLogo of ['/logo-nogoyork.png', '/icon-192.png', '/logo.svg', '/favicon.png']) {
     try {
       const logoImg = await cargarImagen(rutaLogo, false);
       const pad = 16;
