@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '@/lib/supabase';
-import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, Search, RotateCcw, Clock } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, Search, RotateCcw, Clock, MessageCircle } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
   nombre: string;
   categoria: string;
   telefono: string;
+  whatsapp?: string | null;
   direccion: string;
   urgencia: boolean;
   es_24hs?: boolean;
@@ -46,6 +47,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   const [nombre, setNombre] = useState('');
   const [categoria, setCategoria] = useState<string>('Emergencias');
   const [telefono, setTelefono] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [direccion, setDireccion] = useState('');
   const [horarios, setHorarios] = useState('');
   const [es24hs, setEs24hs] = useState(false);
@@ -150,6 +152,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setNombre('');
     setCategoria('Emergencias');
     setTelefono('');
+    setWhatsapp('');
     setDireccion('');
     setHorarios('');
     setEs24hs(false);
@@ -163,6 +166,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setNombre(item.nombre);
     setCategoria(item.categoria);
     setTelefono(item.telefono);
+    setWhatsapp(item.whatsapp || '');
     setDireccion(item.direccion);
     setHorarios(item.horarios || '');
     setEs24hs(Boolean(item.es_24hs));
@@ -214,6 +218,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
         nombre: nombre.trim(),
         categoria,
         telefono: telefono.trim(),
+        whatsapp: whatsapp.trim() || null,
         direccion: direccion.trim() || 'Nogoyá, Entre Ríos',
         horarios: horarios.trim() || (es24hs ? 'Atención las 24 hs' : null),
         es_24hs: es24hs,
@@ -309,7 +314,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Nombre *</label>
                 <input
@@ -317,7 +322,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   required
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej: Hospital San Blas / Sanatorio..."
+                  placeholder="Ej: Hospital San Blas..."
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
@@ -338,13 +343,24 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Teléfono</label>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Teléfono Llamadas</label>
                 <input
                   type="text"
                   value={telefono}
                   onChange={(e) => setTelefono(e.target.value)}
                   placeholder="Ej: 100 / 03435-421234"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase mb-1">WhatsApp (opcional)</label>
+                <input
+                  type="text"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  placeholder="Ej: 3435457576"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -501,6 +517,11 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                         {item.telefono && (
                           <span className="flex items-center gap-1 font-bold text-gray-700 dark:text-gray-300">
                             <Phone className="w-3 h-3 text-sky-600" /> {item.telefono}
+                          </span>
+                        )}
+                        {item.whatsapp && (
+                          <span className="flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
+                            <MessageCircle className="w-3 h-3" /> {item.whatsapp}
                           </span>
                         )}
                         <span className="flex items-center gap-1 truncate">
