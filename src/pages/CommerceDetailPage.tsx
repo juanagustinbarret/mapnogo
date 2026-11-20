@@ -1,3 +1,5 @@
+// src/pages/public/CommerceDetailPage.tsx
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useParams, Link, useLocation } from 'react-router-dom';
@@ -33,7 +35,8 @@ import {
   Printer,
   Globe,
   Instagram,
-  Facebook
+  Facebook,
+  Rocket
 } from 'lucide-react';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { aplicarPausa, estadoDelivery, rangosDeDelivery, textoEstadoDelivery } from '@/lib/delivery';
@@ -58,6 +61,7 @@ import { etiquetaPuntaje, fechaResena, textoPuntaje } from '@/lib/puntaje';
 import { Estrellas } from '@/components/Estrellas';
 import { CarruselFotosComercio } from '@/components/CarruselFotosComercio';
 import { ReportarFoto } from '@/components/ReportarFoto';
+import { CartelQrModal } from '@/components/CartelQrModal';
 import { COLUMNAS_FOTO, cargarFotosComercio, fotosParaMostrar, type FotoComercio } from '@/lib/fotosComercio';
 
 interface HorarioDelivery {
@@ -108,7 +112,7 @@ export const CommerceDetailPage: React.FC = () => {
   const [servicioTurno, setServicioTurno] = useState('');
   const [vehiculoTurno, setVehiculoTurno] = useState('Auto');
 
-  // Estado para Modal de QR Dinámico
+  // Estado para Modal de QR Dinámico + Cartel PNG
   const [modalQrOpen, setModalQrOpen] = useState(false);
 
   const [nombreResena, setNombreResena] = useState('');
@@ -387,7 +391,7 @@ export const CommerceDetailPage: React.FC = () => {
     if (!comercio) return;
     void registrarInteraccion(comercio.id, 'whatsapp', { excluir: esPropioOAdmin(comercio) });
     const numInfo = normalizeWhatsAppNumber(comercio.whatsapp);
-    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi su comercio en NOGOYORK y quisiera hacerles una consulta.`;
+    const mensaje = `Hola *${comercio.nombre}*! 👋 Vi su ${esEmprendimiento ? 'emprendimiento' : 'comercio'} en NOGOYORK y quisiera hacerles una consulta.`;
     const url = buildWhatsAppUrl(numInfo.isValid ? numInfo.normalized : comercio.whatsapp, mensaje);
     window.open(url, '_blank');
   };
@@ -464,6 +468,7 @@ export const CommerceDetailPage: React.FC = () => {
 
   const fotosFicha = fotosParaMostrar(fotosAprobadas, galeriaVieja ?? comercio.galeria_urls);
   const tieneWhatsApp = /\d/.test(comercio.whatsapp ?? '');
+  const esEmprendimiento = Boolean((comercio as any).es_emprendimiento);
 
   const rubroLower = (comercio.rubro?.nombre ?? '').toLowerCase();
   const serviciosLower = (comercio.servicios ?? []).map((s) => s.toLowerCase());
@@ -544,8 +549,6 @@ export const CommerceDetailPage: React.FC = () => {
   const puntajePropio = calcularPuntaje(resenas.map((r) => r.estrellas));
   const promedioEstrellas = textoPuntaje(puntajePropio.puntaje, puntajePropio.total);
   const yaOpino = yaReseno(comercio.id);
-  const currentUrl = window.location.href;
-  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentUrl)}`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-4">
@@ -603,8 +606,11 @@ export const CommerceDetailPage: React.FC = () => {
       `}</style>
 
       <div className="flex justify-between items-center no-imprimir">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm font-bold text-brand-600 hover:underline">
-          <ArrowLeft className="w-4 h-4" /> Volver al mapa público
+        <Link
+          to={esEmprendimiento ? '/emprendimientos' : '/'}
+          className="inline-flex items-center gap-1 text-sm font-bold text-brand-600 hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4" /> {esEmprendimiento ? 'Volver a Emprendimientos' : 'Volver al mapa público'}
         </Link>
         <div className="flex items-center gap-2">
           <button
@@ -633,8 +639,8 @@ export const CommerceDetailPage: React.FC = () => {
           <button
             onClick={() => setModalQrOpen(true)}
             className="p-2 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300 hover:bg-purple-100 rounded-xl transition text-xs font-bold inline-flex items-center gap-1"
-            title="Ver Código QR de la Ficha"
-            aria-label="Ver código QR de la ficha"
+            title="Ver y descargar cartel QR"
+            aria-label="Ver y descargar cartel QR"
           >
             <QrCode className="w-4 h-4" /> <span className="hidden sm:inline">QR</span>
           </button>
@@ -681,6 +687,12 @@ export const CommerceDetailPage: React.FC = () => {
           <div>
             <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
               {comercio.nombre}
+
+              {esEmprendimiento && (
+                <span className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-200 px-2.5 py-0.5 rounded-full font-extrabold inline-flex items-center gap-1">
+                  <Rocket className="w-3.5 h-3.5" /> Emprendimiento
+                </span>
+              )}
               
               {promociones.length > 0 && (
                 <a
@@ -1246,44 +1258,20 @@ export const CommerceDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL QR DINAMICO EN PANTALLA */}
-      {modalQrOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 no-imprimir">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3">
-              <h3 className="font-extrabold text-base text-gray-900 dark:text-white flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-purple-600" /> Código QR del Comercio
-              </h3>
-              <button onClick={() => setModalQrOpen(false)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-2 flex flex-col items-center justify-center space-y-3">
-              <div className="p-3 bg-white rounded-2xl shadow-inner border border-gray-200">
-                <img
-                  src={qrApiUrl}
-                  alt={`QR para acceder a la ficha de ${comercio.nombre}`}
-                  className="w-48 h-48 object-contain"
-                />
-              </div>
-              <h4 className="font-bold text-sm text-gray-900 dark:text-white">{comercio.nombre}</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400 px-4">
-                Escaneá este código con la cámara del celular para abrir esta ficha de NOGOYORK directamente.
-              </p>
-            </div>
-
-            <div className="pt-2 border-t dark:border-gray-700">
-              <button
-                onClick={() => setModalQrOpen(false)}
-                className="w-full py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-800 dark:text-gray-200 font-bold rounded-xl text-xs transition"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL QR DINÁMICO + DESCARGA DE CARTEL PNG */}
+      <CartelQrModal
+        isOpen={modalQrOpen}
+        onClose={() => setModalQrOpen(false)}
+        nombre={comercio.nombre}
+        slug={comercio.slug}
+        subtitulo={
+          esEmprendimiento
+            ? `${comercio.rubro?.nombre || 'Emprendimiento'} · Emprendimiento`
+            : comercio.rubro?.nombre || 'Comercio Local'
+        }
+        urlFicha={window.location.href}
+        tituloModal={esEmprendimiento ? 'Cartel QR del Emprendimiento' : 'Cartel QR del Comercio'}
+      />
 
       {/* MODAL DE REPORTE */}
       {modalReporteOpen && (
