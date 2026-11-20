@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Sparkles,
   QrCode,
+  Filter,
 } from 'lucide-react';
 
 type EmprendimientoItem = Comercio & {
@@ -169,9 +170,9 @@ export const EmprendimientosPage: React.FC = () => {
         </div>
       </div>
 
-      {/* BARRA DE BÚSQUEDA Y FILTROS */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+      {/* BARRA DE BÚSQUEDA Y FILTROS EN LISTA */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -181,6 +182,26 @@ export const EmprendimientosPage: React.FC = () => {
               placeholder="Buscar emprendimiento, producto, rubro o dirección..."
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs sm:text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
+          </div>
+
+          <div className="relative sm:min-w-[230px]">
+            <Filter className="w-4 h-4 text-purple-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={rubroSeleccionado}
+              onChange={(e) => setRubroSeleccionado(e.target.value)}
+              aria-label="Filtrar por rubro"
+              className="w-full pl-10 pr-8 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Todos los rubros ({emprendimientos.length})</option>
+              {rubrosDisponibles.map((r) => {
+                const cantidad = emprendimientos.filter((e) => e.rubro_id === r.id).length;
+                return (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre} ({cantidad})
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           <button
@@ -195,38 +216,6 @@ export const EmprendimientosPage: React.FC = () => {
             <Clock className="w-3.5 h-3.5" /> Abierto Ahora
           </button>
         </div>
-
-        {rubrosDisponibles.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-700/70">
-            <button
-              type="button"
-              onClick={() => setRubroSeleccionado('')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                rubroSeleccionado === ''
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
-              }`}
-            >
-              Todos ({emprendimientos.length})
-            </button>
-
-            {rubrosDisponibles.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => setRubroSeleccionado(rubroSeleccionado === r.id ? '' : r.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 ${
-                  rubroSeleccionado === r.id
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
-                }`}
-              >
-                <InsigniaRubro rubro={r} />
-                {r.nombre}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* LISTADO DE EMPRENDIMIENTOS */}
