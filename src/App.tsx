@@ -25,6 +25,7 @@ const BajaPage = diferida(() => import('@/pages/BajaPage'), 'BajaPage');
 const PromotionsPage = diferida(() => import('@/pages/PromotionsPage'), 'PromotionsPage');
 const EmpleosPage = diferida(() => import('@/pages/EmpleosPage'), 'EmpleosPage');
 const OficiosPage = diferida(() => import('@/pages/OficiosPage'), 'OficiosPage');
+const EmprendimientosPage = diferida(() => import('@/pages/EmprendimientosPage'), 'EmprendimientosPage');
 const OficioDetailPage = diferida(() => import('@/pages/OficioDetailPage'), 'OficioDetailPage');
 const UrgenciasPage = diferida(() => import('@/pages/UrgenciasPage'), 'UrgenciasPage');
 const FavoritesPage = diferida(() => import('@/pages/FavoritesPage'), 'FavoritesPage');
@@ -51,6 +52,7 @@ export const App: React.FC = () => {
                 <Route path="/promociones" element={<PromotionsPage />} />
                 <Route path="/empleos" element={<EmpleosPage />} />
                 <Route path="/oficios" element={<OficiosPage />} />
+                <Route path="/emprendimientos" element={<EmprendimientosPage />} />
                 <Route path="/oficio/:slug" element={<OficioDetailPage />} />
                 <Route path="/urgencias" element={<UrgenciasPage />} />
                 <Route path="/favoritos" element={<FavoritesPage />} />
