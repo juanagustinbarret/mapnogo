@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { setCachedData, getCachedData } from '@/lib/offlineStore';
-import { Comercio, Rubro, HorarioAtencion } from '@/types/database.types';
+import { Comercio, Rubro, HorarioAtencion, Oficio, GuiaUtilItem } from '@/types/database.types';
 import type { UbicacionUsuario } from '@/components/InteractiveMap';
 import { GuiaUtilModal } from '@/components/GuiaUtilModal';
 import { WidgetClima } from '@/components/WidgetClima';
@@ -13,24 +13,24 @@ import { pedirComerciosConOfertas, pedirPuntajes } from '@/lib/datosFiltros';
 const InteractiveMap = lazy(() => import('@/components/InteractiveMap').then((m) => ({ default: m.InteractiveMap })));
 import { formatearPuntaje } from '@/lib/puntaje';
 import type { PuntajePropio } from '@/lib/puntajePropio';
-import { 
-  MapPin, 
-  Store, 
-  LocateFixed, 
-  Navigation, 
-  Clock, 
-  Sparkles, 
-  CheckCircle2, 
-  SlidersHorizontal, 
-  Bike, 
-  HeartPulse, 
-  MessageCircle, 
-  ArrowRight, 
-  Banknote, 
-  Building2, 
-  Tag, 
-  Star, 
-  Moon, 
+import {
+  MapPin,
+  Store,
+  LocateFixed,
+  Navigation,
+  Clock,
+  Sparkles,
+  CheckCircle2,
+  SlidersHorizontal,
+  Bike,
+  HeartPulse,
+  MessageCircle,
+  ArrowRight,
+  Banknote,
+  Building2,
+  Tag,
+  Star,
+  Moon,
   Info,
   CreditCard,
   Wrench,
@@ -45,7 +45,7 @@ import {
   ChevronDown,
   Zap,
   LayoutGrid,
-  X
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -92,9 +92,9 @@ async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
     if (!res.ok) throw new Error('Error en geocodificación');
     const data = await res.json();
-    
+
     const ciudad = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || 'Nogoyá';
-    
+
     return ciudad;
   } catch {
     return 'Ubicación GPS detectada';
@@ -103,13 +103,17 @@ async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<
 
 export const HomeExplorerPage: React.FC = () => {
   const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [oficiosMapa, setOficiosMapa] = useState<Oficio[]>([]);
+  const [guiaUtilMapa, setGuiaUtilMapa] = useState<GuiaUtilItem[]>([]);
+  const [capaMapa, setCapaMapa] = useState<'todos' | 'comercios' | 'oficios' | 'guia_util'>('todos');
+
   const [loadingComercios, setLoadingComercios] = useState(true);
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [horarios, setHorarios] = useState<Record<string, HorarioAtencion[]>>({});
   const [search, setSearch] = useState('');
   const [selectedRubro, setSelectedRubro] = useState<string>('');
   const [medioPago, setMedioPago] = useState<string>('');
-  
+
   const [soloConOfertas, setSoloConOfertas] = useState(false);
   const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
   const [soloNuevos, setSoloNuevos] = useState(false);
@@ -131,7 +135,7 @@ export const HomeExplorerPage: React.FC = () => {
   const [puntajes, setPuntajes] = useState<Record<string, PuntajePropio> | null>(null);
   const [cargandoExtra, setCargandoExtra] = useState<'ofertas' | 'puntaje' | null>(null);
   const [errorExtra, setErrorExtra] = useState('');
-  
+
   const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
   const [modalGuiaUtilOpen, setModalGuiaUtilOpen] = useState(false);
 
@@ -160,7 +164,7 @@ export const HomeExplorerPage: React.FC = () => {
 
   const [radioKm, setRadioKm] = useState<number | null>(null);
   const [ordenamiento, setOrdenamiento] = useState<'cercania' | 'nombre'>('cercania');
-  
+
   const [userAddress, setUserAddress] = useState<string>('Nogoyá');
   const [userLocation, setUserLocation] = useState<UbicacionUsuario | null>(null);
   const [loadingLoc, setLoadingLoc] = useState(false);
@@ -168,7 +172,7 @@ export const HomeExplorerPage: React.FC = () => {
   const seguimientoId = useRef<number | null>(null);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, []);
 
   const detenerSeguimiento = useCallback(() => {
@@ -185,15 +189,31 @@ export const HomeExplorerPage: React.FC = () => {
 
     if (navigator.onLine) {
       try {
-        supabase
-          .from('guia_util')
-          .select('*')
-          .order('urgencia', { ascending: false })
-          .order('orden', { ascending: true })
-          .order('nombre', { ascending: true })
-          .then(({ data: guiaData }) => {
-            if (guiaData) void setCachedData('guia_util_global', guiaData);
-          });
+        const [{ data: guiaData }, { data: oficiosData }] = await Promise.all([
+          supabase
+            .from('guia_util')
+            .select('*')
+            .order('urgencia', { ascending: false })
+            .order('orden', { ascending: true })
+            .order('nombre', { ascending: true }),
+          supabase
+            .from('oficios')
+            .select('*')
+            .eq('aprobado', true)
+            .eq('habilitado_admin', true)
+            .not('latitud', 'is', null)
+            .not('longitud', 'is', null),
+        ]);
+
+        if (guiaData) {
+          setGuiaUtilMapa(guiaData as GuiaUtilItem[]);
+          void setCachedData('guia_util_global', guiaData);
+        }
+
+        if (oficiosData) {
+          setOficiosMapa(oficiosData as Oficio[]);
+          void setCachedData('oficios_mapa_global', oficiosData);
+        }
 
         const { data: rubrosData } = await supabase.from('rubros').select('*').eq('estado', true).order('orden');
         const pedirComercios = (columnas: string) =>
@@ -227,8 +247,8 @@ export const HomeExplorerPage: React.FC = () => {
           .from('horarios_delivery')
           .select('comercio_id, dia_semana, hora_inicio, hora_fin');
         if (errorDelivery) console.warn('[delivery] No se pudieron leer los horarios de delivery:', errorDelivery.message);
-        
-        let mapaDelivery: Record<string, RangoDelivery[]> = {};
+
+        const mapaDelivery: Record<string, RangoDelivery[]> = {};
         if (deliveryData) {
           deliveryData.forEach((d) => {
             (mapaDelivery[d.comercio_id] ??= []).push(d);
@@ -273,12 +293,14 @@ export const HomeExplorerPage: React.FC = () => {
       }
     }
 
-    const [cLocal, rLocal, hLocal, dLocal, fLocal] = await Promise.all([
+    const [cLocal, rLocal, hLocal, dLocal, fLocal, oLocal, gLocal] = await Promise.all([
       getCachedData<Comercio[]>('comercios_listado_global'),
       getCachedData<Rubro[]>('rubros_global'),
       getCachedData<Record<string, HorarioAtencion[]>>('mapa_horarios_global'),
       getCachedData<Record<string, RangoDelivery[]>>('mapa_delivery_global'),
       getCachedData<Comercio>('farmacia_turno_hoy'),
+      getCachedData<Oficio[]>('oficios_mapa_global'),
+      getCachedData<GuiaUtilItem[]>('guia_util_global'),
     ]);
 
     if (cLocal) setComercios(cLocal);
@@ -286,6 +308,8 @@ export const HomeExplorerPage: React.FC = () => {
     if (hLocal) setHorarios(hLocal);
     if (dLocal) setDelivery(dLocal);
     if (fLocal) setFarmaciaDeTurno(fLocal);
+    if (oLocal) setOficiosMapa(oLocal);
+    if (gLocal) setGuiaUtilMapa(gLocal);
 
     setLoadingComercios(false);
   };
@@ -345,7 +369,7 @@ export const HomeExplorerPage: React.FC = () => {
         enableHighAccuracy: true,
         timeout: 20000,
         maximumAge: 10000,
-      }
+      },
     );
   };
 
@@ -479,56 +503,91 @@ export const HomeExplorerPage: React.FC = () => {
 
       // 1. Filtro Cobro de Servicios (Pago Fácil, Rapipago, etc.)
       if (soloCobroServicios) {
-        const tieneCobro = servicios.some((s: string) => s.includes('rapipago') || s.includes('pago facil') || s.includes('cobro') || s.includes('bapro')) 
-          || desc.includes('rapipago') || desc.includes('pago fácil') || desc.includes('cobro de servicios');
+        const tieneCobro =
+          servicios.some((s: string) => s.includes('rapipago') || s.includes('pago facil') || s.includes('cobro') || s.includes('bapro')) ||
+          desc.includes('rapipago') ||
+          desc.includes('pago fácil') ||
+          desc.includes('cobro de servicios');
         if (!tieneCobro) return false;
       }
 
       // 2. Filtro Auxilio Mecánico, Grúas y Gomerías
       if (soloAuxilioMecanico) {
-        const esAuxilio = servicios.some((s: string) => s.includes('grúa') || s.includes('auxilio') || s.includes('gomería') || s.includes('taller'))
-          || rubroNombre.includes('gomería') || rubroNombre.includes('taller') || desc.includes('auxilio') || desc.includes('grúa');
+        const esAuxilio =
+          servicios.some((s: string) => s.includes('grúa') || s.includes('auxilio') || s.includes('gomería') || s.includes('taller')) ||
+          rubroNombre.includes('gomería') ||
+          rubroNombre.includes('taller') ||
+          desc.includes('auxilio') ||
+          desc.includes('grúa');
         if (!esAuxilio) return false;
       }
 
       // 3. Filtro Estaciones de Servicio (Combustible, Nafta, YPF, Shell, Axion, Puma, etc.)
       if (soloEstacionesServicio) {
-        const esEstacion = rubroNombre.includes('estación') || rubroNombre.includes('estacion') || rubroNombre.includes('combustible')
-          || servicios.some((s: string) => s.includes('nafta') || s.includes('combustible') || s.includes('estacion') || s.includes('estación') || s.includes('gasoil'))
-          || desc.includes('estación de servicio') || desc.includes('combustible') || desc.includes('nafta') || desc.includes('ypf') || desc.includes('shell') || desc.includes('axion') || desc.includes('puma')
-          || nombreLower.includes('ypf') || nombreLower.includes('shell') || nombreLower.includes('axion') || nombreLower.includes('puma');
+        const esEstacion =
+          rubroNombre.includes('estación') ||
+          rubroNombre.includes('estacion') ||
+          rubroNombre.includes('combustible') ||
+          servicios.some((s: string) => s.includes('nafta') || s.includes('combustible') || s.includes('estacion') || s.includes('estación') || s.includes('gasoil')) ||
+          desc.includes('estación de servicio') ||
+          desc.includes('combustible') ||
+          desc.includes('nafta') ||
+          desc.includes('ypf') ||
+          desc.includes('shell') ||
+          desc.includes('axion') ||
+          desc.includes('puma') ||
+          nombreLower.includes('ypf') ||
+          nombreLower.includes('shell') ||
+          nombreLower.includes('axion') ||
+          nombreLower.includes('puma');
         if (!esEstacion) return false;
       }
 
       // 4. Filtro Peluquerías & Barberías
       if (soloPeluquerias) {
-        const esPelu = rubroNombre.includes('peluquer') || rubroNombre.includes('barber') || rubroNombre.includes('estética') || rubroNombre.includes('estetica')
-          || servicios.some((s: string) => s.includes('corte') || s.includes('barba') || s.includes('peluquer') || s.includes('barber'))
-          || desc.includes('peluquer') || desc.includes('barber');
+        const esPelu =
+          rubroNombre.includes('peluquer') ||
+          rubroNombre.includes('barber') ||
+          rubroNombre.includes('estética') ||
+          rubroNombre.includes('estetica') ||
+          servicios.some((s: string) => s.includes('corte') || s.includes('barba') || s.includes('peluquer') || s.includes('barber')) ||
+          desc.includes('peluquer') ||
+          desc.includes('barber');
         if (!esPelu) return false;
       }
 
       // 5. Filtro Lavaderos de Autos
       if (soloLavaderos) {
-        const esLavadero = rubroNombre.includes('lavadero')
-          || servicios.some((s: string) => s.includes('lavado de auto') || s.includes('lavado completo') || s.includes('detailing'))
-          || desc.includes('lavadero');
+        const esLavadero =
+          rubroNombre.includes('lavadero') ||
+          servicios.some((s: string) => s.includes('lavado de auto') || s.includes('lavado completo') || s.includes('detailing')) ||
+          desc.includes('lavadero');
         if (!esLavadero) return false;
       }
 
       // 6. Momento Gastronómico
       if (momentoComida === 'desayuno_merienda') {
-        const esDesayuno = rubroNombre.includes('panader') || rubroNombre.includes('cafeter') || rubroNombre.includes('confiter') || servicios.some((s: string) => s.includes('desayuno') || s.includes('merienda'));
+        const esDesayuno =
+          rubroNombre.includes('panader') ||
+          rubroNombre.includes('cafeter') ||
+          rubroNombre.includes('confiter') ||
+          servicios.some((s: string) => s.includes('desayuno') || s.includes('merienda'));
         if (!esDesayuno) return false;
       }
       if (momentoComida === 'almuerzo_cena') {
-        const esComida = rubroNombre.includes('pizzer') || rubroNombre.includes('restauran') || rubroNombre.includes('rotiser') || / bar(es)? /.test(rubroNombre) || rubroNombre.includes('comida');
+        const esComida =
+          rubroNombre.includes('pizzer') ||
+          rubroNombre.includes('restauran') ||
+          rubroNombre.includes('rotiser') ||
+          / bar(es)? /.test(rubroNombre) ||
+          rubroNombre.includes('comida');
         if (!esComida) return false;
       }
 
       // 7. Filtro Dietario
       if (filtroDietario === 'sin_tacc') {
-        const tieneSinTacc = servicios.some((s: string) => s.includes('tacc') || s.includes('celiaco')) || desc.includes('tacc') || desc.includes('celíaco');
+        const tieneSinTacc =
+          servicios.some((s: string) => s.includes('tacc') || s.includes('celiaco')) || desc.includes('tacc') || desc.includes('celíaco');
         if (!tieneSinTacc) return false;
       }
       if (filtroDietario === 'vegano') {
@@ -553,16 +612,56 @@ export const HomeExplorerPage: React.FC = () => {
       return a.nombre.localeCompare(b.nombre);
     });
 
+  // Filtrado de Oficios y Guía Útil para las capas del mapa
+  const searchLower = search.trim().toLowerCase();
+
+  const oficiosFiltradosMapa =
+    capaMapa === 'todos' || capaMapa === 'oficios'
+      ? oficiosMapa.filter((o) => {
+          if (
+            searchLower &&
+            !o.nombre.toLowerCase().includes(searchLower) &&
+            !o.oficio_rubro.toLowerCase().includes(searchLower) &&
+            !(o.zona_cobertura || '').toLowerCase().includes(searchLower)
+          ) {
+            return false;
+          }
+          if (filtrarPorRadio && radioKm !== null && userLocation && o.latitud != null && o.longitud != null) {
+            const d = calcularDistanciaKm(userLocation.lat, userLocation.lng, o.latitud, o.longitud);
+            if (d > radioKm) return false;
+          }
+          return true;
+        })
+      : [];
+
+  const guiaUtilFiltradaMapa =
+    capaMapa === 'todos' || capaMapa === 'guia_util'
+      ? guiaUtilMapa.filter((g) => {
+          if (
+            searchLower &&
+            !g.nombre.toLowerCase().includes(searchLower) &&
+            !g.categoria.toLowerCase().includes(searchLower) &&
+            !g.direccion.toLowerCase().includes(searchLower)
+          ) {
+            return false;
+          }
+          if (filtrarPorRadio && radioKm !== null && userLocation && g.latitud != null && g.longitud != null) {
+            const d = calcularDistanciaKm(userLocation.lat, userLocation.lng, g.latitud, g.longitud);
+            if (d > radioKm) return false;
+          }
+          return true;
+        })
+      : [];
+
+  const comerciosParaMapa = capaMapa === 'todos' || capaMapa === 'comercios' ? filteredComercios : [];
+  const guiaUtilConPinCount = guiaUtilMapa.filter((g) => typeof g.latitud === 'number' && typeof g.longitud === 'number').length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
-      
-      <GuiaUtilModal
-        isOpen={modalGuiaUtilOpen}
-        onClose={() => setModalGuiaUtilOpen(false)}
-      />
+      <GuiaUtilModal isOpen={modalGuiaUtilOpen} onClose={() => setModalGuiaUtilOpen(false)} />
 
       <MarquesinaAvisos />
-      
+
       {farmaciaDeTurno && (
         <div className="bg-gradient-to-r from-red-600 via-rose-600 to-blue-700 rounded-3xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-rose-400/30">
           <div className="flex items-center gap-3.5">
@@ -573,9 +672,7 @@ export const HomeExplorerPage: React.FC = () => {
               <div className="inline-flex items-center gap-1.5 bg-white/20 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase backdrop-blur-md text-rose-100">
                 🏥 Farmacia de Turno Hoy en Nogoyá
               </div>
-              <h2 className="text-lg sm:text-xl font-black mt-0.5">
-                {farmaciaDeTurno.nombre}
-              </h2>
+              <h2 className="text-lg sm:text-xl font-black mt-0.5">{farmaciaDeTurno.nombre}</h2>
               <p className="text-xs text-rose-100 flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-rose-200" /> {farmaciaDeTurno.direccion || 'Nogoyá, Entre Ríos'}
               </p>
@@ -665,7 +762,7 @@ export const HomeExplorerPage: React.FC = () => {
           />
         </div>
 
-        {/* BARRA DE DISTANCIA Y ORDENAMIENTO (SIN TOCAR) */}
+        {/* BARRA DE DISTANCIA Y ORDENAMIENTO */}
         <div className="px-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <span className="text-gray-500 font-bold px-1.5 flex items-center gap-1 text-[11px] shrink-0">
@@ -725,8 +822,7 @@ export const HomeExplorerPage: React.FC = () => {
 
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 w-full space-y-2.5">
           <div className="px-4 space-y-2.5">
-            
-            {/* ABIERTO AHORA, NOCHE Y DELIVERY (SIN TOCAR) */}
+            {/* ABIERTO AHORA, NOCHE Y DELIVERY */}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setSoloAbiertos(!soloAbiertos)}
@@ -988,9 +1084,30 @@ export const HomeExplorerPage: React.FC = () => {
                   })}
 
                   {[
-                    { activo: soloConOfertas, alTocar: activarOfertas, Icono: Tag, texto: cargandoExtra === 'ofertas' ? 'Buscando ofertas…' : 'Con ofertas', clase: 'bg-amber-500 ring-amber-300', titulo: 'Comercios con ofertas o novedades vigentes hoy' },
-                    { activo: soloMejorPuntaje, alTocar: activarPuntaje, Icono: Star, texto: cargandoExtra === 'puntaje' ? 'Calculando…' : `${PUNTAJE_MINIMO}★ o más`, clase: 'bg-yellow-500 ring-yellow-300', titulo: `Puntaje de ${PUNTAJE_MINIMO} estrellas o más, con al menos ${RESENAS_MINIMAS} reseñas` },
-                    { activo: soloNuevos, alTocar: () => setSoloNuevos(!soloNuevos), Icono: Sparkles, texto: 'Nuevos', clase: 'bg-violet-600 ring-violet-300', titulo: `Se sumaron a NOGOYORK en los últimos ${DIAS_NUEVO} días` },
+                    {
+                      activo: soloConOfertas,
+                      alTocar: activarOfertas,
+                      Icono: Tag,
+                      texto: cargandoExtra === 'ofertas' ? 'Buscando ofertas…' : 'Con ofertas',
+                      clase: 'bg-amber-500 ring-amber-300',
+                      titulo: 'Comercios con ofertas o novedades vigentes hoy',
+                    },
+                    {
+                      activo: soloMejorPuntaje,
+                      alTocar: activarPuntaje,
+                      Icono: Star,
+                      texto: cargandoExtra === 'puntaje' ? 'Calculando…' : `${PUNTAJE_MINIMO}★ o más`,
+                      clase: 'bg-yellow-500 ring-yellow-300',
+                      titulo: `Puntaje de ${PUNTAJE_MINIMO} estrellas o más, con al menos ${RESENAS_MINIMAS} reseñas`,
+                    },
+                    {
+                      activo: soloNuevos,
+                      alTocar: () => setSoloNuevos(!soloNuevos),
+                      Icono: Sparkles,
+                      texto: 'Nuevos',
+                      clase: 'bg-violet-600 ring-violet-300',
+                      titulo: `Se sumaron a NOGOYORK en los últimos ${DIAS_NUEVO} días`,
+                    },
                   ].map(({ activo, alTocar, Icono, texto, clase, titulo }) => (
                     <button
                       key={titulo}
@@ -999,7 +1116,9 @@ export const HomeExplorerPage: React.FC = () => {
                       aria-pressed={activo}
                       title={titulo}
                       className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                        activo ? `${clase} text-white shadow-sm ring-2` : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
+                        activo
+                          ? `${clase} text-white shadow-sm ring-2`
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
                       }`}
                     >
                       <Icono className="w-3.5 h-3.5" aria-hidden="true" /> {texto}
@@ -1007,7 +1126,11 @@ export const HomeExplorerPage: React.FC = () => {
                   ))}
                 </div>
 
-                {errorExtra && <p role="alert" className="text-[11px] font-semibold text-red-600 dark:text-red-400">{errorExtra}</p>}
+                {errorExtra && (
+                  <p role="alert" className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+                    {errorExtra}
+                  </p>
+                )}
               </div>
             )}
 
@@ -1066,17 +1189,41 @@ export const HomeExplorerPage: React.FC = () => {
                 </div>
               </div>
             )}
-
           </div>
         </div>
+      </div>
 
+      {/* SELECTOR DE CAPAS DEL MAPA (TODO / COMERCIOS / OFICIOS / GUÍA ÚTIL) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Ver en el mapa:</span>
+        {[
+          { id: 'todos', label: 'Todo', color: 'bg-brand-600 text-white' },
+          { id: 'comercios', label: `Comercios (${filteredComercios.length})`, color: 'bg-emerald-600 text-white' },
+          { id: 'oficios', label: `Oficios (${oficiosMapa.length})`, color: 'bg-amber-600 text-white' },
+          { id: 'guia_util', label: `Guía Útil (${guiaUtilConPinCount})`, color: 'bg-sky-600 text-white' },
+        ].map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            onClick={() => setCapaMapa(chip.id as 'todos' | 'comercios' | 'oficios' | 'guia_util')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+              capaMapa === chip.id
+                ? `${chip.color} shadow-sm`
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {chip.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
         <div className="lg:col-span-2 h-[350px] lg:h-full rounded-2xl overflow-hidden border dark:border-gray-700">
           <Suspense fallback={<div className="w-full h-full bg-gray-100 dark:bg-gray-800 animate-pulse" aria-hidden="true" />}>
             <InteractiveMap
-              comercios={filteredComercios}
+              comercios={comerciosParaMapa}
+              oficios={oficiosFiltradosMapa}
+              guiaUtil={guiaUtilFiltradaMapa}
               userLocation={userLocation}
               onSolicitarUbicacion={solicitarUbicacion}
               buscandoUbicacion={loadingLoc}
@@ -1131,7 +1278,10 @@ export const HomeExplorerPage: React.FC = () => {
             </div>
           ) : (
             filteredComercios.map((comercio) => (
-              <div key={comercio.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:border-brand-500 transition space-y-2">
+              <div
+                key={comercio.id}
+                className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:border-brand-500 transition space-y-2"
+              >
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
@@ -1148,19 +1298,25 @@ export const HomeExplorerPage: React.FC = () => {
                           ★ {formatearPuntaje(comercio.puntajeNogoyork.puntaje)} ({comercio.puntajeNogoyork.total})
                         </span>
                       )}
-                      {comercio.tieneOfertas && <span className="px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Oferta</span>}
-                      {mostrarInsigniaNuevo && esNuevo(comercio.created_at, ahora) && <span className="px-1.5 rounded bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">Nuevo</span>}
+                      {comercio.tieneOfertas && (
+                        <span className="px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Oferta</span>
+                      )}
+                      {mostrarInsigniaNuevo && esNuevo(comercio.created_at, ahora) && (
+                        <span className="px-1.5 rounded bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">Nuevo</span>
+                      )}
                     </span>
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      comercio.estadoAtencion.estado === 'abierto'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300'
-                        : comercio.estadoAtencion.estado === 'cierra_pronto'
-                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                        : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
-                    }`}>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        comercio.estadoAtencion.estado === 'abierto'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300'
+                          : comercio.estadoAtencion.estado === 'cierra_pronto'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                          : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                      }`}
+                    >
                       {comercio.estadoAtencion.mensaje}
                     </span>
                     {textoEstadoDelivery(comercio.estadoDelivery) && (
