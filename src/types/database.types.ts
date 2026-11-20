@@ -103,7 +103,7 @@ export interface HorarioDelivery {
   hora_fin: string;
 }
 
-//OFERTAS LABORALES
+// OFERTAS LABORALES
 export interface OfertaLaboral {
   id: string;
   comercio_id: string;
@@ -114,7 +114,7 @@ export interface OfertaLaboral {
   comercio?: Comercio;
 }
 
-//CARGA DE CVS
+// CARGA DE CVS
 export interface PostulacionCV {
   id: string;
   oferta_id: string;
@@ -149,6 +149,8 @@ export interface Oficio {
   medios_pago: string[];
   aprobado: boolean;
   habilitado_admin: boolean;
+  latitud?: number | null;
+  longitud?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -161,4 +163,23 @@ export interface ResenaOficio {
   comentario?: string | null;
   aprobada: boolean;
   created_at: string;
+}
+
+// GUÍA ÚTIL E INSTITUCIONAL
+export interface GuiaUtilItem {
+  id: string;
+  nombre: string;
+  categoria:
+    | 'Emergencias'
+    | 'Salud'
+    | 'Trámites y Municipio'
+    | 'Transporte'
+    | 'Iglesias y Culto'
+    | string;
+  telefono: string;
+  direccion: string;
+  urgencia: boolean;
+  orden?: number;
+  latitud?: number | null;
+  longitud?: number | null;
 }
