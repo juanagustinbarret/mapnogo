@@ -4,8 +4,8 @@ import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { PuntajePopup } from '@/components/PuntajePopup';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Comercio } from '@/types/database.types';
-import { MapPin, ExternalLink, Navigation, UserCheck, LocateFixed } from 'lucide-react';
+import { Comercio, Oficio, GuiaUtilItem } from '@/types/database.types';
+import { MapPin, ExternalLink, Navigation, UserCheck, LocateFixed, Phone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { NOGOYA_CENTER } from '@/lib/distance';
 import { visualDeRubro } from '@/lib/iconosRubro';
@@ -24,6 +24,8 @@ export interface UbicacionUsuario {
 
 interface InteractiveMapProps {
   comercios: Comercio[];
+  oficios?: Oficio[];
+  guiaUtil?: GuiaUtilItem[];
   userLocation?: UbicacionUsuario | null;
   /** Se llama al tocar el botón de ubicación cuando todavía no hay ubicación. */
   onSolicitarUbicacion?: () => void;
@@ -54,6 +56,28 @@ const ESTILO_RADIO: L.PathOptions = {
   fillOpacity: 0.05,
 };
 
+// Pines diferenciados para Oficios y Guía Útil
+const crearPinExtra = (colorBg: string, simbolo: string) =>
+  L.divIcon({
+    className: 'nogoyork-pin-extra',
+    html: `<div style="
+      width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
+      background: ${colorBg}; transform: rotate(-45deg);
+      border: 2.5px solid #ffffff; box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+    ">
+      <span style="transform: rotate(45deg); font-size: 14px; line-height: 1;">${simbolo}</span>
+    </div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -30],
+  });
+
+const ICONO_OFICIO = crearPinExtra('#d97706', '🔧');
+const ICONO_GUIA_UTIL = crearPinExtra('#0284c7', '🏛️');
+const ICONO_GUIA_URGENCIA = crearPinExtra('#e11d48', '🚨');
+const ICONO_GUIA_IGLESIA = crearPinExtra('#7c3aed', '⛪');
+
 // El listado le pasa al mapa una lista nueva en cada render (con la distancia
 // recalculada cada vez que se mueve el usuario). Esta firma junta solo lo que
 // el mapa muestra, para no rearmar los marcadores si eso no cambió.
@@ -72,6 +96,8 @@ function useListaEstable<T>(lista: T, firma: string): T {
 
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   comercios,
+  oficios = [],
+  guiaUtil = [],
   userLocation,
   onSolicitarUbicacion,
   buscandoUbicacion = false,
@@ -98,6 +124,32 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       }),
     // versionGeo no se usa adentro: solo avisa que llegaron coordenadas nuevas.
     [comerciosEstables, versionGeo],
+  );
+
+  // ─── Oficios con coordenadas cargadas ─────────────────────────────────
+  const marcadoresOficios = useMemo(
+    () =>
+      oficios.filter(
+        (o) =>
+          typeof o.latitud === 'number' &&
+          typeof o.longitud === 'number' &&
+          Number.isFinite(o.latitud) &&
+          Number.isFinite(o.longitud),
+      ),
+    [oficios],
+  );
+
+  // ─── Guía Útil con coordenadas cargadas ───────────────────────────────
+  const marcadoresGuiaUtil = useMemo(
+    () =>
+      guiaUtil.filter(
+        (g) =>
+          typeof g.latitud === 'number' &&
+          typeof g.longitud === 'number' &&
+          Number.isFinite(g.latitud) &&
+          Number.isFinite(g.longitud),
+      ),
+    [guiaUtil],
   );
 
   // ─── Ubicación del usuario, estilo GPS ────────────────────────────────
@@ -246,8 +298,126 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                       href={googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      // Antes este "Cómo llegar" del mapa no se contaba en las métricas
                       onClick={() => void registrarInteraccion(comercio.id, 'como_llegar')}
+                      className="text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                    >
+                      <Navigation className="w-3 h-3" /> Cómo llegar
+                    </a>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {/* MARCADORES DE OFICIOS (solo los que tienen pin en el mapa) */}
+        {marcadoresOficios.map((oficio) => {
+          const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${oficio.latitud},${oficio.longitud}`;
+
+          return (
+            <Marker
+              key={`oficio-${oficio.id}`}
+              position={[oficio.latitud as number, oficio.longitud as number]}
+              icon={ICONO_OFICIO}
+              title={`${oficio.nombre} (${oficio.oficio_rubro})`}
+              riseOnHover
+            >
+              <Popup className="rounded-xl overflow-hidden">
+                <div className="p-1 space-y-2 min-w-[200px]">
+                  <div>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase">
+                      Oficio · {oficio.oficio_rubro}
+                    </span>
+                    <div className="font-bold text-sm text-gray-900 mt-1">{oficio.nombre}</div>
+                  </div>
+
+                  <p className="text-xs text-gray-600 line-clamp-2">{oficio.descripcion_corta}</p>
+
+                  {oficio.zona_cobertura && (
+                    <div className="text-[11px] text-gray-500 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {oficio.zona_cobertura}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t text-xs">
+                    <Link
+                      to={`/oficio/${oficio.slug}`}
+                      className="font-bold text-amber-700 hover:underline flex items-center gap-1"
+                    >
+                      Ver Ficha <ExternalLink className="w-3 h-3" />
+                    </Link>
+
+                    <a
+                      href={googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                    >
+                      <Navigation className="w-3 h-3" /> Cómo llegar
+                    </a>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {/* MARCADORES DE GUÍA ÚTIL (Bomberos, Policía, Hospital, Iglesias, etc.) */}
+        {marcadoresGuiaUtil.map((item) => {
+          const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${item.latitud},${item.longitud}`;
+          const iconoItem = item.urgencia
+            ? ICONO_GUIA_URGENCIA
+            : item.categoria === 'Iglesias y Culto'
+            ? ICONO_GUIA_IGLESIA
+            : ICONO_GUIA_UTIL;
+
+          return (
+            <Marker
+              key={`guia-${item.id}`}
+              position={[item.latitud as number, item.longitud as number]}
+              icon={iconoItem}
+              title={item.nombre}
+              riseOnHover
+            >
+              <Popup className="rounded-xl overflow-hidden">
+                <div className="p-1 space-y-2 min-w-[200px]">
+                  <div>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                        item.urgencia
+                          ? 'bg-rose-100 text-rose-700'
+                          : item.categoria === 'Iglesias y Culto'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-sky-100 text-sky-700'
+                      }`}
+                    >
+                      Guía Útil · {item.categoria}
+                    </span>
+                    <div className="font-bold text-sm text-gray-900 mt-1">{item.nombre}</div>
+                  </div>
+
+                  <div className="text-[11px] text-gray-500 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t text-xs gap-2">
+                    {item.telefono ? (
+                      <a
+                        href={`tel:${item.telefono}`}
+                        className={`font-extrabold flex items-center gap-1 ${
+                          item.urgencia ? 'text-rose-600' : 'text-sky-600'
+                        } hover:underline`}
+                      >
+                        <Phone className="w-3 h-3" /> {item.telefono}
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-gray-400">Sin teléfono</span>
+                    )}
+
+                    <a
+                      href={googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-blue-600 font-semibold hover:underline flex items-center gap-1"
                     >
                       <Navigation className="w-3 h-3" /> Cómo llegar
