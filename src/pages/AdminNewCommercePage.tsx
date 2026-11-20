@@ -15,6 +15,7 @@ import {
   Wrench,
   Siren,
   Home,
+  Rocket,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ComprobanteAlta } from '@/components/ComprobanteAlta';
@@ -125,6 +126,7 @@ export const AdminNewCommercePage: React.FC = () => {
     whatsapp: '',
     latitud: -32.3939,
     longitud: -59.7881,
+    es_emprendimiento: false,
   });
 
   // Campos específicos para Oficio
@@ -246,7 +248,6 @@ export const AdminNewCommercePage: React.FC = () => {
           throw new Error('Indicá el rubro del oficio (ej. Electricista, Gasista, Plomero).');
         }
 
-        // 1. Creamos el usuario en Auth usando signUp (sin pisar la sesión del admin si está desactivado auto-confirm, o vía admin)
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
           email,
           password: formData.password,
@@ -260,7 +261,6 @@ export const AdminNewCommercePage: React.FC = () => {
         const nuevoUserId = signUpData.user?.id ?? null;
         const slugGenerado = `${slugLimpio(nombreEntidad)}-${Math.floor(100 + Math.random() * 900)}`;
 
-        // 2. Insertamos en la tabla oficios
         const { error: oficioErr } = await supabase.from('oficios').insert({
           propietario_id: nuevoUserId,
           email_contacto: email,
@@ -289,7 +289,7 @@ export const AdminNewCommercePage: React.FC = () => {
         return;
       }
 
-      // FLUJO COMERCIO TRADICIONAL
+      // FLUJO COMERCIO / EMPRENDIMIENTO
       if (!formData.rubro_id) {
         throw new Error('Elegí un rubro de la lista (escribí y tocá una opción).');
       }
@@ -320,6 +320,7 @@ export const AdminNewCommercePage: React.FC = () => {
               email_comercial: email,
               latitud: formData.latitud,
               longitud: formData.longitud,
+              es_emprendimiento: formData.es_emprendimiento,
             },
           },
         });
@@ -339,9 +340,19 @@ export const AdminNewCommercePage: React.FC = () => {
         throw new Error(data.error);
       }
 
+      const comercioIdCreado = typeof data?.comercioId === 'string' ? data.comercioId : '';
+
+      // Asegurar la bandera es_emprendimiento en DB por si la Edge Function no la mapeó aún
+      if (comercioIdCreado && formData.es_emprendimiento) {
+        await supabase
+          .from('comercios')
+          .update({ es_emprendimiento: true })
+          .eq('id', comercioIdCreado);
+      }
+
       const rubro = rubros.find((r) => r.id === formData.rubro_id);
       setComprobante({
-        comercioId: typeof data?.comercioId === 'string' ? data.comercioId : '',
+        comercioId: comercioIdCreado,
         fecha: new Date(),
         titular: nombreComerciante,
         documento: documento.trim() || undefined,
@@ -431,7 +442,7 @@ export const AdminNewCommercePage: React.FC = () => {
             {tipoAlta === 'comercio' ? (
               <>
                 <Building className="w-5 h-5 text-brand-600" />
-                Dar de Alta Nuevo Comercio
+                Dar de Alta Nuevo Comercio / Emprendimiento
               </>
             ) : (
               <>
@@ -550,13 +561,40 @@ export const AdminNewCommercePage: React.FC = () => {
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
                   <Building className="w-4 h-4" />
-                  Ficha del Comercio
+                  Ficha del Comercio / Emprendimiento
                 </h3>
+
+                {/* OPCIÓN EMPRENDIMIENTO */}
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition ${
+                    formData.es_emprendimiento
+                      ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-400 dark:border-purple-700'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.es_emprendimiento}
+                    onChange={(e) =>
+                      setFormData({ ...formData, es_emprendimiento: e.target.checked })
+                    }
+                    className="mt-0.5 w-4 h-4 accent-purple-600 shrink-0"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-extrabold text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                      <Rocket className="w-4 h-4 text-purple-600" />
+                      Marcar como Emprendimiento
+                    </span>
+                    <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                      Aparecerá en el mapa general junto a los comercios y además tendrá presencia destacada en la pestaña exclusiva de <strong>Emprendedores</strong>.
+                    </p>
+                  </div>
+                </label>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold mb-1">
-                      Nombre del Comercio *
+                      Nombre del Comercio o Emprendimiento *
                     </label>
                     <input
                       type="text"
@@ -647,11 +685,12 @@ export const AdminNewCommercePage: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold mb-1">
-                      Dirección (Nogoyá) *
+                      Dirección o Zona (Nogoyá) *
                     </label>
                     <input
                       type="text"
                       required
+                      placeholder="Ej: San Martín 123 o Envíos en Nogoyá"
                       value={formData.direccion}
                       onChange={(e) =>
                         setFormData({ ...formData, direccion: e.target.value })
@@ -680,10 +719,10 @@ export const AdminNewCommercePage: React.FC = () => {
                 <div className="space-y-3">
                   <div>
                     <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                      Ubicación del comercio en el mapa
+                      Ubicación en el mapa
                     </h4>
                     <p className="text-xs text-gray-500 mt-1">
-                      Hacé clic en el mapa para marcar la ubicación exacta del local.
+                      Hacé clic en el mapa para marcar la ubicación del local o punto de retiro/zona.
                     </p>
                   </div>
 
@@ -814,7 +853,7 @@ export const AdminNewCommercePage: React.FC = () => {
                 className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2"
               >
                 <Save className="w-4 h-4" />
-                {loading ? 'Guardando...' : 'Crear comercio y emitir comprobante'}
+                {loading ? 'Guardando...' : 'Crear y emitir comprobante'}
               </button>
             </>
           ) : (
