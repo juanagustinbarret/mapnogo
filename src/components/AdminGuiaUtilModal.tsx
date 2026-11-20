@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MapPinPicker } from '@/components/MapPinPicker';
-import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2 } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -241,7 +241,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
             {/* Selector de Pin en el Mapa */}
             <div className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-500 uppercase">Ubicación exacta en el mapa (para "Cómo llegar" y mapa principal)</span>
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Ubicación exacta en el mapa (para "Cómo llegar")</span>
                 {latitud !== null && longitud !== null && (
                   <button
                     type="button"
@@ -301,7 +301,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                         </span>
                         {item.latitud && item.longitud && (
                           <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-0.5">
-                            <CheckCircle className="w-2.5 h-2.5" /> Con Pin
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Con Pin
                           </span>
                         )}
                       </div>
