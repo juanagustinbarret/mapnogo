@@ -18,7 +18,8 @@ import {
   Heart,
   Shield,
   AlertTriangle,
-  Search
+  Search,
+  Rocket
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -29,10 +30,12 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [confirmExitTarget, setConfirmExitTarget] = useState<string | null>(null);
   const [cantFavoritos, setCantFavoritos] = useState(0);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminArea = location.pathname.startsWith('/admin');
+  const isEmprendimientosTabActive =
+    location.pathname === '/' && new URLSearchParams(location.search).get('emprendimientos') === '1';
 
   useEffect(() => {
     const actualizarFavoritos = () => {
@@ -56,10 +59,11 @@ export const Navbar: React.FC = () => {
 
   const handleNavigation = (targetPath: string) => {
     setMobileMenuOpen(false);
+    const currentFullPath = `${location.pathname}${location.search}`;
     if (isAdminArea && !targetPath.startsWith('/admin')) {
       setConfirmExitTarget(targetPath);
     } else {
-      if (location.pathname === targetPath) {
+      if (currentFullPath === targetPath) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(targetPath);
@@ -72,7 +76,8 @@ export const Navbar: React.FC = () => {
     if (confirmExitTarget) {
       const target = confirmExitTarget;
       setConfirmExitTarget(null);
-      if (location.pathname === target) {
+      const currentFullPath = `${location.pathname}${location.search}`;
+      if (currentFullPath === target) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(target);
@@ -96,10 +101,10 @@ export const Navbar: React.FC = () => {
     <>
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-          
-          <button 
-            onClick={() => handleNavigation('/')} 
-            className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight shrink-0 hover:opacity-90 transition cursor-pointer" 
+
+          <button
+            onClick={() => handleNavigation('/')}
+            className="flex items-center gap-2 text-emerald-700 font-extrabold text-xl tracking-tight shrink-0 hover:opacity-90 transition cursor-pointer"
             aria-label="NOGOYORK, ir al inicio"
           >
             <LogoNogoyork className="w-8 h-8 shrink-0" />
@@ -118,9 +123,20 @@ export const Navbar: React.FC = () => {
           </button>
 
           {/* NAVEGACIÓN ESCRITORIO */}
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-1.5">
             <button onClick={() => handleNavigation('/')} className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-emerald-600 flex items-center gap-1 px-2 py-1 cursor-pointer">
               <Home className="w-3.5 h-3.5" /> Mapa
+            </button>
+            <button
+              onClick={() => handleNavigation('/?emprendimientos=1')}
+              aria-current={isEmprendimientosTabActive ? 'page' : undefined}
+              className={`text-xs font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                isEmprendimientosTabActive
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-purple-600 dark:text-purple-400 hover:text-purple-700 bg-purple-50 dark:bg-purple-950/30'
+              }`}
+            >
+              <Rocket className="w-3.5 h-3.5" /> Emprendimientos
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
               <Tag className="w-3.5 h-3.5" /> Ofertas
@@ -135,7 +151,7 @@ export const Navbar: React.FC = () => {
               <Siren className="w-3.5 h-3.5" /> 24hs
             </button>
             <button onClick={() => handleNavigation('/favoritos')} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg cursor-pointer">
-              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> 
+              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
               Favoritos {cantFavoritos > 0 && <span className="ml-0.5 bg-rose-500 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">{cantFavoritos}</span>}
             </button>
 
@@ -214,6 +230,16 @@ export const Navbar: React.FC = () => {
           <div className="lg:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 pt-2 pb-6 space-y-3">
             <button onClick={() => handleNavigation('/')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-gray-800 dark:text-gray-200">
               <Home className="w-4 h-4 text-emerald-600" /> Mapa Público
+            </button>
+            <button
+              onClick={() => handleNavigation('/?emprendimientos=1')}
+              className={`w-full text-left flex items-center gap-2 py-2 px-2 rounded-lg text-sm font-semibold ${
+                isEmprendimientosTabActive
+                  ? 'bg-purple-600 text-white'
+                  : 'text-purple-600 dark:text-purple-400'
+              }`}
+            >
+              <Rocket className="w-4 h-4" /> Emprendimientos
             </button>
             <button onClick={() => handleNavigation('/promociones')} className="w-full text-left flex items-center gap-2 py-2 px-2 text-sm font-medium text-amber-600">
               <Tag className="w-4 h-4" /> Ofertas & Promociones
