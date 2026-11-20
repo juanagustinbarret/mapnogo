@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
-import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark } from 'lucide-react';
+import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -69,6 +69,9 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
       ? items
       : items.filter((i) => i.categoria === categoriaActiva);
 
+  const contarPorCategoria = (cat: string) =>
+    cat === 'Todas' ? items.length : items.filter((i) => i.categoria === cat).length;
+
   const getCategoriaIcon = (cat: string) => {
     switch (cat) {
       case 'Emergencias':
@@ -105,21 +108,27 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
           </button>
         </div>
 
-        {/* PESTAÑAS DE CATEGORÍAS */}
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shrink-0">
-          {categorias.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoriaActiva(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-                categoriaActiva === cat
-                  ? 'bg-sky-600 text-white shadow-sm'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        {/* SELECTOR DESPLEGABLE DE RUBROS */}
+        <div className="px-5 py-3 bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3 shrink-0">
+          <label
+            htmlFor="guia-rubro-select"
+            className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1.5 shrink-0"
+          >
+            <Filter className="w-3.5 h-3.5 text-sky-600" />
+            Rubro:
+          </label>
+          <select
+            id="guia-rubro-select"
+            value={categoriaActiva}
+            onChange={(e) => setCategoriaActiva(e.target.value)}
+            className="flex-1 max-w-xs px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-gray-800 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+          >
+            {categorias.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat === 'Todas' ? `Todos los rubros (${contarPorCategoria(cat)})` : `${cat} (${contarPorCategoria(cat)})`}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* LISTADO */}
@@ -130,7 +139,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
             </div>
           ) : itemsFiltrados.length === 0 ? (
             <div className="text-center py-12 text-gray-500 space-y-1">
-              <p className="font-bold text-sm">No hay teléfonos cargados en esta categoría</p>
+              <p className="font-bold text-sm">No hay teléfonos cargados en este rubro</p>
               <p className="text-xs">Pronto estaremos sumando más contactos útiles.</p>
             </div>
           ) : (
