@@ -1,3 +1,5 @@
+// src/pages/public/EmprendimientosPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -6,6 +8,7 @@ import { Comercio, HorarioAtencion, Rubro } from '@/types/database.types';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
+import { CartelQrModal } from '@/components/CartelQrModal';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
 import {
   Rocket,
@@ -16,6 +19,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Sparkles,
+  QrCode,
 } from 'lucide-react';
 
 type EmprendimientoItem = Comercio & {
@@ -32,6 +36,7 @@ export const EmprendimientosPage: React.FC = () => {
   const [rubroSeleccionado, setRubroSeleccionado] = useState('');
   const [soloAbiertos, setSoloAbiertos] = useState(false);
   const [ahora, setAhora] = useState(() => new Date());
+  const [empQrSeleccionado, setEmpQrSeleccionado] = useState<EmprendimientoItem | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setAhora(new Date()), 60_000);
@@ -329,6 +334,18 @@ export const EmprendimientosPage: React.FC = () => {
                       <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                     </a>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => setEmpQrSeleccionado(emp)}
+                    title="Ver y descargar cartel QR"
+                    aria-label={`Ver código QR de ${emp.nombre}`}
+                    className="py-2 px-2.5 bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900/70 text-purple-700 dark:text-purple-200 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1 transition shrink-0"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>QR</span>
+                  </button>
+
                   <Link
                     to={`/comercio/${emp.slug}`}
                     className={`${
@@ -343,6 +360,21 @@ export const EmprendimientosPage: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* MODAL CARTEL QR */}
+      <CartelQrModal
+        isOpen={Boolean(empQrSeleccionado)}
+        onClose={() => setEmpQrSeleccionado(null)}
+        nombre={empQrSeleccionado?.nombre || ''}
+        slug={empQrSeleccionado?.slug || ''}
+        subtitulo={empQrSeleccionado?.rubro?.nombre || 'Emprendimiento Local'}
+        urlFicha={
+          empQrSeleccionado
+            ? `${window.location.origin}/comercio/${empQrSeleccionado.slug}`
+            : ''
+        }
+        tituloModal="Cartel QR del Emprendimiento"
+      />
     </div>
   );
 };
