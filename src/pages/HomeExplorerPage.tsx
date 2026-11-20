@@ -46,6 +46,7 @@ import {
   Zap,
   LayoutGrid,
   X,
+  Rocket,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
@@ -63,6 +64,10 @@ import { posicionDeComercio, useGeocodificarComercios } from '@/lib/ubicacionCom
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
 import { filtrarComerciosMapa, esNuevo, DIAS_NUEVO, PUNTAJE_MINIMO, RESENAS_MINIMAS, type FiltrosMapa } from '@/lib/filtrosAvanzados';
+
+type ComercioListado = Comercio & {
+  es_emprendimiento?: boolean | null;
+};
 
 function calcularDistanciaKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -102,10 +107,10 @@ async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<
 }
 
 export const HomeExplorerPage: React.FC = () => {
-  const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [comercios, setComercios] = useState<ComercioListado[]>([]);
   const [oficiosMapa, setOficiosMapa] = useState<Oficio[]>([]);
   const [guiaUtilMapa, setGuiaUtilMapa] = useState<GuiaUtilItem[]>([]);
-  const [capaMapa, setCapaMapa] = useState<'todos' | 'comercios' | 'oficios' | 'guia_util'>('todos');
+  const [capaMapa, setCapaMapa] = useState<'todos' | 'comercios' | 'emprendimientos' | 'oficios' | 'guia_util'>('todos');
 
   const [loadingComercios, setLoadingComercios] = useState(true);
   const [rubros, setRubros] = useState<Rubro[]>([]);
@@ -118,6 +123,7 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
   const [soloNuevos, setSoloNuevos] = useState(false);
   const [soloNocturno, setSoloNocturno] = useState(false);
+  const [soloEmprendimientos, setSoloEmprendimientos] = useState(false);
 
   // FILTROS RÁPIDOS
   const [soloCobroServicios, setSoloCobroServicios] = useState(false);
@@ -136,7 +142,7 @@ export const HomeExplorerPage: React.FC = () => {
   const [cargandoExtra, setCargandoExtra] = useState<'ofertas' | 'puntaje' | null>(null);
   const [errorExtra, setErrorExtra] = useState('');
 
-  const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<Comercio | null>(null);
+  const [farmaciaDeTurno, setFarmaciaDeTurno] = useState<ComercioListado | null>(null);
   const [modalGuiaUtilOpen, setModalGuiaUtilOpen] = useState(false);
   const [guiaUtilSeleccionada, setGuiaUtilSeleccionada] = useState<GuiaUtilItem | null>(null);
 
@@ -239,7 +245,7 @@ export const HomeExplorerPage: React.FC = () => {
         if (errorTurno) ({ data: turnoData } = await pedirTurno('*'));
 
         if (turnoData?.comercio) {
-          const fTurno = turnoData.comercio as unknown as Comercio;
+          const fTurno = turnoData.comercio as unknown as ComercioListado;
           setFarmaciaDeTurno(fTurno);
           void setCachedData('farmacia_turno_hoy', fTurno);
         }
@@ -274,7 +280,7 @@ export const HomeExplorerPage: React.FC = () => {
         }
 
         if (comerciosData) {
-          setComercios(comerciosData);
+          setComercios(comerciosData as ComercioListado[]);
           void setCachedData('comercios_listado_global', comerciosData);
 
           comerciosData.forEach((c) => {
@@ -295,11 +301,11 @@ export const HomeExplorerPage: React.FC = () => {
     }
 
     const [cLocal, rLocal, hLocal, dLocal, fLocal, oLocal, gLocal] = await Promise.all([
-      getCachedData<Comercio[]>('comercios_listado_global'),
+      getCachedData<ComercioListado[]>('comercios_listado_global'),
       getCachedData<Rubro[]>('rubros_global'),
       getCachedData<Record<string, HorarioAtencion[]>>('mapa_horarios_global'),
       getCachedData<Record<string, RangoDelivery[]>>('mapa_delivery_global'),
-      getCachedData<Comercio>('farmacia_turno_hoy'),
+      getCachedData<ComercioListado>('farmacia_turno_hoy'),
       getCachedData<Oficio[]>('oficios_mapa_global'),
       getCachedData<GuiaUtilItem[]>('guia_util_global'),
     ]);
@@ -491,6 +497,10 @@ export const HomeExplorerPage: React.FC = () => {
 
   const filteredComercios = filtrarComerciosMapa(comerciosProcesados, filtrosActuales, farmaciasTurnoIds, ahora)
     .filter((c) => {
+      if (soloEmprendimientos && !c.es_emprendimiento) {
+        return false;
+      }
+
       if (filtrarPorRadio && radioKm !== null) {
         if (c.distancia === null || c.distancia > radioKm) {
           return false;
@@ -654,7 +664,19 @@ export const HomeExplorerPage: React.FC = () => {
         })
       : [];
 
-  const comerciosParaMapa = capaMapa === 'todos' || capaMapa === 'comercios' ? filteredComercios : [];
+  const totalEmprendimientosActivos = comercios.filter((c) => Boolean(c.es_emprendimiento)).length;
+  const comerciosSoloLocales = filteredComercios.filter((c) => !c.es_emprendimiento);
+  const emprendimientosFiltrados = filteredComercios.filter((c) => Boolean(c.es_emprendimiento));
+
+  const comerciosParaMapa =
+    capaMapa === 'todos'
+      ? filteredComercios
+      : capaMapa === 'comercios'
+      ? comerciosSoloLocales
+      : capaMapa === 'emprendimientos'
+      ? emprendimientosFiltrados
+      : [];
+
   const guiaUtilConPinCount = guiaUtilMapa.filter((g) => typeof g.latitud === 'number' && typeof g.longitud === 'number').length;
 
   return (
@@ -714,7 +736,7 @@ export const HomeExplorerPage: React.FC = () => {
         <div className="space-y-2">
           <div>
             <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Tu ciudad conectada: comercios, ofertas y servicios al instante
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Tu ciudad conectada: comercios, emprendimientos y servicios al instante
             </div>
           </div>
 
@@ -877,7 +899,7 @@ export const HomeExplorerPage: React.FC = () => {
               />
             </div>
 
-            {/* BARRA COMPACTA: SERVICIOS RÁPIDOS + RUBROS + FARMACIA + OFICIOS */}
+            {/* BARRA COMPACTA: SERVICIOS RÁPIDOS + RUBROS + EMPRENDEDORES + FARMACIA + OFICIOS */}
             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-700/60">
               <button
                 type="button"
@@ -912,6 +934,36 @@ export const HomeExplorerPage: React.FC = () => {
                 <LayoutGrid className="w-3.5 h-3.5" />
                 <span>{rubroSeleccionadoObj ? `Rubro: ${rubroSeleccionadoObj.nombre}` : 'Rubros'}</span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${panelAbierto === 'rubros' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* PESTAÑA EMPRENDEDORES */}
+              <button
+                type="button"
+                onClick={() => {
+                  const proximo = !soloEmprendimientos;
+                  setSoloEmprendimientos(proximo);
+                  setCapaMapa(proximo ? 'emprendimientos' : 'todos');
+                }}
+                aria-pressed={soloEmprendimientos}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                  soloEmprendimientos
+                    ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-400'
+                    : 'bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+                }`}
+              >
+                <Rocket className="w-3.5 h-3.5" />
+                <span>Emprendedores</span>
+                {totalEmprendimientosActivos > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      soloEmprendimientos
+                        ? 'bg-white text-purple-700'
+                        : 'bg-purple-200/80 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
+                    }`}
+                  >
+                    {totalEmprendimientosActivos}
+                  </span>
+                )}
               </button>
 
               <button
@@ -1204,19 +1256,24 @@ export const HomeExplorerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* SELECTOR DE CAPAS DEL MAPA (TODO / COMERCIOS / OFICIOS / GUÍA ÚTIL) */}
+      {/* SELECTOR DE CAPAS DEL MAPA (TODO / COMERCIOS / EMPRENDEDORES / OFICIOS / GUÍA ÚTIL) */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Ver en el mapa:</span>
         {[
           { id: 'todos', label: 'Todo', color: 'bg-brand-600 text-white' },
-          { id: 'comercios', label: `Comercios (${filteredComercios.length})`, color: 'bg-emerald-600 text-white' },
+          { id: 'comercios', label: `Comercios (${comerciosSoloLocales.length})`, color: 'bg-emerald-600 text-white' },
+          { id: 'emprendimientos', label: `Emprendedores (${emprendimientosFiltrados.length})`, color: 'bg-purple-600 text-white' },
           { id: 'oficios', label: `Oficios (${oficiosMapa.length})`, color: 'bg-amber-600 text-white' },
           { id: 'guia_util', label: `Guía Útil (${guiaUtilConPinCount})`, color: 'bg-sky-600 text-white' },
         ].map((chip) => (
           <button
             key={chip.id}
             type="button"
-            onClick={() => setCapaMapa(chip.id as 'todos' | 'comercios' | 'oficios' | 'guia_util')}
+            onClick={() => {
+              const nuevaCapa = chip.id as 'todos' | 'comercios' | 'emprendimientos' | 'oficios' | 'guia_util';
+              setCapaMapa(nuevaCapa);
+              setSoloEmprendimientos(nuevaCapa === 'emprendimientos');
+            }}
             className={`px-3 py-1 rounded-full text-xs font-bold transition ${
               capaMapa === chip.id
                 ? `${chip.color} shadow-sm`
@@ -1272,7 +1329,9 @@ export const HomeExplorerPage: React.FC = () => {
             <div className="text-center py-12 text-gray-500 space-y-2">
               <Store className="w-10 h-10 mx-auto opacity-40" />
               <p className="text-sm font-semibold">
-                {soloAbiertos
+                {soloEmprendimientos
+                  ? 'No se encontraron emprendimientos con esos filtros'
+                  : soloAbiertos
                   ? 'No hay negocios abiertos en este momento'
                   : soloNocturno
                   ? 'No hay comercios con atención nocturna (20hs+) cargados'
@@ -1299,15 +1358,20 @@ export const HomeExplorerPage: React.FC = () => {
               >
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                      {comercio.nombre}
+                    <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                      <span>{comercio.nombre}</span>
                       <span title="Verificado" className="inline-flex items-center">
                         <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       </span>
                     </h3>
-                    <span className="text-[11px] font-bold text-brand-600 inline-flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-brand-600 inline-flex items-center gap-1.5 flex-wrap mt-0.5">
                       <InsigniaRubro rubro={comercio.rubro} />
                       {comercio.rubro?.nombre || 'General'}
+                      {comercio.es_emprendimiento && (
+                        <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-200 inline-flex items-center gap-1 font-extrabold">
+                          <Rocket className="w-2.5 h-2.5" /> Emprendimiento
+                        </span>
+                      )}
                       {comercio.puntajeNogoyork?.puntaje != null && (
                         <span className="text-amber-600 dark:text-amber-400" title={`${comercio.puntajeNogoyork.total} reseñas`}>
                           ★ {formatearPuntaje(comercio.puntajeNogoyork.puntaje)} ({comercio.puntajeNogoyork.total})
