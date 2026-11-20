@@ -21,8 +21,17 @@ interface AdminGuiaUtilModalProps {
   onClose: () => void;
 }
 
-// Centro de Nogoyá, Entre Ríos
 const NOGOYA_CENTER: [number, number] = [-32.3935, -59.7892];
+
+export const CATEGORIAS_GUIA_UTIL = [
+  'Emergencias',
+  'Hospitales y Sanatorios',
+  'Clínicas y Consultorios',
+  'Salud',
+  'Trámites y Municipio',
+  'Transporte',
+  'Iglesias y Culto',
+] as const;
 
 export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, onClose }) => {
   const [items, setItems] = useState<GuiaItem[]>([]);
@@ -33,7 +42,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   // Estado del formulario
   const [editId, setEditId] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
-  const [categoria, setCategoria] = useState('Emergencias');
+  const [categoria, setCategoria] = useState<string>('Emergencias');
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   const [urgencia, setUrgencia] = useState(false);
@@ -156,7 +165,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   };
 
   const handleUbicarDireccion = async () => {
-    const queryTexto = (direccion.trim() || nombre.trim());
+    const queryTexto = direccion.trim() || nombre.trim();
     if (!queryTexto) return;
 
     setGeocoding(true);
@@ -226,6 +235,23 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     }
   };
 
+  const getBadgeColor = (item: GuiaItem) => {
+    if (item.urgencia || item.categoria === 'Emergencias') {
+      return 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+    }
+    if (
+      item.categoria === 'Hospitales y Sanatorios' ||
+      item.categoria === 'Clínicas y Consultorios' ||
+      item.categoria === 'Salud'
+    ) {
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+    }
+    if (item.categoria === 'Iglesias y Culto') {
+      return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
+    }
+    return 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300';
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -239,7 +265,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
             </div>
             <div>
               <h3 className="font-extrabold text-lg">Administrar Guía Útil de Nogoyá</h3>
-              <p className="text-xs text-sky-100">Gestioná los teléfonos de emergencia, centros de salud, iglesias y dependencias</p>
+              <p className="text-xs text-sky-100">Emergencias, hospitales, clínicas, sanatorios, iglesias y dependencias</p>
             </div>
           </div>
           <button
@@ -273,7 +299,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   required
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej: Basílica Nuestra Señora del Carmen"
+                  placeholder="Ej: Hospital San Blas / Sanatorio..."
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
@@ -285,11 +311,11 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   onChange={(e) => setCategoria(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 >
-                  <option value="Emergencias">Emergencias</option>
-                  <option value="Salud">Salud</option>
-                  <option value="Trámites y Municipio">Trámites y Municipio</option>
-                  <option value="Transporte">Transporte</option>
-                  <option value="Iglesias y Culto">Iglesias y Culto</option>
+                  {CATEGORIAS_GUIA_UTIL.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -410,15 +436,14 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          item.urgencia
-                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
-                            : item.categoria === 'Iglesias y Culto'
-                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
-                            : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getBadgeColor(item)}`}>
                           {item.categoria}
                         </span>
+                        {item.urgencia && (
+                          <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-extrabold">
+                            URGENCIA
+                          </span>
+                        )}
                         {item.latitud && item.longitud && (
                           <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-0.5">
                             <CheckCircle2 className="w-2.5 h-2.5" /> Con Pin
