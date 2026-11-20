@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
-import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter } from 'lucide-react';
+import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter, Hospital, Stethoscope } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -62,7 +62,16 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
 
   if (!isOpen) return null;
 
-  const categorias = ['Todas', 'Emergencias', 'Salud', 'Trámites y Municipio', 'Transporte', 'Iglesias y Culto'];
+  const categorias = [
+    'Todas',
+    'Emergencias',
+    'Hospitales y Sanatorios',
+    'Clínicas y Consultorios',
+    'Salud',
+    'Trámites y Municipio',
+    'Transporte',
+    'Iglesias y Culto',
+  ];
 
   const itemsFiltrados =
     categoriaActiva === 'Todas'
@@ -76,6 +85,10 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
     switch (cat) {
       case 'Emergencias':
         return <Flame className="w-4 h-4 text-rose-500" />;
+      case 'Hospitales y Sanatorios':
+        return <Hospital className="w-4 h-4 text-emerald-600" />;
+      case 'Clínicas y Consultorios':
+        return <Stethoscope className="w-4 h-4 text-teal-500" />;
       case 'Salud':
         return <HeartPulse className="w-4 h-4 text-emerald-500" />;
       case 'Iglesias y Culto':
@@ -97,7 +110,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="font-extrabold text-lg">Guía Útil de Nogoyá</h3>
-              <p className="text-xs text-sky-100">Teléfonos de emergencia, salud, iglesias y dependencias públicas</p>
+              <p className="text-xs text-sky-100">Emergencias, hospitales, clínicas, iglesias y dependencias públicas</p>
             </div>
           </div>
           <button
@@ -125,7 +138,9 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
           >
             {categorias.map((cat) => (
               <option key={cat} value={cat}>
-                {cat === 'Todas' ? `Todos los rubros (${contarPorCategoria(cat)})` : `${cat} (${contarPorCategoria(cat)})`}
+                {cat === 'Todas'
+                  ? `Todos los rubros (${contarPorCategoria(cat)})`
+                  : `${cat} (${contarPorCategoria(cat)})`}
               </option>
             ))}
           </select>
