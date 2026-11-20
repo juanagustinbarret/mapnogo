@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Comercio, Oficio } from '@/types/database.types';
-import { InstitucionPublica } from '@/components/GuiaUtilModal';
 import { COLUMNAS_LISTADO_COMERCIO } from '@/lib/columnasPublicas';
 import { hoyArgentina } from '@/lib/fechasArgentina';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
@@ -16,11 +15,29 @@ import {
   Flame,
   MapPin,
   ArrowRight,
+  Clock,
+  Navigation,
+  ShieldAlert,
 } from 'lucide-react';
+
+interface GuiaUtilUrgenciaItem {
+  id: string;
+  nombre: string;
+  categoria: string;
+  telefono: string;
+  whatsapp?: string | null;
+  direccion: string;
+  urgencia: boolean;
+  es_24hs?: boolean;
+  horarios?: string | null;
+  orden: number;
+  latitud?: number | null;
+  longitud?: number | null;
+}
 
 export const UrgenciasPage: React.FC = () => {
   const [farmaciaTurno, setFarmaciaTurno] = useState<Comercio | null>(null);
-  const [emergenciasPublicas, setEmergenciasPublicas] = useState<InstitucionPublica[]>([]);
+  const [guiaItems24hs, setGuiaItems24hs] = useState<GuiaUtilUrgenciaItem[]>([]);
   const [oficios24hs, setOficios24hs] = useState<Oficio[]>([]);
   const [comerciosGuardia, setComerciosGuardia] = useState<Comercio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,8 +57,10 @@ export const UrgenciasPage: React.FC = () => {
         supabase
           .from('guia_util')
           .select('*')
-          .eq('urgencia', true)
-          .order('orden', { ascending: true }),
+          .or('urgencia.eq.true,es_24hs.eq.true')
+          .order('urgencia', { ascending: false })
+          .order('orden', { ascending: true })
+          .order('nombre', { ascending: true }),
         supabase
           .from('oficios')
           .select('*')
@@ -60,7 +79,7 @@ export const UrgenciasPage: React.FC = () => {
         setFarmaciaTurno(turnoRes.data.comercio as unknown as Comercio);
       }
       if (guiaRes.data) {
-        setEmergenciasPublicas(guiaRes.data as InstitucionPublica[]);
+        setGuiaItems24hs(guiaRes.data as GuiaUtilUrgenciaItem[]);
       }
       if (oficiosRes.data) {
         setOficios24hs(oficiosRes.data as Oficio[]);
@@ -91,6 +110,28 @@ export const UrgenciasPage: React.FC = () => {
 
   const wpFarmacia = normalizeWhatsAppNumber(farmaciaTurno?.whatsapp ?? '');
 
+  // Separamos emergencias públicas directas vs lugares de atención 24 hs de la Guía Útil
+  const emergenciasPublicas = guiaItems24hs.filter(
+    (item) => item.urgencia || item.categoria === 'Emergencias'
+  );
+
+  const lugaresGuia24hs = guiaItems24hs.filter((item) => {
+    if (!item.es_24hs) return false;
+    if (filtro === 'todos') return true;
+    if (filtro === 'salud') {
+      return (
+        item.categoria === 'Salud' ||
+        item.categoria === 'Hospitales y Sanatorios' ||
+        item.categoria === 'Clínicas y Consultorios' ||
+        item.categoria === 'Emergencias'
+      );
+    }
+    if (filtro === 'vehiculo') {
+      return item.categoria === 'Transporte';
+    }
+    return false;
+  });
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
       {/* BANNER URGENCIAS */}
@@ -100,7 +141,7 @@ export const UrgenciasPage: React.FC = () => {
         </div>
         <h1 className="text-2xl sm:text-3xl font-black">De Guardia y Urgencias 24hs en Nogoyá</h1>
         <p className="text-xs sm:text-sm text-rose-100 max-w-2xl leading-relaxed">
-          Acceso directo en un toque a emergencias públicas, farmacia de turno, veterinarias, auxilio mecánico, remises y técnicos 24 horas.
+          Acceso directo en un toque a emergencias públicas, hospitales, sanatorios, farmacia de turno, veterinarias, auxilio mecánico, remises y técnicos 24 horas.
         </p>
 
         <div className="flex flex-wrap gap-2 pt-2">
@@ -171,25 +212,127 @@ export const UrgenciasPage: React.FC = () => {
                 <Flame className="w-4 h-4 text-rose-600" /> Emergencias Públicas
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {emergenciasPublicas.map((item) => (
-                  <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="font-extrabold text-sm text-gray-900 dark:text-white truncate">{item.nombre}</h3>
-                      <p className="text-[11px] text-gray-500 truncate">{item.direccion}</p>
+                {emergenciasPublicas.map((item) => {
+                  const wp = normalizeWhatsAppNumber(item.whatsapp ?? '');
+                  return (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-extrabold text-sm text-gray-900 dark:text-white truncate">{item.nombre}</h3>
+                          {item.es_24hs && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-extrabold shrink-0">
+                              24HS
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500 truncate">{item.direccion}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {wp.isValid && (
+                          <a
+                            href={buildWhatsAppUrl(wp.normalized, `Hola ${item.nombre}, me comunico desde NOGOYORK.`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        {item.telefono && (
+                          <a
+                            href={`tel:${item.telefono}`}
+                            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5"
+                          >
+                            <Phone className="w-3.5 h-3.5" /> {item.telefono}
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <a
-                      href={`tel:${item.telefono}`}
-                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shrink-0"
-                    >
-                      <Phone className="w-3.5 h-3.5" /> {item.telefono}
-                    </a>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
 
-          {/* 3. OFICIOS & TÉCNICOS DE URGENCIA 24HS */}
+          {/* 3. LUGARES Y SERVICIOS DE ATENCIÓN 24 HS (DESDE GUÍA ÚTIL) */}
+          {lugaresGuia24hs.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4" /> Atención y Guardias 24 hs (Guía Útil)
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {lugaresGuia24hs.map((item) => {
+                  const wp = normalizeWhatsAppNumber(item.whatsapp ?? '');
+                  const mapsUrl =
+                    item.latitud != null && item.longitud != null
+                      ? `https://www.google.com/maps/search/?api=1&query=${item.latitud},${item.longitud}`
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          `${item.nombre}, ${item.direccion}, Nogoyá, Entre Ríos`
+                        )}`;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-200 text-[10px] font-extrabold uppercase">
+                            {item.categoria}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-extrabold inline-flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" /> 24 HS
+                          </span>
+                        </div>
+                        <h3 className="font-extrabold text-sm text-gray-900 dark:text-white">{item.nombre}</h3>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
+                          <MapPin className="w-3 h-3 text-sky-600 shrink-0" /> {item.direccion}
+                        </p>
+                        {item.horarios && (
+                          <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                            {item.horarios}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {wp.isValid && (
+                          <a
+                            href={buildWhatsAppUrl(wp.normalized, `Hola ${item.nombre}, me comunico desde NOGOYORK 24hs.`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                          </a>
+                        )}
+                        {item.telefono && (
+                          <a
+                            href={`tel:${item.telefono}`}
+                            className="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1"
+                          >
+                            <Phone className="w-3.5 h-3.5" /> {item.telefono}
+                          </a>
+                        )}
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl transition"
+                          title="Cómo llegar"
+                        >
+                          <Navigation className="w-3.5 h-3.5 text-sky-600" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* 4. OFICIOS & TÉCNICOS DE URGENCIA 24HS */}
           {(filtro === 'todos' || filtro === 'hogar') && oficios24hs.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-2">
@@ -231,7 +374,7 @@ export const UrgenciasPage: React.FC = () => {
             </section>
           )}
 
-          {/* 4. COMERCIOS DE GUARDIA / AUXILIO / REMISES */}
+          {/* 5. COMERCIOS DE GUARDIA / AUXILIO / REMISES */}
           {(filtro === 'todos' || filtro === 'vehiculo' || filtro === 'salud') && comerciosGuardia.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-black uppercase tracking-wider text-brand-600 dark:text-brand-400 flex items-center gap-2">
