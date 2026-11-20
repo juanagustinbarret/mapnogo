@@ -4,6 +4,7 @@ import { Comercio } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { leerImporte } from '@/lib/importes';
 import { fechaCalendario } from '@/lib/fechasArgentina';
+import { obtenerPrecioPlan } from '@/lib/planes';
 import {
   CreditCard,
   CheckCircle,
@@ -16,11 +17,16 @@ import {
   UserCheck,
   ShieldCheck,
   Edit2,
-  Trash2
+  Trash2,
+  Rocket
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { AdminNav } from '@/components/AdminNav';
+
+type ComercioPago = Comercio & {
+  es_emprendimiento?: boolean | null;
+};
 
 const MAPA_ADMINISTRADORES: Record<string, string> = {
   'b722d6b4-0f07-4142-bd7d-26b2cf1c1836': 'Agustín Allende Vera',
@@ -56,7 +62,7 @@ export const AdminPaymentsPage: React.FC = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [comercios, setComercios] = useState<ComercioPago[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -65,7 +71,7 @@ export const AdminPaymentsPage: React.FC = () => {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
 
-  const [comercioModalPago, setComercioModalPago] = useState<Comercio | null>(null);
+  const [comercioModalPago, setComercioModalPago] = useState<ComercioPago | null>(null);
   const [modalidadPago, setModalidadPago] = useState<'mensual' | 'anual'>('mensual');
   const [montoPago, setMontoPago] = useState('10000');
   const [metodoPago, setMetodoPago] = useState('Transferencia');
@@ -76,12 +82,19 @@ export const AdminPaymentsPage: React.FC = () => {
     clavePago.current = comercioModalPago ? crypto.randomUUID() : null;
   }, [comercioModalPago]);
 
+  const abrirModalCobro = (comercio: ComercioPago) => {
+    const tipoEntidad = comercio.es_emprendimiento ? 'emprendimiento' : 'negocio';
+    setComercioModalPago(comercio);
+    setModalidadPago('mensual');
+    setMontoPago(String(obtenerPrecioPlan(tipoEntidad, 'mensual')));
+  };
+
   const [pagoAEditar, setPagoAEditar] = useState<PagoAuditoria | null>(null);
   const [montoEditado, setMontoEditado] = useState('');
   const [metodoEditado, setMetodoEditado] = useState('Transferencia');
   const [savingEdition, setSavingEdition] = useState(false);
 
-  const [comercioModalHistorial, setComercioModalHistorial] = useState<Comercio | null>(null);
+  const [comercioModalHistorial, setComercioModalHistorial] = useState<ComercioPago | null>(null);
   const [historialIndividual, setHistorialIndividual] = useState<PagoAuditoria[]>([]);
   const [loadingHistorialIndividual, setLoadingHistorialIndividual] = useState(false);
 
@@ -100,7 +113,7 @@ export const AdminPaymentsPage: React.FC = () => {
       .select('*, rubro:rubros(*)')
       .order('created_at', { ascending: false });
     
-    if (data) setComercios(data);
+    if (data) setComercios(data as ComercioPago[]);
     setLoading(false);
   };
 
@@ -289,7 +302,7 @@ export const AdminPaymentsPage: React.FC = () => {
     }
   };
 
-  const handleAbrirHistorialIndividual = async (comercio: Comercio) => {
+  const handleAbrirHistorialIndividual = async (comercio: ComercioPago) => {
     setComercioModalHistorial(comercio);
     setLoadingHistorialIndividual(true);
 
@@ -448,12 +461,19 @@ export const AdminPaymentsPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:hidden">
                 {filtradosComercios.map((c) => (
                   <div key={c.id} className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-3">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-2">
                       <div>
-                        <h4 className="font-bold text-sm text-gray-900 dark:text-white">{c.nombre}</h4>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h4 className="font-bold text-sm text-gray-900 dark:text-white">{c.nombre}</h4>
+                          {c.es_emprendimiento && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 inline-flex items-center gap-1">
+                              <Rocket className="w-2.5 h-2.5" /> Emprendimiento
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Alta: {formatDate(c.created_at)}</p>
                       </div>
-                      <span className="text-xs font-semibold text-brand-600">{calcularAntiguedadMeses(c.created_at)}</span>
+                      <span className="text-xs font-semibold text-brand-600 shrink-0">{calcularAntiguedadMeses(c.created_at)}</span>
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
@@ -476,7 +496,7 @@ export const AdminPaymentsPage: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => setComercioModalPago(c)}
+                          onClick={() => abrirModalCobro(c)}
                           className="px-3 py-1.5 bg-blue-600 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1"
                         >
                           <DollarSign className="w-3.5 h-3.5" /> Registrar Pago
@@ -491,8 +511,8 @@ export const AdminPaymentsPage: React.FC = () => {
                 <table className="w-full text-left border-collapse table-fixed">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      <th className="p-3.5 w-[22%]">Comercio</th>
-                      <th className="p-3.5 w-[18%]">Miembro Desde</th>
+                      <th className="p-3.5 w-[24%]">Comercio / Emprendimiento</th>
+                      <th className="p-3.5 w-[16%]">Miembro Desde</th>
                       <th className="p-3.5 w-[15%]">Antigüedad</th>
                       <th className="p-3.5 w-[18%]">Estado Publicación</th>
                       <th className="p-3.5 w-[27%] text-right">Acción</th>
@@ -501,7 +521,16 @@ export const AdminPaymentsPage: React.FC = () => {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
                     {filtradosComercios.map((c) => (
                       <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                        <td className="p-3.5 font-bold text-gray-900 dark:text-white truncate">{c.nombre}</td>
+                        <td className="p-3.5 font-bold text-gray-900 dark:text-white">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate">{c.nombre}</span>
+                            {c.es_emprendimiento && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 inline-flex items-center gap-1 shrink-0">
+                                <Rocket className="w-2.5 h-2.5" /> Emprend.
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3.5 text-xs text-gray-600 dark:text-gray-300 truncate">{formatDate(c.created_at)}</td>
                         <td className="p-3.5 text-xs font-semibold text-brand-600 truncate">{calcularAntiguedadMeses(c.created_at)}</td>
                         <td className="p-3.5">
@@ -524,7 +553,7 @@ export const AdminPaymentsPage: React.FC = () => {
                           </button>
 
                           <button
-                            onClick={() => setComercioModalPago(c)}
+                            onClick={() => abrirModalCobro(c)}
                             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1 shadow-sm transition"
                           >
                             <DollarSign className="w-3.5 h-3.5" /> Registrar Pago
@@ -637,9 +666,16 @@ export const AdminPaymentsPage: React.FC = () => {
       {comercioModalPago && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl border border-gray-200 dark:border-gray-700">
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-              Registrar Cuota para {comercioModalPago.nombre}
-            </h3>
+            <div className="space-y-1">
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white">
+                Registrar Cuota para {comercioModalPago.nombre}
+              </h3>
+              {comercioModalPago.es_emprendimiento && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+                  <Rocket className="w-3 h-3" /> Tarifa Emprendimiento ($8.000/mes · $80.000/año)
+                </span>
+              )}
+            </div>
 
             <form onSubmit={(e) => void handleConfirmarPago(e)} className="space-y-4">
               <div>
@@ -648,8 +684,9 @@ export const AdminPaymentsPage: React.FC = () => {
                   value={modalidadPago}
                   onChange={(e) => {
                     const mode = e.target.value as 'mensual' | 'anual';
+                    const tipoEntidad = comercioModalPago.es_emprendimiento ? 'emprendimiento' : 'negocio';
                     setModalidadPago(mode);
-                    setMontoPago(mode === 'anual' ? '100000' : '10000');
+                    setMontoPago(String(obtenerPrecioPlan(tipoEntidad, mode)));
                   }}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900 font-semibold"
                 >
@@ -664,7 +701,7 @@ export const AdminPaymentsPage: React.FC = () => {
                   type="text"
                   inputMode="numeric"
                   required
-                  placeholder="10000"
+                  placeholder={comercioModalPago.es_emprendimiento ? '8000' : '10000'}
                   value={montoPago}
                   onChange={(e) => setMontoPago(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm dark:bg-gray-900"

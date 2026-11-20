@@ -3,6 +3,7 @@ import { normalizarTexto } from '@/lib/filtrosComercios';
 import { supabase } from '@/lib/supabase';
 import { Rubro } from '@/types/database.types';
 import { slugLimpio } from '@/lib/rutasQr';
+import { TARIFAS_PLANES } from '@/lib/planes';
 import {
   ArrowLeft,
   Save,
@@ -37,7 +38,14 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const PLAN_ID = '5b1d9010-2332-47c2-bea8-9413dfcbc6b8';
+const PLAN_NEGOCIO_ID = '5b1d9010-2332-47c2-bea8-9413dfcbc6b8';
+
+interface PlanDb {
+  id: string;
+  nombre: string;
+  precio_mensual: number | string;
+  precio_anual: number | string;
+}
 
 interface SelectorMapaProps {
   latitud: number;
@@ -106,6 +114,7 @@ export const AdminNewCommercePage: React.FC = () => {
   const [tipoAlta, setTipoAlta] = useState<'comercio' | 'oficio'>('comercio');
 
   const [rubros, setRubros] = useState<Rubro[]>([]);
+  const [planesDb, setPlanesDb] = useState<PlanDb[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRubros, setLoadingRubros] = useState(true);
   const [error, setError] = useState('');
@@ -143,7 +152,6 @@ export const AdminNewCommercePage: React.FC = () => {
   const [documento, setDocumento] = useState('');
   const [medio, setMedio] = useState<MedioDeAlta>('presencial');
   const [aceptado, setAceptado] = useState(false);
-  const [plan, setPlan] = useState<{ nombre: string; precio: number } | null>(null);
   const [comprobante, setComprobante] = useState<DatosAlta | null>(null);
   const [oficioCreadoOk, setOficioCreadoOk] = useState<{ nombre: string; email: string; slug: string } | null>(null);
   const vencimiento = primerVencimiento();
@@ -151,13 +159,39 @@ export const AdminNewCommercePage: React.FC = () => {
   useEffect(() => {
     supabase
       .from('planes')
-      .select('nombre, precio_mensual')
-      .eq('id', PLAN_ID)
-      .maybeSingle()
+      .select('id, nombre, precio_mensual, precio_anual')
+      .eq('estado', true)
       .then(({ data }) => {
-        if (data) setPlan({ nombre: data.nombre, precio: Number(data.precio_mensual) });
+        if (data) setPlanesDb(data as PlanDb[]);
       });
   }, []);
+
+  const planActivo = (() => {
+    const tipo = formData.es_emprendimiento ? 'emprendimiento' : 'negocio';
+    const fallback = TARIFAS_PLANES[tipo];
+
+    const planEncontrado = formData.es_emprendimiento
+      ? planesDb.find((p) => p.nombre.toLowerCase().includes('emprendimiento'))
+      : planesDb.find((p) => p.id === PLAN_NEGOCIO_ID) ??
+        planesDb.find(
+          (p) =>
+            p.nombre.toLowerCase().includes('comercio') ||
+            p.nombre.toLowerCase().includes('negocio')
+        );
+
+    return {
+      id: planEncontrado?.id ?? PLAN_NEGOCIO_ID,
+      nombre:
+        planEncontrado?.nombre ??
+        (formData.es_emprendimiento ? 'Emprendimientos' : 'Comercios y Negocios'),
+      precio: planEncontrado
+        ? Math.round(Number(planEncontrado.precio_mensual))
+        : fallback.mensual,
+      precioAnual: planEncontrado
+        ? Math.round(Number(planEncontrado.precio_anual))
+        : fallback.anual,
+    };
+  })();
 
   useEffect(() => {
     let mounted = true;
@@ -309,7 +343,7 @@ export const AdminNewCommercePage: React.FC = () => {
             email,
             password: formData.password,
             profile_name: nombreComerciante,
-            plan_id: PLAN_ID,
+            plan_id: planActivo.id,
             proximo_vencimiento: fechaVencimiento,
             comercio: {
               nombre: nombreEntidad,
@@ -342,12 +376,21 @@ export const AdminNewCommercePage: React.FC = () => {
 
       const comercioIdCreado = typeof data?.comercioId === 'string' ? data.comercioId : '';
 
-      // Asegurar la bandera es_emprendimiento en DB por si la Edge Function no la mapeó aún
-      if (comercioIdCreado && formData.es_emprendimiento) {
-        await supabase
-          .from('comercios')
-          .update({ es_emprendimiento: true })
-          .eq('id', comercioIdCreado);
+      // Asegurar la bandera es_emprendimiento y el plan_id correcto en DB por si la Edge Function no los mapeó
+      if (comercioIdCreado) {
+        if (formData.es_emprendimiento) {
+          await supabase
+            .from('comercios')
+            .update({ es_emprendimiento: true })
+            .eq('id', comercioIdCreado);
+        }
+
+        if (planActivo.id !== PLAN_NEGOCIO_ID) {
+          await supabase
+            .from('suscripciones')
+            .update({ plan_id: planActivo.id })
+            .eq('comercio_id', comercioIdCreado);
+        }
       }
 
       const rubro = rubros.find((r) => r.id === formData.rubro_id);
@@ -361,8 +404,8 @@ export const AdminNewCommercePage: React.FC = () => {
         direccion: formData.direccion.trim(),
         whatsapp: formData.whatsapp.trim() || undefined,
         email,
-        plan: plan?.nombre,
-        precioMensual: plan?.precio ?? null,
+        plan: planActivo.nombre,
+        precioMensual: planActivo.precio,
         primerVencimiento: fechaVencimiento,
         diasGracia: DIAS_GRACIA,
         medio,
@@ -586,7 +629,7 @@ export const AdminNewCommercePage: React.FC = () => {
                       Marcar como Emprendimiento
                     </span>
                     <p className="text-[11px] text-gray-600 dark:text-gray-400">
-                      Aparecerá en el mapa general junto a los comercios y además tendrá presencia destacada en la pestaña exclusiva de <strong>Emprendedores</strong>.
+                      Aparecerá en el mapa general junto a los comercios y además tendrá presencia destacada en la pestaña exclusiva de <strong>Emprendedores</strong> (Tarifa Emprendimiento: $8.000/mes · $80.000/año).
                     </p>
                   </div>
                 </label>
@@ -821,10 +864,10 @@ export const AdminNewCommercePage: React.FC = () => {
 
                 <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs space-y-2">
                   <p className="font-bold text-gray-900 dark:text-white">
-                    {plan?.nombre ?? 'Suscripción mensual'} · {textoPrecio(plan?.precio ?? null)}
+                    {planActivo.nombre} · {textoPrecio(planActivo.precio)}
                   </p>
                   <ul className="list-disc pl-4 space-y-1 text-gray-600 dark:text-gray-400">
-                    {condicionesDelAlta({ precioMensual: plan?.precio ?? null, primerVencimiento: vencimiento, diasGracia: DIAS_GRACIA, medio }).map((c) => (
+                    {condicionesDelAlta({ precioMensual: planActivo.precio, primerVencimiento: vencimiento, diasGracia: DIAS_GRACIA, medio }).map((c) => (
                       <li key={c}>{c}</li>
                     ))}
                   </ul>

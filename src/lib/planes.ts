@@ -1,6 +1,6 @@
 // src/lib/planes.ts
 
-export type TipoEntidad = 'negocio' | 'oficio';
+export type TipoEntidad = 'negocio' | 'emprendimiento' | 'oficio';
 export type ModalidadPlan = 'mensual' | 'anual';
 
 export interface ConfiguracionTarifas {
@@ -13,11 +13,16 @@ export const TARIFAS_PLANES: Record<TipoEntidad, ConfiguracionTarifas> = {
   negocio: {
     etiqueta: 'Negocio / Comercio',
     mensual: 10000,
-    anual: 120000,
+    anual: 100000,
+  },
+  emprendimiento: {
+    etiqueta: 'Emprendimiento',
+    mensual: 8000,
+    anual: 80000,
   },
   oficio: {
     etiqueta: 'Oficio / Servicio',
-    mensual: 5000,
+    mensual: 6000,
     anual: 60000,
   },
 };

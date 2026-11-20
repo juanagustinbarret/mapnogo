@@ -39,11 +39,21 @@ export const codigoComercio = (id: string) => id.replace(/[^0-9a-f]/gi, '').slic
 
 export function mensajeRenovacion(n: NegocioParaRenovar): string {
   const esOficio = n.tipo === 'oficio';
-  const etiquetaEntidad = esOficio ? 'Oficio / Servicio' : 'Comercio';
+  const esEmprendimiento = n.tipo === 'emprendimiento';
+  const etiquetaEntidad = esOficio
+    ? 'Oficio / Servicio'
+    : esEmprendimiento
+    ? 'Emprendimiento'
+    : 'Comercio';
+  const sustantivoEntidad = esOficio
+    ? 'oficio'
+    : esEmprendimiento
+    ? 'emprendimiento'
+    : 'comercio';
   const periodoTexto = n.modalidad === 'anual' ? 'por año (Plan Anual)' : 'por mes (Plan Mensual)';
 
   return [
-    `Hola! Quiero renovar la suscripción de mi ${esOficio ? 'oficio' : 'comercio'} en NOGOYORK.`,
+    `Hola! Quiero renovar la suscripción de mi ${sustantivoEntidad} en NOGOYORK.`,
     '',
     `${etiquetaEntidad}: ${n.nombre}${n.direccion ? ` (${n.direccion})` : ''}`,
     `Código: ${codigoComercio(n.id)}`,
