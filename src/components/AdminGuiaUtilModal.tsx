@@ -104,8 +104,9 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
 
       resetForm();
       await fetchItems();
-    } catch (err: any) {
-      alert('Error al guardar: ' + (err.message || 'Verifica la tabla guia_util'));
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : 'Verifica la tabla guia_util';
+      alert('Error al guardar: ' + mensaje);
     } finally {
       setSaving(false);
     }
@@ -118,8 +119,9 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
       const { error } = await supabase.from('guia_util').delete().eq('id', id);
       if (error) throw error;
       await fetchItems();
-    } catch (err: any) {
-      alert('Error al eliminar: ' + err.message);
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : 'Error desconocido';
+      alert('Error al eliminar: ' + mensaje);
     }
   };
 
