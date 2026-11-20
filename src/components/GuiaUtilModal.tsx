@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
-import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Church } from 'lucide-react';
+import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -76,7 +76,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
       case 'Salud':
         return <HeartPulse className="w-4 h-4 text-emerald-500" />;
       case 'Iglesias y Culto':
-        return <Church className="w-4 h-4 text-purple-500" />;
+        return <Landmark className="w-4 h-4 text-purple-500" />;
       case 'Trámites y Municipio':
       default:
         return <Building2 className="w-4 h-4 text-sky-500" />;
