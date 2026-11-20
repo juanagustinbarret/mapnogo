@@ -26,6 +26,7 @@ interface InteractiveMapProps {
   comercios: Comercio[];
   oficios?: Oficio[];
   guiaUtil?: GuiaUtilItem[];
+  onVerFichaGuiaUtil?: (item: GuiaUtilItem) => void;
   userLocation?: UbicacionUsuario | null;
   /** Se llama al tocar el botón de ubicación cuando todavía no hay ubicación. */
   onSolicitarUbicacion?: () => void;
@@ -38,7 +39,6 @@ interface InteractiveMapProps {
 
 const CENTRO_POR_DEFECTO: [number, number] = [NOGOYA_CENTER.lat, NOGOYA_CENTER.lng];
 const ZOOM_UBICACION = 16;
-// Si el teléfono informa un error mayor, el círculo taparía media ciudad.
 const PRECISION_MAXIMA_VISIBLE_M = 2000;
 const ESTILO_PRECISION: L.PathOptions = {
   color: '#1a73e8',
@@ -56,7 +56,6 @@ const ESTILO_RADIO: L.PathOptions = {
   fillOpacity: 0.05,
 };
 
-// Pines diferenciados para Oficios y Guía Útil
 const crearPinExtra = (colorBg: string, simbolo: string) =>
   L.divIcon({
     className: 'nogoyork-pin-extra',
@@ -78,9 +77,6 @@ const ICONO_GUIA_UTIL = crearPinExtra('#0284c7', '🏛️');
 const ICONO_GUIA_URGENCIA = crearPinExtra('#e11d48', '🚨');
 const ICONO_GUIA_IGLESIA = crearPinExtra('#7c3aed', '⛪');
 
-// El listado le pasa al mapa una lista nueva en cada render (con la distancia
-// recalculada cada vez que se mueve el usuario). Esta firma junta solo lo que
-// el mapa muestra, para no rearmar los marcadores si eso no cambió.
 const firmaDeComercios = (comercios: Comercio[]) =>
   comercios
     .map((c) =>
@@ -98,6 +94,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   comercios,
   oficios = [],
   guiaUtil = [],
+  onVerFichaGuiaUtil,
   userLocation,
   onSolicitarUbicacion,
   buscandoUbicacion = false,
@@ -107,26 +104,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [mapa, setMapa] = useState<L.Map | null>(null);
   const [marcadorGps, setMarcadorGps] = useState<L.Marker | null>(null);
 
-  // ─── Comercios y sus coordenadas ──────────────────────────────────────
   const comerciosEstables = useListaEstable(comercios, firmaDeComercios(comercios));
-
-  // Busca en Nominatim, de a una, las direcciones que todavía no se conocen.
   const versionGeo = useGeocodificarComercios(comerciosEstables);
 
   const marcadores = useMemo(
     () =>
       comerciosEstables.flatMap((comercio) => {
         const encontrada = posicionDeComercio(comercio);
-        if (encontrada === undefined) return []; // todavía se está buscando
-        // Igual que antes: si la dirección no aparece, el pin va al centro de Nogoyá.
+        if (encontrada === undefined) return [];
         const posicion: [number, number] = encontrada ? [encontrada.lat, encontrada.lng] : CENTRO_POR_DEFECTO;
         return [{ comercio, posicion, visual: visualDeRubro(comercio.rubro) }];
       }),
-    // versionGeo no se usa adentro: solo avisa que llegaron coordenadas nuevas.
     [comerciosEstables, versionGeo],
   );
 
-  // ─── Oficios con coordenadas cargadas ─────────────────────────────────
   const marcadoresOficios = useMemo(
     () =>
       oficios.filter(
@@ -139,7 +130,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     [oficios],
   );
 
-  // ─── Guía Útil con coordenadas cargadas ───────────────────────────────
   const marcadoresGuiaUtil = useMemo(
     () =>
       guiaUtil.filter(
@@ -152,7 +142,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     [guiaUtil],
   );
 
-  // ─── Ubicación del usuario, estilo GPS ────────────────────────────────
   const latUsuario = userLocation?.lat;
   const lngUsuario = userLocation?.lng;
   const posicionUsuario = useMemo<[number, number] | null>(
@@ -162,8 +151,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const precision = userLocation?.precision ?? null;
   const rumbo = userLocation?.rumbo ?? null;
 
-  // "Siguiendo": el mapa acompaña al usuario mientras se mueve, hasta que él
-  // mismo arrastra el mapa (como Google Maps o Waze).
   const [siguiendo, setSiguiendo] = useState(false);
   const siguiendoRef = useRef(false);
   siguiendoRef.current = siguiendo;
@@ -189,8 +176,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     };
   }, [mapa]);
 
-  // Primera ubicación: se vuela hasta ahí. Después solo se acompaña si está
-  // "siguiendo" (antes el mapa volvía a volar al centro en cada render).
   useEffect(() => {
     if (!mapa || !posicionUsuario) return;
     if (!yaSeCentro.current) {
@@ -203,7 +188,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [mapa, posicionUsuario, volarAlUsuario]);
 
-  // Pedido de centrado desde afuera (botón de la tarjeta de bienvenida).
   const centrarRef = useRef<() => void>(() => undefined);
   centrarRef.current = () => {
     if (posicionUsuario) volarAlUsuario(posicionUsuario);
@@ -212,8 +196,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (pedidoCentrado > 0) centrarRef.current();
   }, [pedidoCentrado]);
 
-  // Cono de rumbo: se actualiza sobre el marcador existente para que el halo
-  // no se reinicie en cada lectura del GPS.
   useEffect(() => {
     const elemento = marcadorGps?.getElement();
     if (!elemento) return;
@@ -222,7 +204,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (hayRumbo) elemento.style.setProperty('--ng-rumbo', `${Math.round(rumbo)}deg`);
   }, [marcadorGps, rumbo]);
 
-  // Al elegir un radio, el mapa se acomoda para mostrar todo ese círculo.
   const encuadrarRadioRef = useRef<() => void>(() => undefined);
   encuadrarRadioRef.current = () => {
     if (!mapa || !posicionUsuario || !radioKm) return;
@@ -256,7 +237,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* MARCADORES DE COMERCIOS: un ícono y un color por rubro */}
+        {/* MARCADORES DE COMERCIOS */}
         {marcadores.map(({ comercio, posicion, visual }) => {
           const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${comercio.nombre},${comercio.direccion}, Nogoyá, Entre Ríos`)}`;
 
@@ -283,7 +264,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0" /> {comercio.direccion}
                   </div>
 
-                  {/* Puntaje de las reseñas de NOGOYORK (se pide al abrir el popup) */}
                   <PuntajePopup comercioId={comercio.id} slug={comercio.slug} />
 
                   <div className="flex items-center justify-between pt-2 border-t text-xs">
@@ -310,7 +290,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           );
         })}
 
-        {/* MARCADORES DE OFICIOS (solo los que tienen pin en el mapa) */}
+        {/* MARCADORES DE OFICIOS */}
         {marcadoresOficios.map((oficio) => {
           const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${oficio.latitud},${oficio.longitud}`;
 
@@ -362,7 +342,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           );
         })}
 
-        {/* MARCADORES DE GUÍA ÚTIL (Bomberos, Policía, Hospital, Iglesias, etc.) */}
+        {/* MARCADORES DE GUÍA ÚTIL */}
         {marcadoresGuiaUtil.map((item) => {
           const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${item.latitud},${item.longitud}`;
           const iconoItem = item.urgencia
@@ -380,19 +360,26 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               riseOnHover
             >
               <Popup className="rounded-xl overflow-hidden">
-                <div className="p-1 space-y-2 min-w-[200px]">
+                <div className="p-1 space-y-2 min-w-[210px]">
                   <div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                        item.urgencia
-                          ? 'bg-rose-100 text-rose-700'
-                          : item.categoria === 'Iglesias y Culto'
-                          ? 'bg-purple-100 text-purple-700'
-                          : 'bg-sky-100 text-sky-700'
-                      }`}
-                    >
-                      Guía Útil · {item.categoria}
-                    </span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                          item.urgencia
+                            ? 'bg-rose-100 text-rose-700'
+                            : item.categoria === 'Iglesias y Culto'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-sky-100 text-sky-700'
+                        }`}
+                      >
+                        Guía Útil · {item.categoria}
+                      </span>
+                      {(item as GuiaUtilItem & { es_24hs?: boolean }).es_24hs && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold">
+                          24 HS
+                        </span>
+                      )}
+                    </div>
                     <div className="font-bold text-sm text-gray-900 mt-1">{item.nombre}</div>
                   </div>
 
@@ -400,19 +387,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
                   </div>
 
+                  {item.telefono && (
+                    <a
+                      href={`tel:${item.telefono}`}
+                      className={`text-[11px] font-extrabold flex items-center gap-1 ${
+                        item.urgencia ? 'text-rose-600' : 'text-gray-700'
+                      } hover:underline`}
+                    >
+                      <Phone className="w-3 h-3 text-sky-600 shrink-0" /> {item.telefono}
+                    </a>
+                  )}
+
                   <div className="flex items-center justify-between pt-2 border-t text-xs gap-2">
-                    {item.telefono ? (
-                      <a
-                        href={`tel:${item.telefono}`}
-                        className={`font-extrabold flex items-center gap-1 ${
-                          item.urgencia ? 'text-rose-600' : 'text-sky-600'
-                        } hover:underline`}
-                      >
-                        <Phone className="w-3 h-3" /> {item.telefono}
-                      </a>
-                    ) : (
-                      <span className="text-[11px] text-gray-400">Sin teléfono</span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => onVerFichaGuiaUtil?.(item)}
+                      className="font-bold text-sky-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      Ver Ficha <ExternalLink className="w-3 h-3" />
+                    </button>
 
                     <a
                       href={googleMapsUrl}
@@ -429,8 +422,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           );
         })}
 
-        {/* TU UBICACIÓN: círculo de precisión + punto azul (va arriba de los pines) */}
-        {/* RADIO DEL FILTRO DE CERCANÍA */}
+        {/* TU UBICACIÓN */}
         {posicionUsuario && radioKm ? (
           <Circle center={posicionUsuario} radius={radioKm * 1000} pathOptions={ESTILO_RADIO} interactive={false} />
         ) : null}
@@ -459,7 +451,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         )}
       </MapContainer>
 
-      {/* BOTÓN "MI UBICACIÓN": azul mientras el mapa te sigue */}
       {mostrarBoton && (
         <button
           type="button"
