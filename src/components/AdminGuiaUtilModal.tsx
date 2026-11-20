@@ -1,19 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Plus, Edit, Trash2, Save, Info, Phone, MapPin, AlertCircle } from 'lucide-react';
-import {
-  MapContainer,
-  TileLayer,
-  CircleMarker,
-  useMapEvents,
-  useMap,
-} from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { MapPinPicker } from '@/components/MapPinPicker';
+import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle } from 'lucide-react';
 
-export interface ItemGuiaUtil {
+interface GuiaItem {
   id: string;
   nombre: string;
-  categoria: 'Emergencias' | 'Salud' | 'Trámites y Municipio' | 'Transporte';
+  categoria: string;
   telefono: string;
   direccion: string;
   urgencia: boolean;
@@ -22,403 +15,318 @@ export interface ItemGuiaUtil {
   longitud?: number | null;
 }
 
-interface SelectorMapaProps {
-  latitud: number;
-  longitud: number;
-  onSeleccionar: (latitud: number, longitud: number) => void;
-}
-
-const SelectorMapa: React.FC<SelectorMapaProps> = ({
-  latitud,
-  longitud,
-  onSeleccionar,
-}) => {
-  const EventosMapa = () => {
-    useMapEvents({
-      click(e) {
-        onSeleccionar(e.latlng.lat, e.latlng.lng);
-      },
-    });
-
-    return null;
-  };
-
-  const ActualizarCentro = () => {
-    const mapa = useMap();
-
-    useEffect(() => {
-      mapa.setView([latitud, longitud], mapa.getZoom());
-    }, [mapa, latitud, longitud]);
-
-    return null;
-  };
-
-  return (
-    <MapContainer
-      center={[latitud, longitud]}
-      zoom={15}
-      scrollWheelZoom
-      style={{
-        height: '240px',
-        width: '100%',
-        borderRadius: '12px',
-        zIndex: 0,
-      }}
-    >
-      <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-
-      <EventosMapa />
-      <ActualizarCentro />
-
-      <CircleMarker
-        center={[latitud, longitud]}
-        radius={8}
-        pathOptions={{
-          color: '#ffffff',
-          weight: 3,
-          fillColor: '#2563eb',
-          fillOpacity: 1,
-        }}
-      />
-    </MapContainer>
-  );
-};
-
-interface Props {
+interface AdminGuiaUtilModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const AdminGuiaUtilModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const [items, setItems] = useState<ItemGuiaUtil[]>([]);
+export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, onClose }) => {
+  const [items, setItems] = useState<GuiaItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // Formulario estado
-  const [idEditando, setIdEditando] = useState<string | null>(null);
+  // Estado del formulario para nuevo o edición
+  const [editId, setEditId] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
-  const [categoria, setCategoria] = useState<'Emergencias' | 'Salud' | 'Trámites y Municipio' | 'Transporte'>('Trámites y Municipio');
+  const [categoria, setCategoria] = useState('Emergencias');
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   const [urgencia, setUrgencia] = useState(false);
-  const [latitud, setLatitud] = useState<number>(-32.3939);
-  const [longitud, setLongitud] = useState<number>(-59.7881);
+  const [latitud, setLatitud] = useState<number | null>(null);
+  const [longitud, setLongitud] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      void fetchItems();
+      fetchItems();
     }
   }, [isOpen]);
 
   const fetchItems = async () => {
     setLoading(true);
-    const { data, error: err } = await supabase
+    const { data, error } = await supabase
       .from('guia_util')
       .select('*')
       .order('urgencia', { ascending: false })
       .order('orden', { ascending: true })
       .order('nombre', { ascending: true });
 
-    if (err) {
-      setError('Error al cargar elementos de la guía útil.');
-    } else if (data) {
-      setItems(data as ItemGuiaUtil[]);
+    if (!error && data) {
+      setItems(data);
     }
     setLoading(false);
   };
 
   const resetForm = () => {
-    setIdEditando(null);
+    setEditId(null);
     setNombre('');
-    setCategoria('Trámites y Municipio');
+    setCategoria('Emergencias');
     setTelefono('');
     setDireccion('');
     setUrgencia(false);
-    setLatitud(-32.3939);
-    setLongitud(-59.7881);
-    setError('');
+    setLatitud(null);
+    setLongitud(null);
   };
 
-  const handleEditar = (item: ItemGuiaUtil) => {
-    setIdEditando(item.id);
+  const handleEdit = (item: GuiaItem) => {
+    setEditId(item.id);
     setNombre(item.nombre);
     setCategoria(item.categoria);
     setTelefono(item.telefono);
     setDireccion(item.direccion);
     setUrgencia(item.urgencia);
-    setLatitud(item.latitud ?? -32.3939);
-    setLongitud(item.longitud ?? -59.7881);
-    setError('');
+    setLatitud(item.latitud ?? null);
+    setLongitud(item.longitud ?? null);
   };
 
-  const handleGuardar = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !telefono.trim() || !direccion.trim()) {
-      setError('Por favor completá los campos obligatorios.');
-      return;
-    }
+    if (!nombre.trim()) return;
 
-    setGuardando(true);
-    setError('');
+    setSaving(true);
+    try {
+      const payload = {
+        nombre: nombre.trim(),
+        categoria,
+        telefono: telefono.trim(),
+        direccion: direccion.trim() || 'Nogoyá, Entre Ríos',
+        urgencia,
+        latitud,
+        longitud,
+      };
 
-    const payload = {
-      nombre: nombre.trim(),
-      categoria,
-      telefono: telefono.trim(),
-      direccion: direccion.trim(),
-      urgencia,
-      latitud,
-      longitud,
-    };
+      if (editId) {
+        const { error } = await supabase.from('guia_util').update(payload).eq('id', editId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('guia_util').insert([payload]);
+        if (error) throw error;
+      }
 
-    let responseError = null;
-
-    if (idEditando) {
-      const { error: err } = await supabase.from('guia_util').update(payload).eq('id', idEditando);
-      responseError = err;
-    } else {
-      const { error: err } = await supabase.from('guia_util').insert([payload]);
-      responseError = err;
-    }
-
-    setGuardando(false);
-
-    if (responseError) {
-      setError('No se pudo guardar: ' + responseError.message);
-    } else {
       resetForm();
-      void fetchItems();
+      await fetchItems();
+    } catch (err: any) {
+      alert('Error al guardar: ' + (err.message || 'Verifica la tabla guia_util'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleBorrar = async (id: string, itemNombre: string) => {
-    if (!confirm(`¿Estás seguro de eliminar "${itemNombre}" de la Guía Útil?`)) return;
+  const handleDelete = async (id: string, itemNombre: string) => {
+    if (!window.confirm(`¿Eliminar "${itemNombre}" de la Guía Útil?`)) return;
 
-    const { error: err } = await supabase.from('guia_util').delete().eq('id', id);
-    if (err) {
+    try {
+      const { error } = await supabase.from('guia_util').delete().eq('id', id);
+      if (error) throw error;
+      await fetchItems();
+    } catch (err: any) {
       alert('Error al eliminar: ' + err.message);
-    } else {
-      void fetchItems();
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        
-        {/* ENCABEZADO */}
-        <div className="bg-gradient-to-r from-sky-700 via-indigo-700 to-blue-800 p-5 sm:p-6 text-white space-y-1 relative shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* HEADER */}
+        <div className="bg-gradient-to-r from-sky-600 to-blue-700 p-5 text-white flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-md">
+              <ShieldAlert className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-lg">Administrar Guía Útil de Nogoyá</h3>
+              <p className="text-xs text-sky-100">Gestioná los teléfonos de emergencia, centros de salud, iglesias y dependencias</p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition text-white"
-            aria-label="Cerrar modal"
+            className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white"
           >
             <X className="w-5 h-5" />
           </button>
-
-          <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-0.5 rounded-full text-[11px] font-bold backdrop-blur-md">
-            <Info className="w-3.5 h-3.5" /> Panel Administrador
-          </span>
-          <h2 className="text-xl sm:text-2xl font-black">Gestión de Guía Útil de Nogoyá</h2>
-          <p className="text-xs text-sky-100 max-w-md">
-            Agregá, modificá o eliminá las dependencias e instituciones públicas.
-          </p>
         </div>
 
-        {/* CONTENIDO PRINCIPAL */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
-          
-          {/* FORMULARIO */}
-          <form onSubmit={handleGuardar} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border dark:border-gray-700 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-              {idEditando ? <Edit className="w-4 h-4 text-brand-600" /> : <Plus className="w-4 h-4 text-brand-600" />}
-              {idEditando ? 'Editar Institución' : 'Nueva Institución Pública'}
-            </h3>
+        {/* CONTENIDO */}
+        <div className="p-5 overflow-y-auto flex-1 space-y-6">
+          {/* FORMULARIO ALTA / EDICIÓN */}
+          <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-gray-900/60 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-1.5">
+                {editId ? <><Edit2 className="w-4 h-4 text-sky-600" /> Editando Registro</> : <><Plus className="w-4 h-4 text-sky-600" /> Agregar Nuevo Contacto Útil</>}
+              </h4>
+              {editId && (
+                <button type="button" onClick={resetForm} className="text-xs text-gray-500 hover:underline">
+                  Cancelar edición
+                </button>
+              )}
+            </div>
 
-            {error && (
-              <p role="alert" className="p-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-              </p>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold mb-1">Nombre de la Institución *</label>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Nombre *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Municipalidad de Nogoyá"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl"
+                  placeholder="Ej: Hospital San Blas / Parroquia..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Categoría *</label>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Categoría *</label>
                 <select
                   value={categoria}
-                  onChange={(e) => setCategoria(e.target.value as any)}
-                  className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl font-medium"
+                  onChange={(e) => setCategoria(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 >
                   <option value="Emergencias">Emergencias</option>
                   <option value="Salud">Salud</option>
                   <option value="Trámites y Municipio">Trámites y Municipio</option>
                   <option value="Transporte">Transporte</option>
+                  <option value="Iglesias y Culto">Iglesias y Culto</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Teléfono Directo *</label>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Teléfono</label>
                 <input
                   type="text"
-                  required
-                  placeholder="Ej. 101 o 03435421211"
                   value={telefono}
                   onChange={(e) => setTelefono(e.target.value)}
-                  className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl"
+                  placeholder="Ej: 100 / 03435-421234"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Dirección *</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Dirección / Referencia</label>
                 <input
                   type="text"
-                  required
-                  placeholder="Ej. Caseros 965"
                   value={direccion}
                   onChange={(e) => setDireccion(e.target.value)}
-                  className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl"
-                />
-              </div>
-            </div>
-
-            {/* SECTOR MAPA Y COORDENADAS */}
-            <div className="space-y-2 pt-1 border-t dark:border-gray-800">
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Ubicación en el mapa (Hacé clic para ubicar el pin exacto):
-              </label>
-
-              <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
-                <SelectorMapa
-                  latitud={latitud}
-                  longitud={longitud}
-                  onSeleccionar={(lat, lng) => {
-                    setLatitud(lat);
-                    setLongitud(lng);
-                  }}
+                  placeholder="Ej: Calle San Martín 800, Nogoyá"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-0.5">Latitud</label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-rose-600 dark:text-rose-400">
                   <input
-                    type="number"
-                    step="any"
-                    value={latitud}
-                    onChange={(e) => setLatitud(Number(e.target.value))}
-                    className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-mono"
+                    type="checkbox"
+                    checked={urgencia}
+                    onChange={(e) => setUrgencia(e.target.checked)}
+                    className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-0.5">Longitud</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={longitud}
-                    onChange={(e) => setLongitud(Number(e.target.value))}
-                    className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-mono"
-                  />
-                </div>
-              </div>
-            </div>
+                  🚨 Es Urgencia
+                </label>
 
-            <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={urgencia}
-                  onChange={(e) => setUrgencia(e.target.checked)}
-                  className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500"
-                />
-                <span className="text-gray-700 dark:text-gray-300">
-                  Marcar como urgencia destacada (resaltado rojo)
-                </span>
-              </label>
-
-              <div className="flex items-center gap-2">
-                {idEditando && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-3 py-1.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100"
-                  >
-                    Cancelar
-                  </button>
-                )}
                 <button
                   type="submit"
-                  disabled={guardando}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  disabled={saving}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
                 >
-                  <Save className="w-3.5 h-3.5" /> {guardando ? 'Guardando...' : idEditando ? 'Actualizar' : 'Agregar Institución'}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {editId ? 'Actualizar' : 'Agregar'}
                 </button>
               </div>
             </div>
+
+            {/* Selector de Pin en el Mapa */}
+            <div className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Ubicación exacta en el mapa (para "Cómo llegar" y mapa principal)</span>
+                {latitud !== null && longitud !== null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLatitud(null);
+                      setLongitud(null);
+                    }}
+                    className="text-[11px] text-red-500 hover:underline font-semibold"
+                  >
+                    Quitar pin
+                  </button>
+                )}
+              </div>
+              <MapPinPicker
+                lat={latitud}
+                lng={longitud}
+                direccion={direccion}
+                onChange={(newLat, newLng) => {
+                  setLatitud(newLat);
+                  setLongitud(newLng);
+                }}
+              />
+            </div>
           </form>
 
-          {/* TABLA DE ELEMENTOS CARGADOS */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              Instituciones Cargadas ({items.length})
-            </h3>
+          {/* LISTADO DE ITEMS */}
+          <div>
+            <h4 className="font-bold text-xs text-gray-500 uppercase tracking-wider mb-3">
+              Registros Cargados ({items.length})
+            </h4>
 
             {loading ? (
-              <p className="text-xs text-center py-6 text-gray-500 animate-pulse">Cargando la guía...</p>
+              <div className="py-8 flex justify-center text-sky-600">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
             ) : items.length === 0 ? (
-              <p className="text-xs text-center py-6 text-gray-500">Aún no cargaste instituciones. Agregá la primera arriba.</p>
+              <div className="text-center py-8 text-gray-500 text-xs">
+                No hay elementos cargados en la Guía Útil.
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs ${
-                      item.urgencia
-                        ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                    }`}
+                    className="bg-white dark:bg-gray-800 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3 shadow-sm"
                   >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-gray-900 dark:text-white">{item.nombre}</span>
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          item.urgencia
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                            : item.categoria === 'Iglesias y Culto'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                            : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                        }`}>
                           {item.categoria}
                         </span>
+                        {item.latitud && item.longitud && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-0.5">
+                            <CheckCircle className="w-2.5 h-2.5" /> Con Pin
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-500">
-                        <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-sky-600" /> {item.telefono}</span>
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-sky-600" /> {item.direccion}</span>
+                      <h5 className="font-bold text-sm text-gray-900 dark:text-white truncate">{item.nombre}</h5>
+                      <div className="text-xs text-gray-500 flex items-center gap-3 flex-wrap">
+                        {item.telefono && (
+                          <span className="flex items-center gap-1 font-bold text-gray-700 dark:text-gray-300">
+                            <Phone className="w-3 h-3 text-sky-600" /> {item.telefono}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 truncate">
+                          <MapPin className="w-3 h-3 text-gray-400 shrink-0" /> {item.direccion}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        onClick={() => handleEditar(item)}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl text-gray-600 dark:text-gray-300"
+                        onClick={() => handleEdit(item)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition"
                         title="Editar"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleBorrar(item.id, item.nombre)}
-                        className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl text-red-600"
+                        onClick={() => handleDelete(item.id, item.nombre)}
+                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -429,7 +337,6 @@ export const AdminGuiaUtilModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </div>
             )}
           </div>
-
         </div>
       </div>
     </div>
