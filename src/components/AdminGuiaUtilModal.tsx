@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { MapPinPicker } from '@/components/MapPinPicker';
-import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2 } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, ExternalLink } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -32,8 +31,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   const [urgencia, setUrgencia] = useState(false);
-  const [latitud, setLatitud] = useState<number | null>(null);
-  const [longitud, setLongitud] = useState<number | null>(null);
+  const [latitud, setLatitud] = useState<string>('');
+  const [longitud, setLongitud] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -63,8 +62,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setTelefono('');
     setDireccion('');
     setUrgencia(false);
-    setLatitud(null);
-    setLongitud(null);
+    setLatitud('');
+    setLongitud('');
   };
 
   const handleEdit = (item: GuiaItem) => {
@@ -74,13 +73,16 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setTelefono(item.telefono);
     setDireccion(item.direccion);
     setUrgencia(item.urgencia);
-    setLatitud(item.latitud ?? null);
-    setLongitud(item.longitud ?? null);
+    setLatitud(item.latitud != null ? String(item.latitud) : '');
+    setLongitud(item.longitud != null ? String(item.longitud) : '');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
+
+    const latParsed = latitud.trim() !== '' && !isNaN(Number(latitud)) ? Number(latitud) : null;
+    const lngParsed = longitud.trim() !== '' && !isNaN(Number(longitud)) ? Number(longitud) : null;
 
     setSaving(true);
     try {
@@ -90,8 +92,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
         telefono: telefono.trim(),
         direccion: direccion.trim() || 'Nogoyá, Entre Ríos',
         urgencia,
-        latitud,
-        longitud,
+        latitud: latParsed,
+        longitud: lngParsed,
       };
 
       if (editId) {
@@ -238,32 +240,46 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
               </div>
             </div>
 
-            {/* Selector de Pin en el Mapa */}
-            <div className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-500 uppercase">Ubicación exacta en el mapa (para "Cómo llegar")</span>
-                {latitud !== null && longitud !== null && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLatitud(null);
-                      setLongitud(null);
-                    }}
-                    className="text-[11px] text-red-500 hover:underline font-semibold"
-                  >
-                    Quitar pin
-                  </button>
-                )}
+            {/* Coordenadas opcionales para mostrar el pin en el mapa */}
+            <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase">
+                  Coordenadas en el mapa (opcional — para mostrar el pin en NOGOYORK)
+                </span>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    `${direccion || nombre || 'Nogoyá'}, Nogoyá, Entre Ríos`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] font-bold text-sky-600 hover:underline inline-flex items-center gap-1"
+                >
+                  Buscar en Google Maps <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
-              <MapPinPicker
-                lat={latitud}
-                lng={longitud}
-                direccion={direccion}
-                onChange={(newLat, newLng) => {
-                  setLatitud(newLat);
-                  setLongitud(newLng);
-                }}
-              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Latitud</label>
+                  <input
+                    type="text"
+                    value={latitud}
+                    onChange={(e) => setLatitud(e.target.value)}
+                    placeholder="Ej: -32.3935"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Longitud</label>
+                  <input
+                    type="text"
+                    value={longitud}
+                    onChange={(e) => setLongitud(e.target.value)}
+                    placeholder="Ej: -59.7892"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+              </div>
             </div>
           </form>
 
