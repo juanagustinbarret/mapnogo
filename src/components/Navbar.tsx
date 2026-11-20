@@ -34,8 +34,7 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminArea = location.pathname.startsWith('/admin');
-  const isEmprendimientosTabActive =
-    location.pathname === '/' && new URLSearchParams(location.search).get('emprendimientos') === '1';
+  const isEmprendimientosPage = location.pathname === '/emprendimientos';
 
   useEffect(() => {
     const actualizarFavoritos = () => {
@@ -59,11 +58,10 @@ export const Navbar: React.FC = () => {
 
   const handleNavigation = (targetPath: string) => {
     setMobileMenuOpen(false);
-    const currentFullPath = `${location.pathname}${location.search}`;
     if (isAdminArea && !targetPath.startsWith('/admin')) {
       setConfirmExitTarget(targetPath);
     } else {
-      if (currentFullPath === targetPath) {
+      if (location.pathname === targetPath) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(targetPath);
@@ -76,8 +74,7 @@ export const Navbar: React.FC = () => {
     if (confirmExitTarget) {
       const target = confirmExitTarget;
       setConfirmExitTarget(null);
-      const currentFullPath = `${location.pathname}${location.search}`;
-      if (currentFullPath === target) {
+      if (location.pathname === target) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(target);
@@ -128,10 +125,10 @@ export const Navbar: React.FC = () => {
               <Home className="w-3.5 h-3.5" /> Mapa
             </button>
             <button
-              onClick={() => handleNavigation('/?emprendimientos=1')}
-              aria-current={isEmprendimientosTabActive ? 'page' : undefined}
+              onClick={() => handleNavigation('/emprendimientos')}
+              aria-current={isEmprendimientosPage ? 'page' : undefined}
               className={`text-xs font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                isEmprendimientosTabActive
+                isEmprendimientosPage
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-purple-600 dark:text-purple-400 hover:text-purple-700 bg-purple-50 dark:bg-purple-950/30'
               }`}
@@ -232,9 +229,9 @@ export const Navbar: React.FC = () => {
               <Home className="w-4 h-4 text-emerald-600" /> Mapa Público
             </button>
             <button
-              onClick={() => handleNavigation('/?emprendimientos=1')}
+              onClick={() => handleNavigation('/emprendimientos')}
               className={`w-full text-left flex items-center gap-2 py-2 px-2 rounded-lg text-sm font-semibold ${
-                isEmprendimientosTabActive
+                isEmprendimientosPage
                   ? 'bg-purple-600 text-white'
                   : 'text-purple-600 dark:text-purple-400'
               }`}
