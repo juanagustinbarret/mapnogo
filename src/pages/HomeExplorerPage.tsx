@@ -48,7 +48,7 @@ import {
   X,
   Rocket,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import {
@@ -107,10 +107,15 @@ async function obtenerUbicacionGeocodificada(lat: number, lng: number): Promise<
 }
 
 export const HomeExplorerPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const emprendimientosParam = searchParams.get('emprendimientos') === '1';
+
   const [comercios, setComercios] = useState<ComercioListado[]>([]);
   const [oficiosMapa, setOficiosMapa] = useState<Oficio[]>([]);
   const [guiaUtilMapa, setGuiaUtilMapa] = useState<GuiaUtilItem[]>([]);
-  const [capaMapa, setCapaMapa] = useState<'todos' | 'comercios' | 'emprendimientos' | 'oficios' | 'guia_util'>('todos');
+  const [capaMapa, setCapaMapa] = useState<'todos' | 'comercios' | 'emprendimientos' | 'oficios' | 'guia_util'>(
+    emprendimientosParam ? 'emprendimientos' : 'todos'
+  );
 
   const [loadingComercios, setLoadingComercios] = useState(true);
   const [rubros, setRubros] = useState<Rubro[]>([]);
@@ -123,7 +128,12 @@ export const HomeExplorerPage: React.FC = () => {
   const [soloMejorPuntaje, setSoloMejorPuntaje] = useState(false);
   const [soloNuevos, setSoloNuevos] = useState(false);
   const [soloNocturno, setSoloNocturno] = useState(false);
-  const [soloEmprendimientos, setSoloEmprendimientos] = useState(false);
+  const [soloEmprendimientos, setSoloEmprendimientos] = useState(emprendimientosParam);
+
+  useEffect(() => {
+    setSoloEmprendimientos(emprendimientosParam);
+    setCapaMapa(emprendimientosParam ? 'emprendimientos' : 'todos');
+  }, [emprendimientosParam]);
 
   // FILTROS RÁPIDOS
   const [soloCobroServicios, setSoloCobroServicios] = useState(false);
@@ -744,7 +754,9 @@ export const HomeExplorerPage: React.FC = () => {
             <WidgetClima />
           </div>
 
-          <h1 className="text-2xl font-black">Explorá Comercios en Nogoyá</h1>
+          <h1 className="text-2xl font-black">
+            {soloEmprendimientos ? 'Emprendedores en Nogoyá' : 'Explorá Comercios en Nogoyá'}
+          </h1>
           <p className="text-xs text-brand-100 flex items-center gap-1">
             <LocateFixed className="w-3.5 h-3.5" /> Ubicación: <strong className="text-white">{userAddress}</strong>
           </p>
@@ -936,7 +948,7 @@ export const HomeExplorerPage: React.FC = () => {
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${panelAbierto === 'rubros' ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* PESTAÑA EMPRENDEDORES */}
+              {/* FILTRO EMPRENDEDORES */}
               <button
                 type="button"
                 onClick={() => {
