@@ -2,7 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '@/lib/supabase';
-import { X, Plus, Trash2, Edit2, Phone, MapPin, ShieldAlert, Loader2, Save, CheckCircle2, Search, RotateCcw, Clock, MessageCircle } from 'lucide-react';
+import {
+  X,
+  Plus,
+  Trash2,
+  Edit2,
+  Phone,
+  MapPin,
+  ShieldAlert,
+  Loader2,
+  Save,
+  CheckCircle2,
+  Search,
+  RotateCcw,
+  Clock,
+  MessageCircle,
+  ImagePlus,
+  Images,
+} from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -11,6 +28,8 @@ interface GuiaItem {
   telefono: string;
   whatsapp?: string | null;
   direccion: string;
+  descripcion?: string | null;
+  fotos?: string[] | null;
   urgencia: boolean;
   es_24hs?: boolean;
   horarios?: string | null;
@@ -25,6 +44,8 @@ interface AdminGuiaUtilModalProps {
 }
 
 const NOGOYA_CENTER: [number, number] = [-32.3935, -59.7892];
+const STORAGE_BUCKET = 'comercios';
+const MAX_FOTOS = 5;
 
 export const CATEGORIAS_GUIA_UTIL = [
   'Emergencias',
@@ -40,6 +61,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   const [items, setItems] = useState<GuiaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingFotos, setUploadingFotos] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
 
   // Estado del formulario
@@ -50,10 +72,14 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
   const [whatsapp, setWhatsapp] = useState('');
   const [direccion, setDireccion] = useState('');
   const [horarios, setHorarios] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [fotos, setFotos] = useState<string[]>([]);
   const [es24hs, setEs24hs] = useState(false);
   const [urgencia, setUrgencia] = useState(false);
   const [latitud, setLatitud] = useState<number | null>(null);
   const [longitud, setLongitud] = useState<number | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Refs de Leaflet para el mini-mapa arrastrable
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -155,6 +181,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setWhatsapp('');
     setDireccion('');
     setHorarios('');
+    setDescripcion('');
+    setFotos([]);
     setEs24hs(false);
     setUrgencia(false);
     setLatitud(null);
@@ -169,6 +197,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     setWhatsapp(item.whatsapp || '');
     setDireccion(item.direccion);
     setHorarios(item.horarios || '');
+    setDescripcion(item.descripcion || '');
+    setFotos(Array.isArray(item.fotos) ? item.fotos.slice(0, MAX_FOTOS) : []);
     setEs24hs(Boolean(item.es_24hs));
     setUrgencia(item.urgencia);
     setLatitud(item.latitud ?? null);
@@ -182,6 +212,55 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
     } else if (!checked && horarios === 'Atención las 24 hs') {
       setHorarios('');
     }
+  };
+
+  const handleSubirFotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const disponibles = MAX_FOTOS - fotos.length;
+    if (disponibles <= 0) {
+      alert(`Ya cargaste el máximo de ${MAX_FOTOS} fotos.`);
+      return;
+    }
+
+    const seleccionadas = Array.from(files).slice(0, disponibles);
+    setUploadingFotos(true);
+
+    try {
+      const nuevasUrls: string[] = [];
+
+      for (const file of seleccionadas) {
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const fileName = `guia-util/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicData } = supabase.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(fileName);
+
+        if (publicData?.publicUrl) {
+          nuevasUrls.push(publicData.publicUrl);
+        }
+      }
+
+      setFotos((prev) => [...prev, ...nuevasUrls].slice(0, MAX_FOTOS));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al subir imágenes';
+      alert('No se pudieron subir las fotos: ' + msg);
+    } finally {
+      setUploadingFotos(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleQuitarFoto = (index: number) => {
+    setFotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleUbicarDireccion = async () => {
@@ -221,6 +300,8 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
         whatsapp: whatsapp.trim() || null,
         direccion: direccion.trim() || 'Nogoyá, Entre Ríos',
         horarios: horarios.trim() || (es24hs ? 'Atención las 24 hs' : null),
+        descripcion: descripcion.trim() || null,
+        fotos: fotos.slice(0, MAX_FOTOS),
         es_24hs: es24hs,
         urgencia,
         latitud,
@@ -395,10 +476,93 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                   type="text"
                   value={horarios}
                   onChange={(e) => setHorarios(e.target.value)}
-                  placeholder="Ej: Lun a Vie 8:00 a 13:00 / Guardia 24 hs"
+                  placeholder="Ej: Lun a Vie 8:00 a 13:00 / Misas Dom 10 y 20 hs"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
+            </div>
+
+            {/* DESCRIPCIÓN DE LA FICHA */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                Descripción / Información de la ficha (opcional)
+              </label>
+              <textarea
+                rows={2}
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Guardia médica las 24 hs, consultorios externos, internación, turnos por WhatsApp..."
+                className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:outline-none resize-none"
+              />
+            </div>
+
+            {/* GALERÍA DE HASTA 5 FOTOS */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-gray-500 uppercase flex items-center gap-1.5">
+                  <Images className="w-3.5 h-3.5 text-sky-600" />
+                  Fotos del lugar ({fotos.length}/{MAX_FOTOS})
+                </label>
+
+                {fotos.length < MAX_FOTOS && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleSubirFotos}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingFotos}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl bg-sky-100 hover:bg-sky-200 dark:bg-sky-900/40 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-xs font-bold inline-flex items-center gap-1.5 transition disabled:opacity-50"
+                    >
+                      {uploadingFotos ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Subiendo...
+                        </>
+                      ) : (
+                        <>
+                          <ImagePlus className="w-3.5 h-3.5" /> Subir Fotos
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {fotos.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                  {fotos.map((url, idx) => (
+                    <div
+                      key={`${url}-${idx}`}
+                      className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"
+                    >
+                      <img
+                        src={url}
+                        alt={`Foto ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleQuitarFoto(idx)}
+                        className="absolute top-1 right-1 p-1 rounded-lg bg-red-600 text-white opacity-90 hover:opacity-100 shadow transition"
+                        title="Quitar foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      {idx === 0 && (
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-bold">
+                          Principal
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
@@ -426,7 +590,7 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
 
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || uploadingFotos}
                 className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -504,6 +668,11 @@ export const AdminGuiaUtilModal: React.FC<AdminGuiaUtilModalProps> = ({ isOpen, 
                         {item.urgencia && (
                           <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-extrabold">
                             URGENCIA
+                          </span>
+                        )}
+                        {Array.isArray(item.fotos) && item.fotos.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 text-[10px] font-bold inline-flex items-center gap-0.5">
+                            <Images className="w-2.5 h-2.5" /> {item.fotos.length} foto{item.fotos.length > 1 ? 's' : ''}
                           </span>
                         )}
                         {item.latitud && item.longitud && (
