@@ -1,7 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
-import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter, Stethoscope, Clock, MessageCircle } from 'lucide-react';
+import {
+  X,
+  Phone,
+  MapPin,
+  ShieldAlert,
+  HeartPulse,
+  Building2,
+  Flame,
+  Navigation,
+  Loader2,
+  Landmark,
+  Filter,
+  Stethoscope,
+  Clock,
+  MessageCircle,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Images,
+  Eye,
+} from 'lucide-react';
 
 interface GuiaItem {
   id: string;
@@ -10,6 +30,8 @@ interface GuiaItem {
   telefono: string;
   whatsapp?: string | null;
   direccion: string;
+  descripcion?: string | null;
+  fotos?: string[] | null;
   urgencia: boolean;
   es_24hs?: boolean;
   horarios?: string | null;
@@ -38,8 +60,14 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
   const [categoriaActiva, setCategoriaActiva] = useState('Todas');
   const [solo24hs, setSolo24hs] = useState(false);
 
+  // Vista de Ficha seleccionada
+  const [fichaSeleccionada, setFichaSeleccionada] = useState<GuiaItem | null>(null);
+  const [fotoActivaIdx, setFotoActivaIdx] = useState(0);
+
   useEffect(() => {
     if (isOpen) {
+      setFichaSeleccionada(null);
+      setFotoActivaIdx(0);
       fetchItems();
     }
   }, [isOpen]);
@@ -114,6 +142,197 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
         return <Building2 className="w-4 h-4 text-sky-500" />;
     }
   };
+
+  const abrirFicha = (item: GuiaItem) => {
+    setFichaSeleccionada(item);
+    setFotoActivaIdx(0);
+  };
+
+  // RENDER DE FICHA DETALLADA DEL LUGAR
+  if (fichaSeleccionada) {
+    const fotos = Array.isArray(fichaSeleccionada.fotos) ? fichaSeleccionada.fotos : [];
+    const waUrl = fichaSeleccionada.whatsapp
+      ? formatWhatsAppUrl(fichaSeleccionada.whatsapp, fichaSeleccionada.nombre)
+      : '';
+    const mapsUrl =
+      fichaSeleccionada.latitud && fichaSeleccionada.longitud
+        ? `https://www.google.com/maps/search/?api=1&query=${fichaSeleccionada.latitud},${fichaSeleccionada.longitud}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            `${fichaSeleccionada.nombre}, ${fichaSeleccionada.direccion}, Nogoyá, Entre Ríos`
+          )}`;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* HEADER FICHA */}
+          <div className="bg-gradient-to-r from-sky-600 to-blue-700 p-4 sm:p-5 text-white flex justify-between items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setFichaSeleccionada(null)}
+              className="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition"
+            >
+              <ArrowLeft className="w-4 h-4" /> Volver a Guía Útil
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white"
+              title="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* CONTENIDO FICHA */}
+          <div className="p-5 overflow-y-auto flex-1 space-y-5">
+            {/* GALERÍA DE FOTOS (HASTA 5) */}
+            {fotos.length > 0 && (
+              <div className="space-y-2.5">
+                <div className="relative w-full h-60 sm:h-72 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                  <img
+                    src={fotos[fotoActivaIdx] || fotos[0]}
+                    alt={`${fichaSeleccionada.nombre} - Foto ${fotoActivaIdx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+
+                  {fotos.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFotoActivaIdx((prev) => (prev === 0 ? fotos.length - 1 : prev - 1))
+                        }
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/55 hover:bg-black/75 text-white transition"
+                        aria-label="Foto anterior"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFotoActivaIdx((prev) => (prev === fotos.length - 1 ? 0 : prev + 1))
+                        }
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/55 hover:bg-black/75 text-white transition"
+                        aria-label="Foto siguiente"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      <span className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-full bg-black/65 text-white text-[11px] font-bold">
+                        {fotoActivaIdx + 1} / {fotos.length}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {fotos.length > 1 && (
+                  <div className="grid grid-cols-5 gap-2">
+                    {fotos.map((fotoUrl, i) => (
+                      <button
+                        key={`${fotoUrl}-${i}`}
+                        type="button"
+                        onClick={() => setFotoActivaIdx(i)}
+                        className={`aspect-square rounded-xl overflow-hidden border-2 transition ${
+                          fotoActivaIdx === i
+                            ? 'border-sky-600 ring-2 ring-sky-400/50'
+                            : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={fotoUrl}
+                          alt={`Miniatura ${i + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DATOS PRINCIPALES */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                {getCategoriaIcon(fichaSeleccionada.categoria)}
+                <span className="text-xs font-extrabold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                  {fichaSeleccionada.categoria}
+                </span>
+                {fichaSeleccionada.es_24hs && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
+                    24 HS
+                  </span>
+                )}
+                {fichaSeleccionada.urgencia && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">
+                    URGENCIA
+                  </span>
+                )}
+              </div>
+
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white">
+                {fichaSeleccionada.nombre}
+              </h2>
+
+              <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+                <p className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>{fichaSeleccionada.direccion}</span>
+                </p>
+
+                {fichaSeleccionada.horarios && (
+                  <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-semibold">
+                    <Clock className="w-4 h-4 shrink-0" />
+                    <span>{fichaSeleccionada.horarios}</span>
+                  </p>
+                )}
+              </div>
+
+              {fichaSeleccionada.descripcion && (
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-xs sm:text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
+                  {fichaSeleccionada.descripcion}
+                </div>
+              )}
+            </div>
+
+            {/* BOTONES DE ACCIÓN DIRECTA */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-gray-200 dark:border-gray-700">
+              {waUrl && (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold inline-flex items-center justify-center gap-2 shadow-sm transition"
+                >
+                  <MessageCircle className="w-4 h-4" /> WhatsApp
+                </a>
+              )}
+
+              {fichaSeleccionada.telefono && (
+                <a
+                  href={`tel:${fichaSeleccionada.telefono}`}
+                  className={`px-4 py-3 rounded-2xl text-white text-xs font-extrabold inline-flex items-center justify-center gap-2 shadow-sm transition ${
+                    fichaSeleccionada.urgencia
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-sky-600 hover:bg-sky-700'
+                  }`}
+                >
+                  <Phone className="w-4 h-4" /> Llamar ({fichaSeleccionada.telefono})
+                </a>
+              )}
+
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-white text-xs font-extrabold inline-flex items-center justify-center gap-2 transition"
+              >
+                <Navigation className="w-4 h-4 text-sky-600" /> Cómo llegar
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -191,6 +410,7 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
           ) : (
             itemsFiltrados.map((item) => {
               const waUrl = item.whatsapp ? formatWhatsAppUrl(item.whatsapp, item.nombre) : '';
+              const fotos = Array.isArray(item.fotos) ? item.fotos : [];
 
               return (
                 <div
@@ -201,46 +421,75 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
                       : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-400'
                   }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {getCategoriaIcon(item.categoria)}
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        {item.categoria}
-                      </span>
-                      {item.es_24hs && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
-                          24 HS
+                  <div
+                    onClick={() => abrirFicha(item)}
+                    className="flex items-start gap-3 cursor-pointer group min-w-0 flex-1"
+                  >
+                    {fotos.length > 0 && (
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-gray-200 dark:border-gray-700 bg-gray-100">
+                        <img
+                          src={fotos[0]}
+                          alt={item.nombre}
+                          className="w-full h-full object-cover group-hover:scale-105 transition"
+                        />
+                        {fotos.length > 1 && (
+                          <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/70 text-white text-[9px] font-bold inline-flex items-center gap-0.5">
+                            <Images className="w-2.5 h-2.5" /> {fotos.length}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getCategoriaIcon(item.categoria)}
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                          {item.categoria}
                         </span>
-                      )}
-                      {item.urgencia && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse">
-                          URGENCIA
-                        </span>
+                        {item.es_24hs && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
+                            24 HS
+                          </span>
+                        )}
+                        {item.urgencia && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse">
+                            URGENCIA
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="font-extrabold text-base text-gray-900 dark:text-white group-hover:text-sky-600 transition">
+                        {item.nombre}
+                      </h4>
+
+                      <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
+                      </p>
+
+                      {item.horarios && (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 shrink-0" /> {item.horarios}
+                        </p>
                       )}
                     </div>
-
-                    <h4 className="font-extrabold text-base text-gray-900 dark:text-white">
-                      {item.nombre}
-                    </h4>
-
-                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
-                    </p>
-
-                    {item.horarios && (
-                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 shrink-0" /> {item.horarios}
-                      </p>
-                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200/60 dark:border-gray-700/60">
+                    <button
+                      type="button"
+                      onClick={() => abrirFicha(item)}
+                      className="px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-xs font-extrabold inline-flex items-center justify-center gap-1 transition"
+                      title="Ver ficha y fotos"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Ficha
+                    </button>
+
                     {waUrl && (
                       <a
                         href={waUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+                        className="px-3 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
                         title="Enviar WhatsApp"
                       >
                         <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
@@ -250,13 +499,13 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
                     {item.telefono && (
                       <a
                         href={`tel:${item.telefono}`}
-                        className={`flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-sm transition ${
+                        className={`px-3 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1 shadow-sm transition ${
                           item.urgencia
                             ? 'bg-rose-600 hover:bg-rose-700 text-white'
                             : 'bg-sky-600 hover:bg-sky-700 text-white'
                         }`}
                       >
-                        <Phone className="w-3.5 h-3.5" /> Llamar ({item.telefono})
+                        <Phone className="w-3.5 h-3.5" /> {item.telefono}
                       </a>
                     )}
 
@@ -270,11 +519,10 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
                       }
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold inline-flex items-center justify-center gap-1 transition"
+                      className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold inline-flex items-center justify-center transition"
                       title="Cómo llegar en Google Maps"
                     >
                       <Navigation className="w-3.5 h-3.5 text-sky-600" />
-                      <span className="sm:hidden">Mapa</span>
                     </a>
                   </div>
                 </div>
