@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCachedData, setCachedData } from '@/lib/offlineStore';
-import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter, Stethoscope, Clock } from 'lucide-react';
+import { X, Phone, MapPin, ShieldAlert, HeartPulse, Building2, Flame, Navigation, Loader2, Landmark, Filter, Stethoscope, Clock, MessageCircle } from 'lucide-react';
 
 interface GuiaItem {
   id: string;
   nombre: string;
   categoria: string;
   telefono: string;
+  whatsapp?: string | null;
   direccion: string;
   urgencia: boolean;
   es_24hs?: boolean;
@@ -21,6 +22,15 @@ interface GuiaUtilModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const formatWhatsAppUrl = (rawPhone: string, nombreLugar: string) => {
+  let digits = rawPhone.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (!digits.startsWith('54')) digits = `549${digits}`;
+  const text = encodeURIComponent(`Hola ${nombreLugar}, me comunico desde NOGOYORK.`);
+  return `https://wa.me/${digits}?text=${text}`;
+};
 
 export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose }) => {
   const [items, setItems] = useState<GuiaItem[]>([]);
@@ -179,81 +189,97 @@ export const GuiaUtilModal: React.FC<GuiaUtilModalProps> = ({ isOpen, onClose })
               <p className="text-xs">Probá cambiar de rubro o desactivar el filtro de 24 hs.</p>
             </div>
           ) : (
-            itemsFiltrados.map((item) => (
-              <div
-                key={item.id}
-                className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
-                  item.urgencia
-                    ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-400'
-                }`}
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {getCategoriaIcon(item.categoria)}
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      {item.categoria}
-                    </span>
-                    {item.es_24hs && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
-                        24 HS
+            itemsFiltrados.map((item) => {
+              const waUrl = item.whatsapp ? formatWhatsAppUrl(item.whatsapp, item.nombre) : '';
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
+                    item.urgencia
+                      ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-400'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getCategoriaIcon(item.categoria)}
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        {item.categoria}
                       </span>
-                    )}
-                    {item.urgencia && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse">
-                        URGENCIA
-                      </span>
+                      {item.es_24hs && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
+                          24 HS
+                        </span>
+                      )}
+                      {item.urgencia && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse">
+                          URGENCIA
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="font-extrabold text-base text-gray-900 dark:text-white">
+                      {item.nombre}
+                    </h4>
+
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
+                    </p>
+
+                    {item.horarios && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 shrink-0" /> {item.horarios}
+                      </p>
                     )}
                   </div>
 
-                  <h4 className="font-extrabold text-base text-gray-900 dark:text-white">
-                    {item.nombre}
-                  </h4>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200/60 dark:border-gray-700/60">
+                    {waUrl && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+                        title="Enviar WhatsApp"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                      </a>
+                    )}
 
-                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" /> {item.direccion}
-                  </p>
+                    {item.telefono && (
+                      <a
+                        href={`tel:${item.telefono}`}
+                        className={`flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-sm transition ${
+                          item.urgencia
+                            ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                            : 'bg-sky-600 hover:bg-sky-700 text-white'
+                        }`}
+                      >
+                        <Phone className="w-3.5 h-3.5" /> Llamar ({item.telefono})
+                      </a>
+                    )}
 
-                  {item.horarios && (
-                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 shrink-0" /> {item.horarios}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200/60 dark:border-gray-700/60">
-                  {item.telefono && (
                     <a
-                      href={`tel:${item.telefono}`}
-                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-sm transition ${
-                        item.urgencia
-                          ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                          : 'bg-sky-600 hover:bg-sky-700 text-white'
-                      }`}
+                      href={
+                        item.latitud && item.longitud
+                          ? `https://www.google.com/maps/search/?api=1&query=${item.latitud},${item.longitud}`
+                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                              `${item.nombre}, ${item.direccion}, Nogoyá, Entre Ríos`
+                            )}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold inline-flex items-center justify-center gap-1 transition"
+                      title="Cómo llegar en Google Maps"
                     >
-                      <Phone className="w-3.5 h-3.5" /> Llamar ({item.telefono})
+                      <Navigation className="w-3.5 h-3.5 text-sky-600" />
+                      <span className="sm:hidden">Mapa</span>
                     </a>
-                  )}
-
-                  <a
-                    href={
-                      item.latitud && item.longitud
-                        ? `https://www.google.com/maps/search/?api=1&query=${item.latitud},${item.longitud}`
-                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                            `${item.nombre}, ${item.direccion}, Nogoyá, Entre Ríos`
-                          )}`
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold inline-flex items-center justify-center gap-1 transition"
-                    title="Cómo llegar en Google Maps"
-                  >
-                    <Navigation className="w-3.5 h-3.5 text-sky-600" />
-                    <span className="sm:hidden">Mapa</span>
-                  </a>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
