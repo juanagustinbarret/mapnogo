@@ -10,6 +10,9 @@ import { evaluarEstadoHorario } from '@/lib/scheduleEvaluator';
 import { InsigniaRubro } from '@/components/InsigniaRubro';
 import { CartelQrModal } from '@/components/CartelQrModal';
 import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '@/lib/whatsapp';
+import { CONTACTO } from '@/lib/contacto';
+import { TARIFAS_PLANES } from '@/lib/planes';
+import { formatCurrency } from '@/lib/formatters';
 import {
   Rocket,
   Search,
@@ -135,6 +138,12 @@ export const EmprendimientosPage: React.FC = () => {
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
+  const mensajeAltaEmprendimiento = encodeURIComponent(
+    `Hola! Quiero sumar mi emprendimiento a NOGOYORK (Plan Emprendimientos ${formatCurrency(
+      TARIFAS_PLANES.emprendimiento.mensual
+    )}/mes o ${formatCurrency(TARIFAS_PLANES.emprendimiento.anual)}/año).`
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-300">
       {/* BANNER SUPERIOR */}
@@ -153,17 +162,22 @@ export const EmprendimientosPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
           <a
-            href="https://wa.me/5493435451818?text=Hola!%20Quiero%20sumar%20mi%20emprendimiento%20a%20NOGOYORK"
+            href={`https://wa.me/${CONTACTO.whatsappSoporte}?text=${mensajeAltaEmprendimiento}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-md transition"
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-extrabold inline-flex flex-col items-center justify-center gap-0.5 shadow-md transition"
           >
-            <MessageCircle className="w-4 h-4" /> Sumar mi Emprendimiento
+            <span className="inline-flex items-center gap-1.5">
+              <MessageCircle className="w-4 h-4" /> Sumar mi Emprendimiento
+            </span>
+            <span className="text-[10px] font-bold text-amber-100">
+              Desde {formatCurrency(TARIFAS_PLANES.emprendimiento.mensual)}/mes
+            </span>
           </a>
 
           <Link
             to="/?emprendimientos=1"
-            className="px-4 py-2.5 bg-white text-purple-800 hover:bg-purple-50 rounded-2xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-md transition"
+            className="px-4 py-3 bg-white text-purple-800 hover:bg-purple-50 rounded-2xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-md transition"
           >
             <MapPin className="w-4 h-4" /> Ver en el Mapa
           </Link>
